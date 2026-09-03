@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Physik-Applets · Kaspschak</title>
+<!--
+  Startseite des oeffentlichen Repos physik-applets: eine Linkliste auf die
+  interaktiven Applets aus dem Unterricht. Keine externen Ressourcen, damit
+  die Seite genauso offline funktioniert wie die Applets selbst.
+-->
+<style>
+  :root { --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.45; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex; flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 760px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 18px; }
+  ul.liste { list-style: none; padding: 0; margin: 0; }
+  ul.liste li { border: 1px solid var(--grau); background: var(--hell); padding: 12px 14px; margin: 0 0 10px; }
+  ul.liste a { color: var(--stahl); font-weight: 600; font-size: 17px; text-decoration: none; }
+  ul.liste a:hover { text-decoration: underline; }
+  ul.liste .meta { display: block; color: #777; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 2px; }
+  ul.liste .was { display: block; margin-top: 4px; font-size: 14px; }
+  .hinweis { margin-top: 22px; font-size: 13px; color: #555; border-top: 1px solid #ddd; padding-top: 10px; }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Physik (Kaspschak)</div>
+  <div><span class="k">Schule</span>Lore-Lorentz-Schule</div>
+  <div><span class="k">Schuljahr</span>2026/27</div>
+</header>
+<main>
+  <h1>Physik-Applets</h1>
+  <p class="lead">Kleine interaktive Seiten zum Wiederholen und Üben zu Hause. Jedes Applet ist eine
+    einzelne Datei, läuft im Browser und braucht nach dem Laden kein Internet. Was ihr einstellt,
+    bleibt bei euch; es wird nichts gespeichert oder gesendet.</p>
+
+  <ul class="liste">
+    <li>
+      <span class="meta">11NF PH · Messen und Messfehler · September 2026</span>
+      <a href="mittelwert-sigma-applet.html">Mittelwert und Standardabweichung: Warum die Formeln so aussehen</a>
+      <span class="was">Schätzwert schieben, bis sich die Abweichungen aufheben; Quadrate der Abweichungen,
+        mittleres Quadrat und Wurzel; Messreihe mit bekanntem wahrem Wert simulieren. Mit Aufgaben 1 bis 4
+        und Merksatz.</span>
+    </li>
+  </ul>
+
+  <p class="hinweis">Zum Speichern für unterwegs: Applet öffnen, dann mit Strg+S als „Webseite, nur HTML"
+    sichern. Die Datei funktioniert danach auch ohne Verbindung.</p>
+</main>
+<footer>Kaspschak · physik-applets</footer>
+</body>
+</html>
