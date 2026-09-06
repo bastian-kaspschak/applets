@@ -35,7 +35,19 @@
   /* Die Zielscheibe hat das Format des A3-Blatts (38 cm x 26 cm) und folgt der
      Spaltenbreite; im Handy-Querformat begrenzt die Hoehe, auf dem Tablet hochkant
      die 640 px. Gezeichnet wird in Geraeteaufloesung (layout). */
-  canvas { display: block; width: min(100%, 117vh, 640px); aspect-ratio: 38 / 26; border: 1px solid var(--grau); background: #fff; }
+  .scheibe { width: min(100%, 117vh, 640px); }
+  canvas { display: block; width: 100%; aspect-ratio: 38 / 26; border: 1px solid var(--grau); background: #fff; }
+  /* Heatmap-Zeile unter der Zielscheibe: Schalter, Feldgroesse, Farbskala */
+  .heatzeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; font-size: 14px; }
+  .heatzeile label { cursor: pointer; }
+  .heatzeile input { vertical-align: -2px; }
+  .heatzeile select { font: inherit; font-size: 14px; padding: 2px 4px; }
+  .heatzeile .nur-heat, .heatzeile .skala { display: none; }
+  .heatzeile.an .nur-heat { display: inline; }
+  .heatzeile.an .skala { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; font-size: 12px; color: #555; }
+  .skala .balken { flex: 1 1 80px; height: 12px; border: 1px solid var(--grau);
+                   background: linear-gradient(to right, #FFF3C4, #F6B24E, #C87A3A, #B01A15, #5A0C0A); }
+  .skala b { color: var(--text); font-variant-numeric: tabular-nums; }
   @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
   @media (max-width: 480px) { main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; } }
   .panel { background: var(--hell); border: 1px solid var(--grau); padding: 12px 14px; }
@@ -77,7 +89,19 @@
     Arbeitsblatt.</p>
 
   <div class="wrap">
-    <canvas id="c" width="420" height="420"></canvas>
+    <div class="scheibe">
+      <canvas id="c" width="570" height="390"></canvas>
+      <div class="heatzeile" id="heatzeile">
+        <label><input type="checkbox" id="heat"> <b>Heatmap</b>: Treffer je Feld</label>
+        <label class="nur-heat">Feld
+          <select id="feld">
+            <option value="5">5 cm × 5 cm</option>
+            <option value="2">2 cm × 2 cm</option>
+            <option value="1">1 cm × 1 cm</option>
+          </select></label>
+        <div class="skala"><span>0</span><div class="balken"></div><b id="skMax">–</b><span id="skTitel"></span></div>
+      </div>
+    </div>
     <div class="panel">
       <label><b>Verschiebung nach rechts</b> (systematisch): <span id="vxo">0</span> cm
         <input type="range" id="vx" min="-10" max="10" step="1" value="0"></label>
@@ -89,6 +113,7 @@
         <button id="w1">1 Wurf</button>
         <button id="w10">10 Würfe</button>
         <button id="w100">100 Würfe</button>
+        <button id="w1000">1000 Würfe</button>
         <button id="reset" class="reset">Zurücksetzen</button>
       </div>
       <table class="werte">
@@ -109,10 +134,10 @@
   <div class="box">
     <div class="lbl">Aufgaben</div>
     <ol>
-      <li>Verschiebung 0 und 0, Wackeln 8. Wirf 5-mal, dann noch 100-mal. Was passiert mit x̄ und ȳ,
-          was mit σ<sub>x</sub> und σ<sub>y</sub>? Ein Satz für jedes.</li>
-      <li>Verschiebung nach rechts 8, Wackeln 2. Wirf 100-mal. Wandert der Mittelwert in die Mitte,
-          wenn du noch 100-mal wirfst? Warum nicht?</li>
+      <li>Verschiebung 0 cm und 0 cm, Wackeln 8 cm. Wirf 5-mal, dann noch 100-mal. Was passiert mit x̄
+          und ȳ, was mit σ<sub>x</sub> und σ<sub>y</sub>? Ein Satz für jedes.</li>
+      <li>Verschiebung nach rechts 8 cm, Wackeln 2 cm. Wirf 100-mal. Wandert der Mittelwert in die
+          Mitte, wenn du noch 100-mal wirfst? Warum nicht?</li>
       <li>Stell eine Kombination ein, bei der der <em>Mittelwert</em> in der Mitte liegt, die Pfeile
           aber trotzdem fast nie den innersten Ring treffen. Welcher Fehler ist das?</li>
       <li>Stell eine Kombination ein, bei der die Pfeile dicht beieinander stecken, aber alle deutlich
@@ -154,6 +179,35 @@
 
   function el(id) { return document.getElementById(id); }
   var vx = el("vx"), vy = el("vy"), st = el("st");
+  var heat = el("heat"), feld = el("feld");
+
+  // Farbe der Heatmap fuer den Anteil t = Treffer / Maximum (0..1). Dieselben fuenf
+  // Stufen wie der Farbverlauf der Skala im CSS, dazwischen linear.
+  var STUFEN = [[255, 243, 196], [246, 178, 78], [200, 122, 58], [176, 26, 21], [90, 12, 10]];
+  function farbe(t) {
+    var p = Math.max(0, Math.min(1, t)) * (STUFEN.length - 1);
+    var i = Math.min(STUFEN.length - 2, Math.floor(p)), f = p - i, a = STUFEN[i], b = STUFEN[i + 1];
+    return "rgb(" + Math.round(a[0] + (b[0] - a[0]) * f) + "," + Math.round(a[1] + (b[1] - a[1]) * f) + "," +
+           Math.round(a[2] + (b[2] - a[2]) * f) + ")";
+  }
+
+  // 2D-Histogramm: Treffer je Feld der Kantenlaenge c (cm), Felder am Ursprung ausgerichtet,
+  // also deckungsgleich mit dem 5-cm- bzw. 1-cm-Gitter des Blatts. Gezaehlt wird, was auf
+  // dem Blatt liegt. Gibt das Maximum zurueck, fuer die Skala.
+  function heatmap(c) {
+    var z = {}, max = 0, k;
+    hits.forEach(function (h) {
+      var i = Math.floor(h.x / c), j = Math.floor(h.y / c);
+      if (i * c >= RX || (i + 1) * c <= -RX || j * c >= RY || (j + 1) * c <= -RY) return;
+      k = i + "," + j; z[k] = (z[k] || 0) + 1; if (z[k] > max) max = z[k];
+    });
+    for (k in z) {
+      var ij = k.split(","), i = +ij[0], j = +ij[1];
+      ctx.fillStyle = farbe(z[k] / max);
+      ctx.fillRect(px(i * c), py((j + 1) * c), c * PX, c * PX);
+    }
+    return max;
+  }
 
   // Normalverteilte Zufallszahl (Box-Muller), Mittelwert 0, Standardabweichung 1
   function gauss() {
@@ -211,7 +265,14 @@
   function zeichne() {
     layout();
     ctx.clearRect(0, 0, W, H);
-    var g;
+    var g, an = heat.checked, c = +feld.value;
+    // Heatmap zuerst, das Gitter liegt darueber; Skala unter der Zielscheibe nachfuehren
+    el("heatzeile").className = "heatzeile" + (an ? " an" : "");
+    if (an) {
+      var max = hits.length ? heatmap(c) : 0;
+      el("skMax").textContent = max;
+      el("skTitel").textContent = "Treffer je " + c + "-cm-Feld";
+    }
     // Gitter wie auf dem Blatt: 1 cm fein, 5 cm kraeftig, Rand des Blatts
     ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(0,0,0,0.22)";
     for (g = -RX; g <= RX; g++) { ctx.beginPath(); ctx.moveTo(px(g), 0); ctx.lineTo(px(g), H); ctx.stroke(); }
@@ -240,12 +301,15 @@
     });
     ctx.fillStyle = "#B01A15";
     ctx.beginPath(); ctx.arc(px(0), py(0), Math.max(3, 0.35 * PX), 0, 2 * Math.PI); ctx.fill();
-    // Treffer; was ueber das Blatt hinausgeht, liegt am Rand
-    ctx.fillStyle = "#222";
+    // Treffer; was ueber das Blatt hinausgeht, liegt am Rand. Mit Heatmap kleiner und
+    // durchscheinend, ab 300 Wuerfen fast unsichtbar, damit die Felder lesbar bleiben.
+    ctx.fillStyle = "#222"; ctx.globalAlpha = an ? (hits.length > 300 ? 0.12 : 0.5) : 1;
+    var r = an ? 2.2 : 3.2;
     hits.forEach(function (h) {
       var x = Math.max(-RX, Math.min(RX, h.x)), y = Math.max(-RY, Math.min(RY, h.y));
-      ctx.beginPath(); ctx.arc(px(x), py(y), 3.2, 0, 2 * Math.PI); ctx.fill();
+      ctx.beginPath(); ctx.arc(px(x), py(y), r, 0, 2 * Math.PI); ctx.fill();
     });
+    ctx.globalAlpha = 1;
     // Kennzahlen
     var xs = hits.map(function (h) { return h.x; }), ys = hits.map(function (h) { return h.y; });
     var a = statistik(xs), b = statistik(ys);
@@ -280,7 +344,10 @@
   el("w1").addEventListener("click", function () { wurf(1); });
   el("w10").addEventListener("click", function () { wurf(10); });
   el("w100").addEventListener("click", function () { wurf(100); });
+  el("w1000").addEventListener("click", function () { wurf(1000); });
   el("reset").addEventListener("click", function () { hits = []; zeichne(); });
+  heat.addEventListener("change", zeichne);
+  feld.addEventListener("change", zeichne);
   window.addEventListener("resize", zeichne);   // Drehen des Geraets, Fenster aendern
   anzeige();
   zeichne();
