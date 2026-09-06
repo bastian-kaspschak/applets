@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zielscheibe: systematischer und statistischer Fehler</title>
+<!--
+  Applet zur Reihe Messen und Messfehler in 11NF PH — zum Wiederholen zu Hause.
+  Eine Datei, kein Internet noetig: HTML, CSS und JavaScript zusammen.
+  Zwei Regler stellen ein, was der Werfer "falsch" macht: eine Verschiebung
+  (systematischer Fehler) und ein Wackeln (statistischer Fehler). Das Applet
+  wirft, zeichnet die Treffer und rechnet Mittelwert und Standardabweichung
+  wie auf dem Arbeitsblatt (Standardabweichung geteilt durch n).
+-->
+<style>
+  :root {
+    --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A;
+    --grau: #B5B5B5; --text: #222; --hell: #f5f5f2;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.4; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 980px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 16px; }
+  .wrap { display: grid; grid-template-columns: minmax(280px, 440px) 1fr; gap: 20px; align-items: start; }
+  .wrap > * { min-width: 0; }
+  /* Die Zielscheibe ist quadratisch und folgt der Spaltenbreite; im Handy-Querformat
+     begrenzt die Hoehe, auf dem Tablet hochkant die 480 px. Gezeichnet wird in
+     Geraeteaufloesung (layout). */
+  canvas { display: block; width: min(100%, 80vh, 480px); aspect-ratio: 1 / 1; border: 1px solid var(--grau); background: #fff; }
+  @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) { main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; } }
+  .panel { background: var(--hell); border: 1px solid var(--grau); padding: 12px 14px; }
+  .panel label { display: block; font-size: 14px; margin: 8px 0 2px; }
+  .panel label b { color: var(--stahl); }
+  .panel input[type=range] { width: 100%; }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 6px; }
+  button { font: inherit; font-size: 14px; padding: 6px 12px; border: 1px solid var(--stahl);
+           background: #fff; color: var(--stahl); cursor: pointer; }
+  button:hover { background: var(--stahl); color: #fff; }
+  button.reset { border-color: var(--rot); color: var(--rot); }
+  button.reset:hover { background: var(--rot); color: #fff; }
+  table.werte { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 15px; }
+  table.werte td { padding: 4px 6px; border-bottom: 1px solid #ddd; }
+  table.werte td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .legende { font-size: 12px; color: #555; margin-top: 8px; }
+  .legende span { display: inline-block; margin-right: 12px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #222; vertical-align: middle; margin-right: 4px; }
+  .kreuz { color: var(--oliv); font-weight: 700; }
+  .box { border: 1px solid var(--grau); padding: 10px 14px; margin-top: 18px; background: #fff; }
+  .box .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; }
+  .box ol { margin: 6px 0 0 18px; padding: 0; }
+  .box li { margin: 5px 0; }
+  .merk { background: #eaf0f4; }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Physik (Kaspschak)</div>
+  <div><span class="k">Kurs</span>11NF PH</div>
+  <div><span class="k">Reihe</span>Messen und Messfehler</div>
+  <div><span class="k">Thema</span>Zwei Arten von Messfehlern</div>
+</header>
+<main>
+  <h1>Daneben oder verwackelt?</h1>
+  <p class="lead">Stell ein, was der Werfer „falsch" macht, und lass ihn werfen. Das Applet rechnet
+    Mittelwert und Standardabweichung genauso wie du auf dem Arbeitsblatt.</p>
+
+  <div class="wrap">
+    <canvas id="c" width="420" height="420"></canvas>
+    <div class="panel">
+      <label><b>Verschiebung nach rechts</b> (systematisch): <span id="vxo">0</span> cm
+        <input type="range" id="vx" min="-10" max="10" step="1" value="0"></label>
+      <label><b>Verschiebung nach oben</b> (systematisch): <span id="vyo">0</span> cm
+        <input type="range" id="vy" min="-10" max="10" step="1" value="0"></label>
+      <label><b>Wackeln</b> (statistisch): <span id="sto">6</span> cm
+        <input type="range" id="st" min="0.5" max="12" step="0.5" value="6"></label>
+      <div class="btns">
+        <button id="w1">1 Wurf</button>
+        <button id="w10">10 Würfe</button>
+        <button id="w100">100 Würfe</button>
+        <button id="reset" class="reset">Zurücksetzen</button>
+      </div>
+      <table class="werte">
+        <tr><td>Anzahl Würfe n</td><td id="n">0</td></tr>
+        <tr><td>Mittelwert x̄</td><td id="mx">–</td></tr>
+        <tr><td>Mittelwert ȳ</td><td id="my">–</td></tr>
+        <tr><td>Standardabweichung σ<sub>x</sub></td><td id="sx">–</td></tr>
+        <tr><td>Standardabweichung σ<sub>y</sub></td><td id="sy">–</td></tr>
+      </table>
+      <div class="legende">
+        <span><i class="dot"></i>Treffer</span>
+        <span class="kreuz">+ Mittelwert (x̄ | ȳ)</span>
+        <span style="color:var(--oliv)">- - - Bereich x̄ ± σ<sub>x</sub>, ȳ ± σ<sub>y</sub></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="lbl">Aufgaben</div>
+    <ol>
+      <li>Verschiebung 0 und 0, Wackeln 8. Wirf 5-mal, dann noch 100-mal. Was passiert mit x̄ und ȳ,
+          was mit σ<sub>x</sub> und σ<sub>y</sub>? Ein Satz für jedes.</li>
+      <li>Verschiebung nach rechts 8, Wackeln 2. Wirf 100-mal. Wandert der Mittelwert in die Mitte,
+          wenn du noch 100-mal wirfst? Warum nicht?</li>
+      <li>Stell eine Kombination ein, bei der der <em>Mittelwert</em> in der Mitte liegt, die Pfeile
+          aber trotzdem fast nie den roten Ring treffen. Welcher Fehler ist das?</li>
+      <li>Beim Messen: Ein Maßband, dessen erster Zentimeter fehlt, ist welcher Regler? Eine Stoppuhr,
+          die man von Hand drückt, ist welcher Regler?</li>
+    </ol>
+  </div>
+
+  <div class="box merk">
+    <div class="lbl">Merke</div>
+    Ein <b>systematischer Fehler</b> verschiebt alle Werte in dieselbe Richtung — man sieht ihn am
+    verschobenen Mittelwert, und Wiederholen hilft nicht dagegen. Ein <b>statistischer Fehler</b>
+    streut die Werte mal nach oben, mal nach unten — man sieht ihn an der Standardabweichung, und im
+    Mittelwert gleicht er sich aus.
+  </div>
+</main>
+<footer>Kaspschak · zielscheibe-applet.html</footer>
+
+<script>
+(function () {
+  "use strict";
+  var cv = document.getElementById("c"), ctx = cv.getContext("2d");
+  var R = 15;                    // sichtbarer Bereich: -15 .. +15 cm
+  var S = 420, PX = S / (2 * R); // S: Kantenlaenge in CSS-Pixeln, PX: Pixel je cm; setzt layout()
+  var hits = [];
+
+  // Zeichenflaeche an ihre tatsaechliche Groesse anpassen: Kantenlaenge aus dem Layout,
+  // Pixel in Geraeteaufloesung. Gezeichnet wird in CSS-Pixeln, damit die Beschriftung
+  // auf dem Handy lesbar und auf grossen Monitoren scharf bleibt.
+  function layout() {
+    var dpr = window.devicePixelRatio || 1;
+    S = cv.clientWidth || 420;
+    var p = Math.round(S * dpr);
+    if (cv.width !== p || cv.height !== p) { cv.width = p; cv.height = p; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    PX = S / (2 * R);
+  }
+
+  function el(id) { return document.getElementById(id); }
+  var vx = el("vx"), vy = el("vy"), st = el("st");
+
+  // Normalverteilte Zufallszahl (Box-Muller), Mittelwert 0, Standardabweichung 1
+  function gauss() {
+    var u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  function wurf(k) {
+    var dx = +vx.value, dy = +vy.value, s = +st.value;
+    for (var i = 0; i < k; i++) {
+      hits.push({ x: dx + s * gauss(), y: dy + s * gauss() });
+    }
+    zeichne();
+  }
+
+  // Mittelwert und Standardabweichung (geteilt durch n) wie auf dem Arbeitsblatt
+  function statistik(arr) {
+    var n = arr.length;
+    if (n === 0) return { n: 0 };
+    var sum = 0;
+    for (var i = 0; i < n; i++) sum += arr[i];
+    var m = sum / n;
+    if (n < 2) return { n: n, m: m };
+    var q = 0;
+    for (var j = 0; j < n; j++) q += (arr[j] - m) * (arr[j] - m);
+    return { n: n, m: m, s: Math.sqrt(q / n) };
+  }
+
+  function fmt(v) {
+    return (Math.round(v * 10) / 10).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " cm";
+  }
+
+  function px(x) { return S / 2 + x * PX; }
+  function py(y) { return S / 2 - y * PX; }
+
+  function zeichne() {
+    layout();
+    ctx.clearRect(0, 0, S, S);
+    // Gitter alle 5 cm
+    ctx.lineWidth = 1;
+    for (var g = -R; g <= R; g += 5) {
+      ctx.strokeStyle = (g === 0) ? "#35638A" : "#ddd";
+      ctx.beginPath(); ctx.moveTo(px(g), 0); ctx.lineTo(px(g), S); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, py(g)); ctx.lineTo(S, py(g)); ctx.stroke();
+    }
+    // Ringe
+    [[10, "#e0a8a6", 1], [5, "#cc7a77", 1.2], [2, "#B01A15", 1.6]].forEach(function (r) {
+      ctx.strokeStyle = r[1]; ctx.lineWidth = r[2];
+      ctx.beginPath(); ctx.arc(px(0), py(0), r[0] * PX, 0, 2 * Math.PI); ctx.stroke();
+    });
+    ctx.fillStyle = "#B01A15";
+    ctx.beginPath(); ctx.arc(px(0), py(0), 3, 0, 2 * Math.PI); ctx.fill();
+    // Achsenbeschriftung
+    ctx.fillStyle = "#35638A"; ctx.font = "11px sans-serif";
+    ctx.fillText("x in cm", S - 46, py(0) - 5);
+    ctx.fillText("y in cm", px(0) + 5, 12);
+    [-10, -5, 5, 10].forEach(function (t) {
+      ctx.fillText(t, px(t) - 8, py(0) + 13);
+      ctx.fillText(t, px(0) + 4, py(t) + 4);
+    });
+    // Treffer
+    ctx.fillStyle = "#222";
+    hits.forEach(function (h) {
+      var x = Math.max(-R, Math.min(R, h.x)), y = Math.max(-R, Math.min(R, h.y));
+      ctx.beginPath(); ctx.arc(px(x), py(y), 3.2, 0, 2 * Math.PI); ctx.fill();
+    });
+    // Kennzahlen
+    var xs = hits.map(function (h) { return h.x; }), ys = hits.map(function (h) { return h.y; });
+    var a = statistik(xs), b = statistik(ys);
+    el("n").textContent = a.n;
+    el("mx").textContent = a.n ? fmt(a.m) : "–";
+    el("my").textContent = b.n ? fmt(b.m) : "–";
+    el("sx").textContent = (a.n > 1) ? fmt(a.s) : "–";
+    el("sy").textContent = (b.n > 1) ? fmt(b.s) : "–";
+    if (a.n > 1) {
+      // Streubereich als gestrichelte Ellipse mit Halbachsen s_x, s_y
+      ctx.strokeStyle = "#71803C"; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.ellipse(px(a.m), py(b.m), Math.max(a.s * PX, 1), Math.max(b.s * PX, 1), 0, 0, 2 * Math.PI);
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (a.n > 0) {
+      // Mittelwert als Kreuz
+      ctx.strokeStyle = "#71803C"; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(px(a.m) - 8, py(b.m)); ctx.lineTo(px(a.m) + 8, py(b.m));
+      ctx.moveTo(px(a.m), py(b.m) - 8); ctx.lineTo(px(a.m), py(b.m) + 8);
+      ctx.stroke();
+    }
+  }
+
+  function anzeige() {
+    el("vxo").textContent = vx.value;
+    el("vyo").textContent = vy.value;
+    el("sto").textContent = (+st.value).toLocaleString("de-DE");
+  }
+  [vx, vy, st].forEach(function (r) { r.addEventListener("input", anzeige); });
+  el("w1").addEventListener("click", function () { wurf(1); });
+  el("w10").addEventListener("click", function () { wurf(10); });
+  el("w100").addEventListener("click", function () { wurf(100); });
+  el("reset").addEventListener("click", function () { hits = []; zeichne(); });
+  window.addEventListener("resize", zeichne);   // Drehen des Geraets, Fenster aendern
+  anzeige();
+  zeichne();
+})();
+</script>
+</body>
+</html>

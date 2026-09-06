@@ -11,6 +11,7 @@ Pages:
 | Datei | Kurs, Reihe | Was das Applet zeigt |
 |---|---|---|
 | `11nf-ph/mittelwert-sigma-applet.html` | 11NF PH, Messen und Messfehler (September 2026) | Mittelwert als Schätzwert für den wahren Wert, Standardabweichung als typische Abweichung; Abweichungen als Pfeile, ihre Quadrate, das mittlere Quadrat und seine Seite σ |
+| `11nf-ph/zielscheibe-applet.html` | 11NF PH, Messen und Messfehler (September 2026) | Zielscheibe mit zwei Reglern, Verschiebung (systematischer Fehler) und Wackeln (statistischer Fehler); Würfe simulieren, Mittelwert als Kreuz und Streubereich x̄ ± σ sehen, Kennzahlen wie auf dem Arbeitsblatt |
 | `12pe1-m/extrempunkte-applet.html` | 12PE1 M, Extremwertprobleme (September 2026) | Sechs Beispielfunktionen; f, f′ und f″ untereinander mit ziehbarem Punkt und Tangente, f′ und f″ ausblendbar; Rechenweg zu den Extrempunkten in vier Schritten (notwendige und hinreichende Bedingung), jeder Schritt in den Graphen markiert |
 
 `index.html` an der Wurzel ist nur die Liste der Kurse. Die Applets selbst stehen auf der
@@ -59,7 +60,8 @@ Bis zum 06.09.2026 hieß das Repository `physik-applets` und lag flach; die Adre
 ## Pflege
 
 Die Quelle jedes Applets liegt im (privaten) Planungsrepository im Materialordner der zugehörigen
-Stunde, hier `Jahresplanungen/stunden/11nf-ph/2026-09-04-organisation/material/` und
+Stunde, hier `Jahresplanungen/stunden/11nf-ph/2026-09-04-organisation/material/`,
+`Jahresplanungen/stunden/11nf-ph/2026-09-08-physikalische-grossen/material/` und
 `Jahresplanungen/stunden/12pe1-m/2026-09-04-wiederholung/material/`. Dieses Repo enthält nur
 Kopien für die Veröffentlichung; im Workspace ist es als `applets/` neben `Vault/` und
 `Jahresplanungen/` ausgecheckt. Nach einer Änderung an der Quelle:
