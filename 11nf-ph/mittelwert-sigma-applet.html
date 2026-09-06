@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mittelwert und Standardabweichung: Warum die Formeln so aussehen</title>
 <!--
-  Applet zur Stunde 11NF PH am 04.09.2026 — am Beamer in der Erarbeitung, danach
+  Applet zur Reihe Messen und Messfehler in 11NF PH — am Beamer in der Erarbeitung, danach
   zum Wiederholen zu Hause. Eine Datei, kein Internet noetig: HTML, CSS,
   JavaScript und die Formelschrift zusammen.
 
@@ -52,21 +52,33 @@
   p.lead { margin: 12px 0 14px; }
   /* Formeln: LaTeX im Quelltext, MathML im Browser, Latin Modern Math als Schrift */
   math { font-family: "LM Math", "Latin Modern Math", "Cambria Math", "STIX Two Math", math; font-size: 1.1em; }
-  .m[data-display] { display: block; text-align: center; margin: 10px 0; }
+  .m[data-display] { display: block; text-align: center; margin: 10px 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
   .m[data-display] math { font-size: 1.3em; }
   .panel { background: var(--hell); border: 1px solid var(--grau); padding: 10px 14px;
            display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: flex-end; font-size: 14px; }
-  .panel label { display: block; }
+  .panel label { display: block; min-width: 0; max-width: 100%; }
+  .panel label.messreihe { flex: 1 1 280px; }     /* nimmt die Zeile, das Auswahlfeld bleibt im Panel */
   .panel label b { color: var(--stahl); }
-  .panel select { font: inherit; font-size: 14px; padding: 3px 6px; max-width: 100%; }
+  .panel select { font: inherit; font-size: 14px; padding: 3px 6px; width: 100%; max-width: 100%; }
   .panel input[type=range] { width: 150px; vertical-align: middle; }
   .panel .nur-zufall { display: none; }
   .panel.zufall .nur-zufall { display: block; }
   button { font: inherit; font-size: 14px; padding: 5px 11px; border: 1px solid var(--stahl);
            background: #fff; color: var(--stahl); cursor: pointer; }
   button:hover { background: var(--stahl); color: #fff; }
-  canvas { display: block; width: 100%; height: auto; border: 1px solid var(--grau); background: #fff; touch-action: none; }
-  #cA { cursor: ew-resize; }
+  canvas { display: block; width: 100%; border: 1px solid var(--grau); background: #fff; touch-action: none; }
+  /* Hoehen der Zeichnungen in CSS-Pixeln; die Breite folgt der Seite, gezeichnet wird in
+     Geraeteaufloesung (layout). Kleiner auf schmalen Handys und bei wenig Hoehe (Handy quer). */
+  #cA { height: 230px; cursor: ew-resize; }
+  #cB { height: 330px; }
+  @media (max-width: 480px) {
+    main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
+    #cA { height: 210px; } #cB { height: 300px; }
+    .m[data-display] math { font-size: 1em; }   /* die sigma-Formel passt so ohne Scrollen hinein */
+    table.werte { font-size: 13px; } table.werte td { padding: 4px 4px; }
+    table.werte td:last-child { white-space: normal; }
+  }
+  @media (max-height: 520px) and (orientation: landscape) { #cA { height: 190px; } #cB { height: 270px; } }
   .zeile { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 8px 0 4px; font-size: 14px; }
   .zeile input[type=range] { width: 280px; max-width: 100%; }
   .zeile b { color: var(--oliv); }
@@ -75,7 +87,8 @@
   .ergebnis .hin { color: #666; font-weight: 400; }
   .hinweis { font-size: 13px; color: #555; margin: 4px 0 0; }
   .zwei { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 12px; align-items: start; }
-  @media (max-width: 760px) { .zwei { grid-template-columns: 1fr; } .panel input[type=range] { width: 120px; } }
+  .zwei > * { min-width: 0; }              /* breite Formeln duerfen die Spalte nicht aufweiten */
+  @media (max-width: 860px) { .zwei { grid-template-columns: 1fr; } .panel input[type=range] { width: 120px; } }
   table.werte { border-collapse: collapse; width: 100%; font-size: 14px; }
   table.werte td { padding: 4px 6px; border-bottom: 1px solid #ddd; vertical-align: middle; }
   table.werte td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
@@ -109,7 +122,7 @@
     das Rechenschema auf dem Arbeitsblatt und wie <span class="m">\sigma_x</span> am Taschenrechner.</p>
 
   <div class="panel" id="panel">
-    <label><b>Messreihe</b><br>
+    <label class="messreihe"><b>Messreihe</b><br>
       <select id="modus">
         <option value="a">Comic: ein Wurf, viermal gemessen (3,42 · 3,39 · 3,41 · 3,42 m)</option>
         <option value="b">Comic: fünf Würfe von Mia (3,42 · 3,10 · 3,65 · 3,28 · 3,50 m)</option>
@@ -364,7 +377,23 @@ formelnSetzen(document);
 
   var cA = el("cA"), ctxA = cA.getContext("2d");
   var cB = el("cB"), ctxB = cB.getContext("2d");
-  var W = cA.width, PADL = 46, PADR = 60;
+  var W = 760, PADL = 46, PADR = 60;     // W: Breite in CSS-Pixeln, setzt layout()
+
+  // Beide Zeichnungen an ihre tatsaechliche Groesse anpassen: Breite aus dem Layout,
+  // Hoehe aus dem CSS, Pixel in Geraeteaufloesung. Gezeichnet wird weiter in
+  // CSS-Pixeln, damit Text auf dem Handy lesbar und auf grossen Monitoren scharf bleibt.
+  function layout() {
+    var dpr = window.devicePixelRatio || 1;
+    [cA, cB].forEach(function (c) {
+      var w = c.clientWidth, h = c.clientHeight;
+      if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+        c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+      }
+      c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+    });
+    W = cA.clientWidth;
+    achse.px = (W - PADL - PADR) / (achse.hi - achse.lo);
+  }
 
   function el(id) { return document.getElementById(id); }
 
@@ -466,9 +495,12 @@ formelnSetzen(document);
   // Canvas kennt kein MathML: Beschriftungen in den Zeichnungen sind Unicode-Text.
   function label(ctx, text, x, y, farbe, align, groesse, hinterlegt) {
     ctx.font = (groesse || 12) + "px sans-serif"; ctx.textAlign = align || "center";
+    var b = ctx.measureText(text).width, g = groesse || 12;
+    var x0 = align === "left" ? x : align === "right" ? x - b : x - b / 2;
+    // im Bild halten: auf schmalen Zeichnungen rutscht die Schrift sonst ueber den Rand
+    if (x0 + b > W - 2) { x -= x0 + b - (W - 2); x0 = W - 2 - b; }
+    if (x0 < 2) { x += 2 - x0; x0 = 2; }
     if (hinterlegt) {                      // weisser Grund, damit die Schrift ueber Flaechen lesbar bleibt
-      var b = ctx.measureText(text).width, g = groesse || 12;
-      var x0 = align === "left" ? x : align === "right" ? x - b : x - b / 2;
       ctx.fillStyle = "rgba(255,255,255,0.85)";
       ctx.fillRect(x0 - 3, y - g + 1, b + 6, g + 4);
     }
@@ -488,7 +520,7 @@ formelnSetzen(document);
 
   /* ---------------------------------------------------------------- Schritt 1 */
   function zeichneA() {
-    var ctx = ctxA, H = cA.height, yA = H - 30;
+    var ctx = ctxA, H = cA.clientHeight, yA = H - 30;
     ctx.clearRect(0, 0, W, H);
     var st = statistik(werte), pts = punkte(), n = pts.length;
     var xs = X(sch);
@@ -560,7 +592,7 @@ formelnSetzen(document);
 
   /* ---------------------------------------------------------------- Schritt 2 */
   function zeichneB() {
-    var ctx = ctxB, H = cB.height, yA = H - 50;
+    var ctx = ctxB, H = cB.clientHeight, yA = H - 50;
     ctx.clearRect(0, 0, W, H);
     var st = statistik(werte), pts = punkte(), n = pts.length;
     var maxDev = 0;
@@ -657,7 +689,7 @@ formelnSetzen(document);
     formelnSetzen(wt);
   }
 
-  function zeichne() { zeichneA(); zeichneB(); }
+  function zeichne() { layout(); zeichneA(); zeichneB(); }
 
   /* ------------------------------------------------------------- Bedienung */
   function setzeSch(v) {
@@ -698,7 +730,7 @@ formelnSetzen(document);
   var drag = false;
   function pointerWert(e) {
     var r = cA.getBoundingClientRect();
-    return V((e.clientX - r.left) * (cA.width / r.width));
+    return V(e.clientX - r.left);
   }
   cA.addEventListener("pointerdown", function (e) {
     drag = true; cA.setPointerCapture(e.pointerId); setzeSch(pointerWert(e)); e.preventDefault();
@@ -706,6 +738,7 @@ formelnSetzen(document);
   cA.addEventListener("pointermove", function (e) { if (drag) setzeSch(pointerWert(e)); });
   cA.addEventListener("pointerup", function () { drag = false; });
   cA.addEventListener("pointercancel", function () { drag = false; });
+  window.addEventListener("resize", zeichne);   // Drehen des Geraets, Fenster aendern
 
   neueReihe();
 })();
