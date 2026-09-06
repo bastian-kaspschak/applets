@@ -13,8 +13,8 @@ Pages:
 | `11nf-ph/mittelwert-sigma-applet.html` | 11NF PH, Messen und Messfehler (September 2026) | Mittelwert als Schätzwert für den wahren Wert, Standardabweichung als typische Abweichung; Abweichungen als Pfeile, ihre Quadrate, das mittlere Quadrat und seine Seite σ |
 | `12pe1-m/extrempunkte-applet.html` | 12PE1 M, Extremwertprobleme (September 2026) | Sechs Beispielfunktionen; f, f′ und f″ untereinander mit ziehbarem Punkt und Tangente, f′ und f″ ausblendbar; Rechenweg zu den Extrempunkten in vier Schritten (notwendige und hinreichende Bedingung), jeder Schritt in den Graphen markiert |
 
-`index.html` an der Wurzel ist die Gesamtübersicht, nach Kursen gegliedert. Jeder Kursordner hat
-eine eigene `index.html`, die nur die Applets dieses Kurses zeigt.
+`index.html` an der Wurzel ist nur die Liste der Kurse. Die Applets selbst stehen auf der
+`index.html` des jeweiligen Kursordners.
 
 ## Ordnerstruktur
 
@@ -65,10 +65,11 @@ Kopien für die Veröffentlichung; im Workspace ist es als `applets/` neben `Vau
 `Jahresplanungen/` ausgecheckt. Nach einer Änderung an der Quelle:
 
 1. Datei in den Kursordner `<kursId>/` kopieren. Ist es das erste Applet des Kurses: Ordner
-   anlegen und die `index.html` eines bestehenden Kursordners hineinkopieren, Kursname in
-   Titel, Kopfzeile, Überschrift und Fußzeile anpassen, Liste leeren.
-2. Bei einem neuen Applet je einen Eintrag in der `index.html` des Kursordners, in der
-   `index.html` an der Wurzel unter der Kursüberschrift und in der Tabelle oben ergänzen.
+   anlegen, die `index.html` eines bestehenden Kursordners hineinkopieren, Kursname in Titel,
+   Kopfzeile, Überschrift und Fußzeile anpassen, Liste leeren, und den Kurs in der `index.html`
+   an der Wurzel eintragen.
+2. Bei einem neuen Applet je einen Eintrag in der `index.html` des Kursordners und in der
+   Tabelle oben ergänzen.
 3. Committen und pushen. GitHub Pages veröffentlicht den Stand von `main` innerhalb etwa einer
    Minute.
 
