@@ -3,14 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Applets · Kaspschak</title>
+<title>Applets 11NF PH · Kaspschak</title>
 <!--
-  Startseite des oeffentlichen Repos applets: eine Linkliste auf die
-  interaktiven Applets aus dem Unterricht, nach Kursen gegliedert. Jeder Kurs
-  hat einen eigenen Ordner, benannt nach seiner Kurs-ID (11nf-ph, 12pe1-m, ...),
-  mit eigener index.html; die Kursueberschriften unten fuehren dorthin.
-  Keine externen Ressourcen, damit die Seite genauso offline funktioniert wie
-  die Applets selbst.
+  Einstiegsseite des Kurses 11NF PH: listet nur die Applets dieses Kurses.
+  Die Adresse dieser Seite (…/applets/11nf-ph/) ist der Link, den die Klasse
+  bekommt. Keine externen Ressourcen, damit die Seite offline funktioniert.
 -->
 <style>
   :root { --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; }
@@ -22,10 +19,6 @@
   main { max-width: 760px; margin: 0 auto; padding: 14px 18px 30px; }
   h1 { font-size: 22px; margin: 6px 0 2px; }
   h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
-  h2 { font-size: 15px; margin: 22px 0 8px; letter-spacing: .06em; text-transform: uppercase; color: #555; }
-  h2 a { color: inherit; text-decoration: none; }
-  h2 a:hover { text-decoration: underline; }
-  h2 a::after { content: " ›"; color: var(--grau); }
   p.lead { margin: 12px 0 18px; }
   ul.liste { list-style: none; padding: 0; margin: 0; }
   ul.liste li { border: 1px solid var(--grau); background: var(--hell); padding: 12px 14px; margin: 0 0 10px; }
@@ -34,48 +27,37 @@
   ul.liste .meta { display: block; color: #777; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 2px; }
   ul.liste .was { display: block; margin-top: 4px; font-size: 14px; }
   .hinweis { margin-top: 22px; font-size: 13px; color: #555; border-top: 1px solid #ddd; padding-top: 10px; }
+  .hinweis a { color: var(--stahl); }
   footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
 </style>
 </head>
 <body>
 <header>
-  <div><span class="k">Fächer</span>Physik und Mathematik (Kaspschak)</div>
+  <div><span class="k">Kurs</span>11NF PH · Physik</div>
+  <div><span class="k">Lehrer</span>Kaspschak</div>
   <div><span class="k">Schule</span>Lore-Lorentz-Schule</div>
   <div><span class="k">Schuljahr</span>2026/27</div>
 </header>
 <main>
-  <h1>Applets</h1>
+  <h1>Applets 11NF PH</h1>
   <p class="lead">Kleine interaktive Seiten zum Wiederholen und Üben zu Hause. Jedes Applet ist eine
     einzelne Datei, läuft im Browser und braucht nach dem Laden kein Internet. Was ihr einstellt,
-    bleibt bei euch; es wird nichts gespeichert oder gesendet. Jeder Kurs hat eine eigene Seite;
-    die Überschrift führt dorthin.</p>
+    bleibt bei euch; es wird nichts gespeichert oder gesendet.</p>
 
-  <h2><a href="11nf-ph/">11NF PH · Physik</a></h2>
   <ul class="liste">
     <li>
       <span class="meta">Messen und Messfehler · September 2026</span>
-      <a href="11nf-ph/mittelwert-sigma-applet.html">Mittelwert und Standardabweichung: Warum die Formeln so aussehen</a>
+      <a href="mittelwert-sigma-applet.html">Mittelwert und Standardabweichung: Warum die Formeln so aussehen</a>
       <span class="was">Schätzwert schieben, bis sich die Abweichungen aufheben; Quadrate der Abweichungen,
         mittleres Quadrat und Wurzel; Messreihe mit bekanntem wahrem Wert simulieren. Mit Aufgaben 1 bis 4
         und Merksatz.</span>
     </li>
   </ul>
 
-  <h2><a href="12pe1-m/">12PE1 M · Mathematik</a></h2>
-  <ul class="liste">
-    <li>
-      <span class="meta">Extremwertprobleme · September 2026</span>
-      <a href="12pe1-m/extrempunkte-applet.html">Extrempunkte: von f zu f′ und f″</a>
-      <span class="was">Sechs Beispielfunktionen; f, f′ und f″ untereinander mit ziehbarem Punkt und Tangente,
-        f′ und f″ zum Selbst-Skizzieren ausblendbar. Der Rechenweg zu den Extrempunkten in vier Schritten
-        (notwendige und hinreichende Bedingung), jeder Schritt markiert in den Graphen. Mit Merksatz und
-        Aufgaben für zu Hause.</span>
-    </li>
-  </ul>
-
   <p class="hinweis">Zum Speichern für unterwegs: Applet öffnen, dann mit Strg+S als „Webseite, nur HTML"
-    sichern. Die Datei funktioniert danach auch ohne Verbindung.</p>
+    sichern. Die Datei funktioniert danach auch ohne Verbindung.<br>
+    Applets der anderen Kurse: <a href="../">Übersicht</a>.</p>
 </main>
-<footer>Kaspschak · applets</footer>
+<footer>Kaspschak · applets · 11nf-ph</footer>
 </body>
 </html>
