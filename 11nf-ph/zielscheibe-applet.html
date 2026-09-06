@@ -11,6 +11,9 @@
   (systematischer Fehler) und ein Wackeln (statistischer Fehler). Das Applet
   wirft, zeichnet die Treffer und rechnet Mittelwert und Standardabweichung
   wie auf dem Arbeitsblatt (Standardabweichung geteilt durch n).
+  Die Zielscheibe ist die des A3-Blatts zielscheibe.tex: Blattbereich
+  x = -19..19 cm, y = -13..13 cm, Gitter 1 cm fein und 5 cm kraeftig, Ringe bei
+  2, 5, 9 und 13 cm, Beschriftung alle 5 cm.
 -->
 <style>
   :root {
@@ -27,12 +30,12 @@
   h1 { font-size: 22px; margin: 6px 0 2px; }
   h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
   p.lead { margin: 12px 0 16px; }
-  .wrap { display: grid; grid-template-columns: minmax(280px, 440px) 1fr; gap: 20px; align-items: start; }
+  .wrap { display: grid; grid-template-columns: minmax(280px, 560px) 1fr; gap: 20px; align-items: start; }
   .wrap > * { min-width: 0; }
-  /* Die Zielscheibe ist quadratisch und folgt der Spaltenbreite; im Handy-Querformat
-     begrenzt die Hoehe, auf dem Tablet hochkant die 480 px. Gezeichnet wird in
-     Geraeteaufloesung (layout). */
-  canvas { display: block; width: min(100%, 80vh, 480px); aspect-ratio: 1 / 1; border: 1px solid var(--grau); background: #fff; }
+  /* Die Zielscheibe hat das Format des A3-Blatts (38 cm x 26 cm) und folgt der
+     Spaltenbreite; im Handy-Querformat begrenzt die Hoehe, auf dem Tablet hochkant
+     die 640 px. Gezeichnet wird in Geraeteaufloesung (layout). */
+  canvas { display: block; width: min(100%, 117vh, 640px); aspect-ratio: 38 / 26; border: 1px solid var(--grau); background: #fff; }
   @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
   @media (max-width: 480px) { main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; } }
   .panel { background: var(--hell); border: 1px solid var(--grau); padding: 12px 14px; }
@@ -69,8 +72,9 @@
 </header>
 <main>
   <h1>Daneben oder verwackelt?</h1>
-  <p class="lead">Stell ein, was der Werfer „falsch" macht, und lass ihn werfen. Das Applet rechnet
-    Mittelwert und Standardabweichung genauso wie du auf dem Arbeitsblatt.</p>
+  <p class="lead">Stell ein, was der Werfer „falsch" macht, und lass ihn werfen. Die Zielscheibe ist die
+    aus dem Unterricht; das Applet rechnet Mittelwert und Standardabweichung genauso wie du auf dem
+    Arbeitsblatt.</p>
 
   <div class="wrap">
     <canvas id="c" width="420" height="420"></canvas>
@@ -110,7 +114,7 @@
       <li>Verschiebung nach rechts 8, Wackeln 2. Wirf 100-mal. Wandert der Mittelwert in die Mitte,
           wenn du noch 100-mal wirfst? Warum nicht?</li>
       <li>Stell eine Kombination ein, bei der der <em>Mittelwert</em> in der Mitte liegt, die Pfeile
-          aber trotzdem fast nie den roten Ring treffen. Welcher Fehler ist das?</li>
+          aber trotzdem fast nie den innersten Ring treffen. Welcher Fehler ist das?</li>
       <li>Beim Messen: Ein Maßband, dessen erster Zentimeter fehlt, ist welcher Regler? Eine Stoppuhr,
           die man von Hand drückt, ist welcher Regler?</li>
     </ol>
@@ -130,20 +134,22 @@
 (function () {
   "use strict";
   var cv = document.getElementById("c"), ctx = cv.getContext("2d");
-  var R = 15;                    // sichtbarer Bereich: -15 .. +15 cm
-  var S = 420, PX = S / (2 * R); // S: Kantenlaenge in CSS-Pixeln, PX: Pixel je cm; setzt layout()
+  // Sichtbarer Bereich wie das A3-Blatt: x = -19..19 cm, y = -13..13 cm
+  var RX = 19, RY = 13;
+  var W = 570, H = 390, PX = W / (2 * RX);   // Breite, Hoehe in CSS-Pixeln, Pixel je cm; setzt layout()
   var hits = [];
 
-  // Zeichenflaeche an ihre tatsaechliche Groesse anpassen: Kantenlaenge aus dem Layout,
-  // Pixel in Geraeteaufloesung. Gezeichnet wird in CSS-Pixeln, damit die Beschriftung
-  // auf dem Handy lesbar und auf grossen Monitoren scharf bleibt.
+  // Zeichenflaeche an ihre tatsaechliche Groesse anpassen: Masse aus dem Layout, Pixel
+  // in Geraeteaufloesung. Gezeichnet wird in CSS-Pixeln, damit die Beschriftung auf dem
+  // Handy lesbar und auf grossen Monitoren scharf bleibt.
   function layout() {
     var dpr = window.devicePixelRatio || 1;
-    S = cv.clientWidth || 420;
-    var p = Math.round(S * dpr);
-    if (cv.width !== p || cv.height !== p) { cv.width = p; cv.height = p; }
+    W = cv.clientWidth || 570;
+    H = cv.clientHeight || Math.round(W * RY / RX);
+    var pw = Math.round(W * dpr), ph = Math.round(H * dpr);
+    if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    PX = S / (2 * R);
+    PX = W / (2 * RX);
   }
 
   function el(id) { return document.getElementById(id); }
@@ -182,38 +188,62 @@
     return (Math.round(v * 10) / 10).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " cm";
   }
 
-  function px(x) { return S / 2 + x * PX; }
-  function py(y) { return S / 2 - y * PX; }
+  function px(x) { return W / 2 + x * PX; }
+  function py(y) { return H / 2 - y * PX; }
+
+  // Pfeilspitze am Achsenende; dx, dy ist die Richtung der Achse
+  function pfeil(x, y, dx, dy) {
+    var l = 9, b = 3.5;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x - dx * l - dy * b, y - dy * l + dx * b);
+    ctx.lineTo(x - dx * l + dy * b, y - dy * l - dx * b);
+    ctx.closePath(); ctx.fill();
+  }
+  // Beschriftung auf weissem Grund, wie auf dem Blatt
+  function beschriftung(text, x, y, align) {
+    ctx.textAlign = align; ctx.textBaseline = "middle";
+    var b = ctx.measureText(text).width;
+    var x0 = align === "left" ? x : align === "right" ? x - b : x - b / 2;
+    ctx.fillStyle = "#fff"; ctx.fillRect(x0 - 2, y - 7, b + 4, 14);
+    ctx.fillStyle = "#35638A"; ctx.fillText(text, x, y);
+  }
 
   function zeichne() {
     layout();
-    ctx.clearRect(0, 0, S, S);
-    // Gitter alle 5 cm
-    ctx.lineWidth = 1;
-    for (var g = -R; g <= R; g += 5) {
-      ctx.strokeStyle = (g === 0) ? "#35638A" : "#ddd";
-      ctx.beginPath(); ctx.moveTo(px(g), 0); ctx.lineTo(px(g), S); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, py(g)); ctx.lineTo(S, py(g)); ctx.stroke();
-    }
-    // Ringe
-    [[10, "#e0a8a6", 1], [5, "#cc7a77", 1.2], [2, "#B01A15", 1.6]].forEach(function (r) {
+    ctx.clearRect(0, 0, W, H);
+    var g;
+    // Gitter wie auf dem Blatt: 1 cm fein, 5 cm kraeftig, Rand des Blatts
+    ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(0,0,0,0.22)";
+    for (g = -RX; g <= RX; g++) { ctx.beginPath(); ctx.moveTo(px(g), 0); ctx.lineTo(px(g), H); ctx.stroke(); }
+    for (g = -RY; g <= RY; g++) { ctx.beginPath(); ctx.moveTo(0, py(g)); ctx.lineTo(W, py(g)); ctx.stroke(); }
+    ctx.lineWidth = 0.8; ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    for (g = -15; g <= 15; g += 5) { if (g) { ctx.beginPath(); ctx.moveTo(px(g), 0); ctx.lineTo(px(g), H); ctx.stroke(); } }
+    for (g = -10; g <= 10; g += 5) { if (g) { ctx.beginPath(); ctx.moveTo(0, py(g)); ctx.lineTo(W, py(g)); ctx.stroke(); } }
+    ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+    // Achsen mit Pfeilspitzen
+    ctx.strokeStyle = "#35638A"; ctx.fillStyle = "#35638A"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(0, py(0)); ctx.lineTo(W - 2, py(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(px(0), H); ctx.lineTo(px(0), 2); ctx.stroke();
+    pfeil(W - 1, py(0), 1, 0); pfeil(px(0), 1, 0, -1);
+    // Beschriftung: Achsen und alle 5 cm. "x in cm" steht ueber der Achse, weil der
+    // Canvas am Blattrand endet und die Marke 15 sonst darunter liegt.
+    ctx.font = "bold 11px sans-serif";
+    beschriftung("x in cm", W - 12, py(0) - 9, "right");
+    beschriftung("y in cm", px(0) - 5, 12, "right");
+    ctx.font = "10px sans-serif";
+    [-15, -10, -5, 5, 10, 15].forEach(function (t) { beschriftung(String(t), px(t), py(0) + 11, "center"); });
+    [-10, -5, 5, 10].forEach(function (t) { beschriftung(String(t), px(0) - 4, py(t), "right"); });
+    // Ringe bei 13 (Rand der Zielscheibe), 9, 5 und 2 cm; Farben und Staerken wie auf dem Blatt
+    [[13, "#7B120F", 2], [9, "#D48180", 1], [5, "#C45350", 1.2], [2, "#B01A15", 1.6]].forEach(function (r) {
       ctx.strokeStyle = r[1]; ctx.lineWidth = r[2];
       ctx.beginPath(); ctx.arc(px(0), py(0), r[0] * PX, 0, 2 * Math.PI); ctx.stroke();
     });
     ctx.fillStyle = "#B01A15";
-    ctx.beginPath(); ctx.arc(px(0), py(0), 3, 0, 2 * Math.PI); ctx.fill();
-    // Achsenbeschriftung
-    ctx.fillStyle = "#35638A"; ctx.font = "11px sans-serif";
-    ctx.fillText("x in cm", S - 46, py(0) - 5);
-    ctx.fillText("y in cm", px(0) + 5, 12);
-    [-10, -5, 5, 10].forEach(function (t) {
-      ctx.fillText(t, px(t) - 8, py(0) + 13);
-      ctx.fillText(t, px(0) + 4, py(t) + 4);
-    });
-    // Treffer
+    ctx.beginPath(); ctx.arc(px(0), py(0), Math.max(3, 0.35 * PX), 0, 2 * Math.PI); ctx.fill();
+    // Treffer; was ueber das Blatt hinausgeht, liegt am Rand
     ctx.fillStyle = "#222";
     hits.forEach(function (h) {
-      var x = Math.max(-R, Math.min(R, h.x)), y = Math.max(-R, Math.min(R, h.y));
+      var x = Math.max(-RX, Math.min(RX, h.x)), y = Math.max(-RY, Math.min(RY, h.y));
       ctx.beginPath(); ctx.arc(px(x), py(y), 3.2, 0, 2 * Math.PI); ctx.fill();
     });
     // Kennzahlen
