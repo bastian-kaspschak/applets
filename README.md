@@ -10,7 +10,7 @@ Pages:
 
 | Datei | Kurs, Reihe | Was das Applet zeigt |
 |---|---|---|
-| `11nf-ph/mittelwert-sigma-applet.html` | 11NF PH, Messen und Messfehler (September 2026) | Mittelwert als Schätzwert für den wahren Wert, Standardabweichung als typische Abweichung; Abweichungen als Pfeile, ihre Quadrate, das mittlere Quadrat und seine Seite σ |
+| `11nf-ph/mittelwert-sigma-applet.html` | 11NF PH, Messen und Messfehler (September 2026) | Mittelwert als Schätzwert für den wahren Wert, Standardabweichung als typische Abweichung; Abweichungen als Pfeile, ihre Quadrate, das mittlere Quadrat und seine Seite σ; Histogramm der Messwerte mit x̄ ± σ |
 | `11nf-ph/zielscheibe-applet.html` | 11NF PH, Messen und Messfehler (September 2026) | Die Zielscheibe des A3-Blatts aus dem Unterricht mit zwei Reglern, Verschiebung (systematischer Fehler) und Wackeln (statistischer Fehler); Würfe simulieren, Mittelwert als Kreuz und Streubereich x̄ ± σ sehen, Histogramm der Treffer je 1-cm-Feld mit Farbskala, Kennzahlen wie auf dem Arbeitsblatt |
 | `12pe1-m/extrempunkte-applet.html` | 12PE1 M, Extremwertprobleme (September 2026) | Sechs Beispielfunktionen; f, f′ und f″ untereinander mit ziehbarem Punkt und Tangente, f′ und f″ ausblendbar; Rechenweg zu den Extrempunkten in vier Schritten (notwendige und hinreichende Bedingung), jeder Schritt in den Graphen markiert |
 

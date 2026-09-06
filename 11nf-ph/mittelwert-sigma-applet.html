@@ -14,6 +14,9 @@
   Sie ist genau dann null, wenn der Schaetzwert der Mittelwert ist.
   Schritt 2: Die Abweichungen vom Mittelwert werden als Quadrate gezeichnet.
   Ihr Mittel ist das "mittlere Quadrat" (in m^2); dessen Seitenlaenge ist sigma.
+  Schritt 3: Histogramm der Messwerte auf derselben Achse. Klasse = ein
+  Skalenschritt, Anzahl ueber jedem Balken, dazu x quer und der Bereich
+  x quer +- sigma.
 
   Gerechnet wird wie auf dem Arbeitsblatt und wie sigma_x am Casio fx-991DE CW:
   Standardabweichung geteilt durch n.
@@ -71,14 +74,15 @@
      Geraeteaufloesung (layout). Kleiner auf schmalen Handys und bei wenig Hoehe (Handy quer). */
   #cA { height: 230px; cursor: ew-resize; }
   #cB { height: 330px; }
+  #cC { height: 200px; }
   @media (max-width: 480px) {
     main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
-    #cA { height: 210px; } #cB { height: 300px; }
+    #cA { height: 210px; } #cB { height: 300px; } #cC { height: 180px; }
     .m[data-display] math { font-size: 1em; }   /* die sigma-Formel passt so ohne Scrollen hinein */
     table.werte { font-size: 13px; } table.werte td { padding: 4px 4px; }
     table.werte td:last-child { white-space: normal; }
   }
-  @media (max-height: 520px) and (orientation: landscape) { #cA { height: 190px; } #cB { height: 270px; } }
+  @media (max-height: 520px) and (orientation: landscape) { #cA { height: 190px; } #cB { height: 270px; } #cC { height: 170px; } }
   .zeile { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 8px 0 4px; font-size: 14px; }
   .zeile input[type=range] { width: 280px; max-width: 100%; }
   .zeile b { color: var(--oliv); }
@@ -151,6 +155,13 @@
   <canvas id="cB" width="760" height="330"></canvas>
   <p class="hinweis">Jede Abweichung vom Mittelwert wird zum Quadrat (Fläche in m²). Das gestrichelte Quadrat ist
     das Mittel dieser Flächen; seine Seitenlänge ist <span class="m">\sigma</span>. <span id="wahrText"></span></p>
+
+  <h2><span class="nr">Schritt 3</span>Das Histogramm: Wie verteilen sich die Messwerte?</h2>
+  <canvas id="cC" width="760" height="200"></canvas>
+  <p class="hinweis">Jeder Balken zählt die Messwerte in einer Klasse; eine Klasse ist ein Skalenschritt breit,
+    hier <b id="klO">–</b>. Die Zahl über dem Balken ist die Anzahl. Die grüne Linie ist <span class="m">\bar{x}</span>, der blaue
+    Bereich <span class="m">\bar{x} \pm \sigma</span>. Bei der zufälligen Messreihe: Mehr Messungen füllen die Form,
+    breiter wird sie nicht.</p>
 
   <div class="zwei">
     <table class="werte">
@@ -377,6 +388,7 @@ formelnSetzen(document);
 
   var cA = el("cA"), ctxA = cA.getContext("2d");
   var cB = el("cB"), ctxB = cB.getContext("2d");
+  var cC = el("cC"), ctxC = cC.getContext("2d");
   var W = 760, PADL = 46, PADR = 60;     // W: Breite in CSS-Pixeln, setzt layout()
 
   // Beide Zeichnungen an ihre tatsaechliche Groesse anpassen: Breite aus dem Layout,
@@ -384,7 +396,7 @@ formelnSetzen(document);
   // CSS-Pixeln, damit Text auf dem Handy lesbar und auf grossen Monitoren scharf bleibt.
   function layout() {
     var dpr = window.devicePixelRatio || 1;
-    [cA, cB].forEach(function (c) {
+    [cA, cB, cC].forEach(function (c) {
       var w = c.clientWidth, h = c.clientHeight;
       if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
         c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
@@ -689,7 +701,52 @@ formelnSetzen(document);
     formelnSetzen(wt);
   }
 
-  function zeichne() { layout(); zeichneA(); zeichneB(); }
+  /* ---------------------------------------------------------------- Schritt 3 */
+  // Histogramm der Messwerte: Klasse = ein Skalenschritt (achse.tick), am Nullpunkt
+  // ausgerichtet wie die Skala; Balkenhoehe proportional zur Anzahl, Anzahl darueber.
+  function zeichneC() {
+    var ctx = ctxC, H = cC.clientHeight, yA = H - 30;
+    ctx.clearRect(0, 0, W, H);
+    var st = statistik(werte), kl = achse.tick;
+    // Kopfbereich: Zeile 1 (y = 12) wahrer Wert, Zeile 2 (y = 26) x quer +- sigma; die
+    // Balken und ihre Anzahl bleiben darunter.
+    var z = {}, max = 0, hMax = yA - 48;
+    werte.forEach(function (v) {
+      var k = Math.floor(v / kl + 1e-6);
+      z[k] = (z[k] || 0) + 1; if (z[k] > max) max = z[k];
+    });
+    el("klO").textContent = fmt(kl, achse.dez) + " m";
+
+    // Bereich x quer +- sigma, wie in Schritt 2
+    ctx.fillStyle = "rgba(53,99,138,0.14)";
+    ctx.fillRect(X(st.m - st.s), 32, 2 * st.s * achse.px, yA - 32);
+
+    // Balken
+    Object.keys(z).forEach(function (k) {
+      var x0 = X(k * kl), b = kl * achse.px, h = z[k] / max * hMax;
+      ctx.fillStyle = "rgba(53,99,138,0.35)"; ctx.fillRect(x0, yA - h, b, h);
+      ctx.strokeStyle = "#35638A"; ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, yA - h + 0.5, b - 1, h);
+      label(ctx, String(z[k]), x0 + b / 2, yA - h - 4, "#35638A", "center", 11);
+    });
+    zeichneAchse(ctx, yA);
+
+    // Mittelwert
+    ctx.strokeStyle = "#71803C"; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(X(st.m), 20); ctx.lineTo(X(st.m), yA + 6); ctx.stroke();
+    ctx.fillStyle = "#71803C";
+    ctx.beginPath(); ctx.moveTo(X(st.m), yA + 8); ctx.lineTo(X(st.m) - 6, yA + 18); ctx.lineTo(X(st.m) + 6, yA + 18);
+    ctx.closePath(); ctx.fill();
+    label(ctx, "x̄", X(st.m), yA + 29, "#71803C", "center", 12);
+    label(ctx, "x̄ − σ", X(st.m - st.s), 30, "#35638A", "center", 11, true);
+    label(ctx, "x̄ + σ", X(st.m + st.s), 30, "#35638A", "center", 11, true);
+
+    if (modus === "zufall" && el("wahr").checked) {
+      strichel(ctx, X(WAHR), 18, yA, "#888");
+      label(ctx, "wahrer Wert " + fmt(WAHR, 3) + " m", X(WAHR), 15, "#666", "center", 11, true);
+    }
+  }
+
+  function zeichne() { layout(); zeichneA(); zeichneB(); zeichneC(); }
 
   /* ------------------------------------------------------------- Bedienung */
   function setzeSch(v) {
