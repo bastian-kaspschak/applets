@@ -1,10 +1,10 @@
-# Physik-Applets
+# Applets
 
 Öffentliches Repository für die interaktiven Applets aus dem Physik- und Mathematikunterricht
 von Bastian Kaspschak (Lore-Lorentz-Schule). Schülerinnen und Schüler erreichen die Applets über GitHub
 Pages:
 
-**https://bastian-kaspschak.github.io/physik-applets/**
+**https://bastian-kaspschak.github.io/applets/**
 
 ## Inhalt
 
@@ -32,12 +32,10 @@ Jeder Kurs hat einen eigenen Ordner. Der Ordnername ist die Kurs-ID aus dem Plan
 | `ifk1-m/` | IFK1 M |
 
 Ein Ordner entsteht mit dem ersten Applet seines Kurses; leere Ordner gibt es nicht. Die Adresse
-eines Applets lautet damit `https://bastian-kaspschak.github.io/physik-applets/<kursId>/<datei>`.
+eines Applets lautet damit `https://bastian-kaspschak.github.io/applets/<kursId>/<datei>`.
 
-Im Wurzelverzeichnis liegen zusätzlich `mittelwert-sigma-applet.html` und
-`extrempunkte-applet.html` als reine Weiterleitungen auf die Kursordner. Sie bleiben, weil die
-Arbeitsblätter vom 04.09.2026 QR-Codes auf diese alten Adressen tragen. Für neue Applets gibt es
-keine Weiterleitungen mehr; sie liegen von Anfang an im Kursordner.
+Bis zum 06.09.2026 hieß das Repository `physik-applets` und lag flach; die Adressen unter
+`https://bastian-kaspschak.github.io/physik-applets/` gibt es seither nicht mehr.
 
 ## Wie die Applets gebaut sind
 
