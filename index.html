@@ -6,8 +6,10 @@
 <title>Physik-Applets · Kaspschak</title>
 <!--
   Startseite des oeffentlichen Repos physik-applets: eine Linkliste auf die
-  interaktiven Applets aus dem Unterricht. Keine externen Ressourcen, damit
-  die Seite genauso offline funktioniert wie die Applets selbst.
+  interaktiven Applets aus dem Unterricht, nach Kursen gegliedert. Jeder Kurs
+  hat einen eigenen Ordner, benannt nach seiner Kurs-ID (11nf-ph, 12pe1-m, ...).
+  Keine externen Ressourcen, damit die Seite genauso offline funktioniert wie
+  die Applets selbst.
 -->
 <style>
   :root { --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; }
@@ -19,6 +21,7 @@
   main { max-width: 760px; margin: 0 auto; padding: 14px 18px 30px; }
   h1 { font-size: 22px; margin: 6px 0 2px; }
   h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  h2 { font-size: 15px; margin: 22px 0 8px; letter-spacing: .06em; text-transform: uppercase; color: #555; }
   p.lead { margin: 12px 0 18px; }
   ul.liste { list-style: none; padding: 0; margin: 0; }
   ul.liste li { border: 1px solid var(--grau); background: var(--hell); padding: 12px 14px; margin: 0 0 10px; }
@@ -42,17 +45,22 @@
     einzelne Datei, läuft im Browser und braucht nach dem Laden kein Internet. Was ihr einstellt,
     bleibt bei euch; es wird nichts gespeichert oder gesendet.</p>
 
+  <h2>11NF PH · Physik</h2>
   <ul class="liste">
     <li>
-      <span class="meta">11NF PH · Messen und Messfehler · September 2026</span>
-      <a href="mittelwert-sigma-applet.html">Mittelwert und Standardabweichung: Warum die Formeln so aussehen</a>
+      <span class="meta">Messen und Messfehler · September 2026</span>
+      <a href="11nf-ph/mittelwert-sigma-applet.html">Mittelwert und Standardabweichung: Warum die Formeln so aussehen</a>
       <span class="was">Schätzwert schieben, bis sich die Abweichungen aufheben; Quadrate der Abweichungen,
         mittleres Quadrat und Wurzel; Messreihe mit bekanntem wahrem Wert simulieren. Mit Aufgaben 1 bis 4
         und Merksatz.</span>
     </li>
+  </ul>
+
+  <h2>12PE1 M · Mathematik</h2>
+  <ul class="liste">
     <li>
-      <span class="meta">12PE1 M · Extremwertprobleme · September 2026</span>
-      <a href="extrempunkte-applet.html">Extrempunkte: von f zu f′ und f″</a>
+      <span class="meta">Extremwertprobleme · September 2026</span>
+      <a href="12pe1-m/extrempunkte-applet.html">Extrempunkte: von f zu f′ und f″</a>
       <span class="was">Sechs Beispielfunktionen; f, f′ und f″ untereinander mit ziehbarem Punkt und Tangente,
         f′ und f″ zum Selbst-Skizzieren ausblendbar. Der Rechenweg zu den Extrempunkten in vier Schritten
         (notwendige und hinreichende Bedingung), jeder Schritt markiert in den Graphen. Mit Merksatz und
