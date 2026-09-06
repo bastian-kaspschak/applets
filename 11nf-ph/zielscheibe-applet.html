@@ -14,6 +14,8 @@
   Die Zielscheibe ist die des A3-Blatts zielscheibe.tex: Blattbereich
   x = -19..19 cm, y = -13..13 cm, Gitter 1 cm fein und 5 cm kraeftig, Ringe bei
   2, 5, 9 und 13 cm, Beschriftung alle 5 cm.
+  Histogramm: Auf Wunsch wird jedes 1-cm-Feld des Gitters nach seiner Trefferzahl
+  gefaerbt (2D-Histogramm), mit Farbskala von 0 bis zum Maximum unter der Scheibe.
 -->
 <style>
   :root {
@@ -37,14 +39,12 @@
      die 640 px. Gezeichnet wird in Geraeteaufloesung (layout). */
   .scheibe { width: min(100%, 117vh, 640px); }
   canvas { display: block; width: 100%; aspect-ratio: 38 / 26; border: 1px solid var(--grau); background: #fff; }
-  /* Heatmap-Zeile unter der Zielscheibe: Schalter, Feldgroesse, Farbskala */
-  .heatzeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; font-size: 14px; }
-  .heatzeile label { cursor: pointer; }
-  .heatzeile input { vertical-align: -2px; }
-  .heatzeile select { font: inherit; font-size: 14px; padding: 2px 4px; }
-  .heatzeile .nur-heat, .heatzeile .skala { display: none; }
-  .heatzeile.an .nur-heat { display: inline; }
-  .heatzeile.an .skala { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; font-size: 12px; color: #555; }
+  /* Histogramm-Zeile unter der Zielscheibe: Schalter und Farbskala */
+  .histozeile { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; font-size: 14px; }
+  .histozeile label { cursor: pointer; }
+  .histozeile input { vertical-align: -2px; }
+  .histozeile .skala { display: none; }
+  .histozeile.an .skala { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; font-size: 12px; color: #555; }
   .skala .balken { flex: 1 1 80px; height: 12px; border: 1px solid var(--grau);
                    background: linear-gradient(to right, #FFF3C4, #F6B24E, #C87A3A, #B01A15, #5A0C0A); }
   .skala b { color: var(--text); font-variant-numeric: tabular-nums; }
@@ -91,15 +91,9 @@
   <div class="wrap">
     <div class="scheibe">
       <canvas id="c" width="570" height="390"></canvas>
-      <div class="heatzeile" id="heatzeile">
-        <label><input type="checkbox" id="heat"> <b>Heatmap</b>: Treffer je Feld</label>
-        <label class="nur-heat">Feld
-          <select id="feld">
-            <option value="5">5 cm × 5 cm</option>
-            <option value="2">2 cm × 2 cm</option>
-            <option value="1">1 cm × 1 cm</option>
-          </select></label>
-        <div class="skala"><span>0</span><div class="balken"></div><b id="skMax">–</b><span id="skTitel"></span></div>
+      <div class="histozeile" id="histozeile">
+        <label><input type="checkbox" id="histo"> <b>Histogramm</b>: Treffer je Feld (1 cm × 1 cm)</label>
+        <div class="skala"><span>0</span><div class="balken"></div><b id="skMax">–</b><span>Treffer je Feld</span></div>
       </div>
     </div>
     <div class="panel">
@@ -142,6 +136,10 @@
           aber trotzdem fast nie den innersten Ring treffen. Welcher Fehler ist das?</li>
       <li>Stell eine Kombination ein, bei der die Pfeile dicht beieinander stecken, aber alle deutlich
           neben der Mitte. Welcher Fehler ist das, und an welcher Zahl in der Tabelle erkennst du ihn?</li>
+      <li>Histogramm einschalten. Verschiebung 0 cm und 0 cm, Wackeln 6 cm, 1000 Würfe. Beschreibe, wie
+          sich die Farbe von der Mitte nach außen ändert. Dann Zurücksetzen, Wackeln 2 cm, wieder 1000
+          Würfe. Was ändert sich am Bild, was an der Zahl am Ende der Skala? Erkläre beides mit
+          σ<sub>x</sub> und σ<sub>y</sub>.</li>
     </ol>
   </div>
 
@@ -179,9 +177,10 @@
 
   function el(id) { return document.getElementById(id); }
   var vx = el("vx"), vy = el("vy"), st = el("st");
-  var heat = el("heat"), feld = el("feld");
+  var histo = el("histo");
+  var FELD = 1;                  // Feldgroesse des Histogramms in cm, wie das feine Gitter
 
-  // Farbe der Heatmap fuer den Anteil t = Treffer / Maximum (0..1). Dieselben fuenf
+  // Farbe des Histogramms fuer den Anteil t = Treffer / Maximum (0..1). Dieselben fuenf
   // Stufen wie der Farbverlauf der Skala im CSS, dazwischen linear.
   var STUFEN = [[255, 243, 196], [246, 178, 78], [200, 122, 58], [176, 26, 21], [90, 12, 10]];
   function farbe(t) {
@@ -192,9 +191,9 @@
   }
 
   // 2D-Histogramm: Treffer je Feld der Kantenlaenge c (cm), Felder am Ursprung ausgerichtet,
-  // also deckungsgleich mit dem 5-cm- bzw. 1-cm-Gitter des Blatts. Gezaehlt wird, was auf
-  // dem Blatt liegt. Gibt das Maximum zurueck, fuer die Skala.
-  function heatmap(c) {
+  // also deckungsgleich mit dem Gitter des Blatts. Gezaehlt wird, was auf dem Blatt liegt.
+  // Gibt das Maximum zurueck, fuer die Skala.
+  function histogramm(c) {
     var z = {}, max = 0, k;
     hits.forEach(function (h) {
       var i = Math.floor(h.x / c), j = Math.floor(h.y / c);
@@ -265,14 +264,10 @@
   function zeichne() {
     layout();
     ctx.clearRect(0, 0, W, H);
-    var g, an = heat.checked, c = +feld.value;
-    // Heatmap zuerst, das Gitter liegt darueber; Skala unter der Zielscheibe nachfuehren
-    el("heatzeile").className = "heatzeile" + (an ? " an" : "");
-    if (an) {
-      var max = hits.length ? heatmap(c) : 0;
-      el("skMax").textContent = max;
-      el("skTitel").textContent = "Treffer je " + c + "-cm-Feld";
-    }
+    var g, an = histo.checked;
+    // Histogramm zuerst, das Gitter liegt darueber; Skala unter der Zielscheibe nachfuehren
+    el("histozeile").className = "histozeile" + (an ? " an" : "");
+    if (an) el("skMax").textContent = hits.length ? histogramm(FELD) : 0;
     // Gitter wie auf dem Blatt: 1 cm fein, 5 cm kraeftig, Rand des Blatts
     ctx.lineWidth = 0.5; ctx.strokeStyle = "rgba(0,0,0,0.22)";
     for (g = -RX; g <= RX; g++) { ctx.beginPath(); ctx.moveTo(px(g), 0); ctx.lineTo(px(g), H); ctx.stroke(); }
@@ -301,7 +296,7 @@
     });
     ctx.fillStyle = "#B01A15";
     ctx.beginPath(); ctx.arc(px(0), py(0), Math.max(3, 0.35 * PX), 0, 2 * Math.PI); ctx.fill();
-    // Treffer; was ueber das Blatt hinausgeht, liegt am Rand. Mit Heatmap kleiner und
+    // Treffer; was ueber das Blatt hinausgeht, liegt am Rand. Mit Histogramm kleiner und
     // durchscheinend, ab 300 Wuerfen fast unsichtbar, damit die Felder lesbar bleiben.
     ctx.fillStyle = "#222"; ctx.globalAlpha = an ? (hits.length > 300 ? 0.12 : 0.5) : 1;
     var r = an ? 2.2 : 3.2;
@@ -346,8 +341,7 @@
   el("w100").addEventListener("click", function () { wurf(100); });
   el("w1000").addEventListener("click", function () { wurf(1000); });
   el("reset").addEventListener("click", function () { hits = []; zeichne(); });
-  heat.addEventListener("change", zeichne);
-  feld.addEventListener("change", zeichne);
+  histo.addEventListener("change", zeichne);
   window.addEventListener("resize", zeichne);   // Drehen des Geraets, Fenster aendern
   anzeige();
   zeichne();
