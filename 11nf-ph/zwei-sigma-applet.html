@@ -252,6 +252,36 @@
     return { g, w, h };
   }
 
+  // Sieben-Segment-Anzeige ohne Font: text aus Ziffern und Komma, rechtsbuendig
+  // an xRight auf der Grundlinie yBase, Ziffernhoehe H (Breite 0,55 H,
+  // Segmentdicke 0,17 Breite), leicht kursiv; aus-Segmente schwach sichtbar
+  // wie bei einer LCD-Anzeige. Segmente a oben, b rechts oben, c rechts unten,
+  // d unten, e links unten, f links oben, g Mitte.
+  const SEG = { '0': [1,1,1,1,1,1,0], '1': [0,1,1,0,0,0,0], '2': [1,1,0,1,1,0,1], '3': [1,1,1,1,0,0,1],
+                '4': [0,1,1,0,0,1,1], '5': [1,0,1,1,0,1,1], '6': [1,0,1,1,1,1,1], '7': [1,1,1,0,0,0,0],
+                '8': [1,1,1,1,1,1,1], '9': [1,1,1,1,0,1,1] };
+  function segText(g, text, xRight, yBase, H, an, aus) {
+    const W = 0.55 * H, T = 0.17 * W, adv = 1.4 * W, advK = 0.5 * W;
+    let breite = -0.4 * W;
+    for (const ch of text) breite += ch === ',' ? advK : adv;
+    let x = xRight - breite;
+    const rect = (x0, y0, x1, y1, on) => { g.fillStyle = on ? an : aus; g.fillRect(x0, y0, x1 - x0, y1 - y0); };
+    g.save(); g.transform(1, 0, -0.10, 1, 0.10 * yBase, 0);
+    for (const ch of text) {
+      if (ch === ',') { rect(x, yBase - 1.1 * T, x + 0.85 * T, yBase + 0.45 * T, true); x += advK; continue; }
+      const s = SEG[ch] || [0, 0, 0, 0, 0, 0, 0], yT = yBase - H, yM = yBase - H / 2;
+      rect(x + 0.35 * T, yT, x + W - 0.35 * T, yT + T, s[0]);
+      rect(x + W - T, yT + 0.35 * T, x + W, yM - 0.35 * T, s[1]);
+      rect(x + W - T, yM + 0.35 * T, x + W, yBase - 0.35 * T, s[2]);
+      rect(x + 0.35 * T, yBase - T, x + W - 0.35 * T, yBase, s[3]);
+      rect(x, yM + 0.35 * T, x + T, yBase - 0.35 * T, s[4]);
+      rect(x, yT + 0.35 * T, x + T, yM - 0.35 * T, s[5]);
+      rect(x + 0.35 * T, yM - 0.5 * T, x + W - 0.35 * T, yM + 0.5 * T, s[6]);
+      x += adv;
+    }
+    g.restore();
+  }
+
   function rrect(g, x, y, w, h, r) {
     g.beginPath(); g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r);
     g.lineTo(x + w, y + h - r); g.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
@@ -289,10 +319,8 @@
     // die Zeile ist klein, deshalb steht der Wert zusaetzlich unter dem Display
     const dx0 = px + 0.20 * pw, dx1 = px + 0.66 * pw, dy0 = py + 0.232 * ph, dy1 = py + 0.296 * ph;
     const dm = (dy0 + dy1) / 2;
-    g.fillStyle = '#7ef29a'; g.font = '700 ' + Math.round((dy1 - dy0) * 0.8) + 'px "Segoe UI", Arial, sans-serif';
-    g.textAlign = 'right'; g.textBaseline = 'middle';
-    g.fillText('10,00', dx1 - (dx1 - dx0) * 0.05, dm);
-    g.fillStyle = '#9fd7ab'; g.font = Math.round((dy1 - dy0) * 0.5) + 'px sans-serif'; g.textAlign = 'left';
+    segText(g, '10,00', dx1 - (dx1 - dx0) * 0.06, dm + 0.36 * (dy1 - dy0), 0.72 * (dy1 - dy0), '#7ef29a', 'rgba(126,242,154,0.12)');
+    g.fillStyle = '#9fd7ab'; g.font = Math.round((dy1 - dy0) * 0.5) + 'px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
     g.fillText('L', dx0 + (dx1 - dx0) * 0.05, dm);
     g.fillStyle = '#666'; g.font = Math.round((klein ? 8 : 9) * f) + 'px sans-serif'; g.textAlign = 'center';
     g.fillText('Anzeige der Säule', px + 0.5 * pw, py + 0.76 * ph);
