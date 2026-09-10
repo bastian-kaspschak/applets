@@ -307,11 +307,12 @@
     const hx0 = kx + 0.335 * kw, hx1 = kx + 0.535 * kw, hyTop = ky + 0.045 * kh, hyBot = ky + 0.43 * kh;
     const yMid = ky + 0.24 * kh, halb = 0.17 * kh;
     const Y = ml => yMid - ml / HALS * halb;              // ml (in l) -> y
-    // Fuellstand: halbdurchsichtig ueber dem Glas, Oberflaeche als Strich
+    // Fuellstand: Benzin hell-gelblich und durchscheinend ueber dem Glas,
+    // Oberflaeche als bernsteinfarbener Strich
     if (stand !== null) {
       const yl = Math.max(hyTop, Math.min(hyBot, Y(stand)));
-      g.fillStyle = 'rgba(70,140,205,0.55)'; g.fillRect(hx0, yl, hx1 - hx0, hyBot - yl);
-      g.strokeStyle = BLAU; g.lineWidth = 2; g.beginPath(); g.moveTo(hx0 - 4, yl + 0.5); g.lineTo(hx1 + 4, yl + 0.5); g.stroke(); g.lineWidth = 1;
+      g.fillStyle = 'rgba(240,210,90,0.45)'; g.fillRect(hx0, yl, hx1 - hx0, hyBot - yl);
+      g.strokeStyle = '#c9971f'; g.lineWidth = 2; g.beginPath(); g.moveTo(hx0 - 4, yl + 0.5); g.lineTo(hx1 + 4, yl + 0.5); g.stroke(); g.lineWidth = 1;
     }
     // Skala rechts vom Hals
     const sx = kx + 0.56 * kw;
