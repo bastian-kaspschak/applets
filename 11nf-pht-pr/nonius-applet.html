@@ -8,12 +8,17 @@
   Applet zur Stunde "Welcher Messschieber streut staerker?" in 11NF PHT-Pr —
   zum Ueben zu Hause. Eine Datei, kein Internet noetig: HTML, CSS und
   JavaScript zusammen, keine Formelschrift (alles Unicode).
-  Gezeichnet werden die Hauptskala eines Messschiebers (Millimeter) und der
-  Nonius am Schieber, wahlweise 1/10 mm (10 Striche auf 9 mm, wie der
-  Holzmessschieber) oder 1/20 mm (20 Striche auf 19 mm). Ein Regler schiebt
-  den Schieber, "Zufall" stellt einen unbekannten Wert ein, die Lupe zeigt den
-  Bereich unter dem Finger vergroessert. Ablesung eintippen, pruefen, Anzeige
-  einschalten: der fluchtende Noniusstrich wird markiert.
+  Gezeichnet wird ein Messschieber von vorn: die Schiene mit der Hauptskala
+  (Millimeter), der Schieber, der die Schiene umgreift, mit dem Nonius unter
+  der Hauptskala, sein Schnabel nach unten, ein Werkstueck zwischen den
+  Messflaechen; kommt der Nullpunkt ins Bild, auch der feste Schnabel.
+  Nonius wahlweise 1/10 mm (10 Striche auf 9 mm, wie der Holzmessschieber),
+  1/20 mm (20 auf 19), 1/50 mm (50 auf 49) oder 1/100 mm (100 auf 99); die
+  Geometrie folgt immer der Regel n Striche auf n-1 mm.
+  Ein Regler schiebt den Schieber, "Zufall" stellt einen unbekannten Wert ein,
+  die Lupe zeigt den Bereich unter dem Finger vergroessert (staerker bei
+  feinen Teilungen). Ablesung eintippen, pruefen, Anzeige einschalten: der
+  fluchtende Noniusstrich wird markiert.
   Canvas in Geraeteaufloesung (devicePixelRatio), Breite aus dem Layout.
 -->
 <style>
@@ -34,14 +39,14 @@
   .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
   .wrap > * { min-width: 0; }
   canvas { display: block; width: 100%; border: 1px solid var(--grau); background: #fff; touch-action: none; }
-  #c { height: 190px; cursor: crosshair; }
+  #c { height: 230px; cursor: crosshair; }
   #lupe { height: 120px; margin-top: 8px; border-color: var(--stahl); }
   .legende { font-size: 12px; color: #555; margin-top: 6px; }
   .legende b { color: var(--stahl); }
   @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
   @media (max-width: 480px) {
     main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
-    #c { height: 150px; } #lupe { height: 100px; }
+    #c { height: 170px; } #lupe { height: 100px; }
   }
   .panel { background: var(--hell); border: 1px solid var(--grau); padding: 12px 14px; }
   .panel label { display: block; font-size: 14px; margin: 8px 0 2px; }
@@ -85,14 +90,17 @@
     <div class="bild">
       <canvas id="c"></canvas>
       <canvas id="lupe"></canvas>
-      <div class="legende">Oben die Hauptskala in mm, unten der Nonius am Schieber: <b id="nonInfo">20 Striche auf 19 mm</b>.
-        Der Rahmen zeigt den Ausschnitt der Lupe.</div>
+      <div class="legende">Oben die Hauptskala auf der Schiene in mm, darunter der Nonius am Schieber:
+        <b id="nonInfo">20 Striche auf 19 mm</b>. Der Schnabel des Schiebers drückt von rechts gegen das
+        Werkstück; der gestrichelte Rahmen zeigt den Ausschnitt der Lupe.</div>
     </div>
     <div class="panel">
       <label><b>Nonius</b>
         <select id="teil">
           <option value="0.1">1/10 mm · 10 Striche auf 9 mm (Holzmessschieber)</option>
           <option value="0.05" selected>1/20 mm · 20 Striche auf 19 mm (Messschieber 1)</option>
+          <option value="0.02">1/50 mm · 50 Striche auf 49 mm</option>
+          <option value="0.01">1/100 mm · 100 Striche auf 99 mm</option>
         </select></label>
       <label><b>Schieber</b>
         <input type="range" id="pos" min="0" max="40" step="0.05" value="21.35"></label>
@@ -118,6 +126,9 @@
           Treffer in Folge. Nach einem Fehler: erst die ganzen Millimeter neu lesen, dann erst den Nonius.</li>
       <li>Stell 21,25 mm ein, dann 21,30 mm. Welcher Noniusstrich passt jeweils? Um wie viel hat sich der
           Schieber dabei bewegt?</li>
+      <li>Nonius 1/50 und 1/100: je dreimal „Zufall“, ablesen, prüfen. Der Nonius ist jetzt lang; fahr mit
+          der Lupe von links nach rechts, bis ein Strich passt. Woran erkennst du, dass du am passenden
+          Strich vorbei bist?</li>
       <li>Ein Messschieber mit 1/20-Nonius verspricht 0,05 mm. In der Messreihe der Klasse streute er mit
           σ = 0,17 mm. Was heißt das für seine Anzeige? Ein Satz.</li>
     </ol>
@@ -133,8 +144,10 @@
           der mit einem Strich der Hauptskala fluchtet. Er gibt die Stelle nach dem Komma.</li>
       <li><b>Notieren:</b> Wert mit Einheit, zum Beispiel 21,35 mm.</li>
     </ol>
-    Der <b>Nonius</b> ist die kurze Skala am Schieber: 20 Striche auf 19 mm, jeder Strich ist 0,05 mm kürzer
-    als ein Millimeter. Darum passt genau ein Strich, und seine Nummer zeigt die Stelle nach dem Komma.
+    Der <b>Nonius</b> ist die kurze Skala am Schieber: n Striche auf n − 1 Millimeter. Beim 1/20-Nonius sind
+    das 20 Striche auf 19 mm, jeder Strich ist 0,05 mm kürzer als ein Millimeter. Darum passt genau ein
+    Strich, und seine Nummer zeigt die Stelle nach dem Komma. Je feiner der Nonius, desto länger ist er:
+    50 Striche auf 49 mm, 100 Striche auf 99 mm.
   </div>
 </main>
 <footer>Kaspschak · nonius-applet.html</footer>
@@ -158,8 +171,11 @@
 
   const N = () => Math.round(1 / t);            // Zahl der Noniusteile
   const nonLen = () => N() * (1 - t);           // Laenge des Nonius in mm
-  const win = () => nonLen() + 6;               // sichtbare Breite in mm
-  const xl = () => pos - 2;                     // linker Rand in mm
+  const RAND = 5;                               // sichtbarer Rand links vom Nullstrich in mm
+  const win = () => nonLen() + RAND + 3;        // sichtbare Breite in mm
+  const xl = () => pos - RAND;                  // linker Rand in mm
+  const labelJe = () => Math.round(0.1 / t);    // jeder wievielte Noniusstrich eine Zahl traegt
+  const lupeFaktor = () => (t >= 0.05 ? 4 : t >= 0.02 ? 6 : 8);
   const dec = () => (t < 0.1 ? 2 : 1);
   const fmt = v => v.toFixed(dec()).replace('.', ',');
   const runde = v => Math.round(v / t) * t;
@@ -180,59 +196,103 @@
     return { g, w, h };
   }
 
-  // Zeichnet Hauptskala und Nonius in ein Feld der Breite w, Hoehe h;
-  // ppm = Pixel je mm, links = linker Rand in mm, gross = Lupe (dickere Striche).
+  // Zeichnet den Messschieber in ein Feld der Breite w, Hoehe h;
+  // ppm = Pixel je mm, links = linker Rand in mm, gross = Lupe (nur die Skalen).
   function skalen(g, w, h, ppm, links, gross) {
-    const yM = h * 0.52;                       // Kante, an der beide Skalen sich treffen
+    const X = mm => (mm - links) * ppm;
+    const yTop = gross ? h * 0.10 : h * 0.16;   // Oberkante der Schiene
+    const yM = gross ? h * 0.54 : h * 0.50;     // Kante, an der beide Skalen sich treffen
+    const yS = gross ? h * 0.96 : h * 0.74;     // Unterkante des Schiebers
     const lw = gross ? 1.6 : 1;
+    const sx0 = X(pos - 1), sx1 = X(pos + nonLen() + 2);
     g.clearRect(0, 0, w, h);
-    // Schiene mit Hauptskala
+    g.lineJoin = 'round';
+
+    if (!gross) {
+      // Schieber umgreift die Schiene: Rahmen von oben bis unten, hinter der Schiene
+      g.fillStyle = '#cfd6de';
+      g.fillRect(sx0, h * 0.05, sx1 - sx0, yS - h * 0.05);
+      // beweglicher Schnabel, Messflaeche links bei pos
+      g.beginPath();
+      g.moveTo(X(pos), yS); g.lineTo(X(pos + 4), yS); g.lineTo(X(pos + 2.4), h - 3); g.lineTo(X(pos), h - 3);
+      g.closePath(); g.fill();
+      g.strokeStyle = '#8b98a6'; g.lineWidth = 1; g.stroke();
+      // fester Schnabel am Nullpunkt, wenn er ins Bild kommt
+      if (X(0) > 0) {
+        g.fillStyle = '#ecece8';
+        g.beginPath();
+        g.moveTo(X(-4), yTop); g.lineTo(X(0), yTop); g.lineTo(X(0), h - 3); g.lineTo(X(-1.6), h - 3); g.lineTo(X(-4), yS);
+        g.closePath(); g.fill();
+        g.strokeStyle = '#8f8f88'; g.stroke();
+      }
+      // Werkstueck zwischen den Messflaechen
+      if (pos > 0) {
+        const wy0 = yS + (h - 3 - yS) * 0.25, wy1 = h - 7;
+        const wx0 = Math.max(0, X(0)), wx1 = X(pos);
+        g.fillStyle = '#c9b27f';
+        g.fillRect(wx0, wy0, wx1 - wx0, wy1 - wy0);
+        g.strokeStyle = '#8a7a52'; g.strokeRect(wx0 + 0.5, wy0 + 0.5, wx1 - wx0 - 1, wy1 - wy0 - 1);
+      }
+    }
+
+    // Schiene mit Hauptskala (liegt vor dem Schieberrahmen: das ist sein Fenster)
+    const bx0 = Math.max(0, X(-4));
     g.fillStyle = '#ecece8';
-    g.fillRect(0, h * 0.08, w, yM - h * 0.08);
-    // Schieber mit Nonius
-    const sx0 = (pos - 1 - links) * ppm, sx1 = (pos + nonLen() + 2 - links) * ppm;
+    g.fillRect(bx0, yTop, w - bx0, yM - yTop);
+    g.strokeStyle = '#8f8f88'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(bx0, yTop + 0.5); g.lineTo(w, yTop + 0.5); g.stroke();
+    // Schieber unten mit Nonius
     g.fillStyle = '#d9dfe6';
-    g.fillRect(sx0, yM, sx1 - sx0, h * 0.40);
-    g.strokeStyle = '#8b98a6'; g.lineWidth = 1;
-    g.strokeRect(sx0 + 0.5, yM + 0.5, sx1 - sx0 - 1, h * 0.40 - 1);
-    g.fillStyle = '#222'; g.strokeStyle = '#222'; g.lineWidth = lw;
-    g.textAlign = 'center';
+    g.fillRect(sx0, yM, sx1 - sx0, yS - yM);
+    g.strokeStyle = '#222'; g.lineWidth = lw;
+    g.beginPath(); g.moveTo(bx0, yM + 0.5); g.lineTo(w, yM + 0.5); g.stroke();
+
+    g.fillStyle = '#222'; g.textAlign = 'center';
     // Hauptskala: Striche nach oben von yM
     g.font = (gross ? 15 : 12) + 'px sans-serif';
     g.textBaseline = 'bottom';
+    const band = yM - yTop;
     const rechts = links + w / ppm;
     for (let m = Math.ceil(links - 1e-6); m <= Math.floor(rechts + 1e-6); m++) {
       if (m < 0) continue;
-      const x = Math.round((m - links) * ppm) + 0.5;
-      const len = (m % 10 === 0) ? h * 0.26 : (m % 5 === 0) ? h * 0.18 : h * 0.11;
+      const x = Math.round(X(m)) + 0.5;
+      const len = (m % 10 === 0) ? band * 0.72 : (m % 5 === 0) ? band * 0.5 : band * 0.32;
       g.beginPath(); g.moveTo(x, yM); g.lineTo(x, yM - len); g.stroke();
       if (m % 10 === 0) g.fillText(String(m), x, yM - len - 2);
     }
     // Nonius: Striche nach unten von yM
     g.textBaseline = 'top';
-    const n = N(), z = zerlege();
+    const n = N(), z = zerlege(), lj = labelJe(), bandN = yS - yM;
     for (let k = 0; k <= n; k++) {
-      const xm = pos + k * (1 - t);
-      const x = Math.round((xm - links) * ppm) + 0.5;
+      const x = Math.round(X(pos + k * (1 - t))) + 0.5;
       if (x < -2 || x > w + 2) continue;
-      let len, lab = null;
-      if (t < 0.1) { len = (k === 0 || k === n) ? h * 0.22 : (k % 2 === 0) ? h * 0.16 : h * 0.10; if (k % 2 === 0) lab = String(k / 2); }
-      else { len = (k === 0 || k === n) ? h * 0.22 : h * 0.14; lab = String(k); }
+      const mitZahl = (k % lj === 0);
+      const len = (k === 0 || k === n) ? bandN * 0.48 : mitZahl ? bandN * 0.40 : bandN * 0.24;
       const treffer = zeig && k === z.k;
       g.strokeStyle = treffer ? '#B01A15' : '#222';
       g.lineWidth = treffer ? lw + 1.2 : lw;
       g.beginPath(); g.moveTo(x, yM); g.lineTo(x, yM + len); g.stroke();
-      if (lab !== null) { g.fillStyle = treffer ? '#B01A15' : '#222'; g.fillText(lab, x, yM + len + 2); }
+      if (mitZahl) { g.fillStyle = treffer ? '#B01A15' : '#222'; g.fillText(String(k / lj), x, yM + len + 2); }
     }
     g.strokeStyle = '#222'; g.lineWidth = lw; g.fillStyle = '#222';
-    // Anzeige: Millimeterstrich links vom Nullstrich markieren
+
+    if (!gross) {
+      // Rahmen des Schiebers vor der Schiene (Fensterkanten) und Feststellschraube
+      g.strokeStyle = '#8b98a6'; g.lineWidth = 1;
+      g.strokeRect(sx0 + 0.5, h * 0.05 + 0.5, sx1 - sx0 - 1, yS - h * 0.05 - 1);
+      const r = Math.min(6, (yTop - h * 0.05) * 0.42);
+      g.fillStyle = '#9aa6b2';
+      g.beginPath(); g.arc(sx1 - 3 * ppm, h * 0.05 + (yTop - h * 0.05) / 2, r, 0, 2 * Math.PI); g.fill();
+    }
+
+    // Anzeige: Millimeterstrich links vom Nullstrich und fluchtender Noniusstrich markieren
     if (zeig) {
-      const x = (z.mm - links) * ppm;
+      const x = X(z.mm);
       g.fillStyle = '#35638A';
-      g.beginPath(); g.moveTo(x, h * 0.08); g.lineTo(x - 5, h * 0.02); g.lineTo(x + 5, h * 0.02); g.closePath(); g.fill();
-      const xk = (pos + z.k * (1 - t) - links) * ppm;
+      g.beginPath(); g.moveTo(x, yTop - 1); g.lineTo(x - 5, yTop - 9); g.lineTo(x + 5, yTop - 9); g.closePath(); g.fill();
+      const xk = X(pos + z.k * (1 - t));
       g.fillStyle = '#B01A15';
-      g.beginPath(); g.arc(xk, h * 0.96, gross ? 4 : 3, 0, 2 * Math.PI); g.fill();
+      g.beginPath(); g.arc(xk, yS - 6, gross ? 4 : 3, 0, 2 * Math.PI); g.fill();
     }
   }
 
@@ -242,7 +302,7 @@
     // Lupe: Mitte
     const z = zerlege();
     if (lupeX === null) lupeX = pos + z.k * (1 - t);
-    const b = fit(lc), ppmL = ppm * 4, breiteL = b.w / ppmL;
+    const b = fit(lc), ppmL = ppm * lupeFaktor(), breiteL = b.w / ppmL;
     let linksL = lupeX - breiteL / 2;
     if (linksL < links) linksL = links;
     if (linksL + breiteL > links + win()) linksL = links + win() - breiteL;
@@ -269,7 +329,7 @@
   teilSel.addEventListener('change', () => {
     t = parseFloat(teilSel.value);
     posIn.step = String(t);
-    nonInfo.textContent = t < 0.1 ? '20 Striche auf 19 mm' : '10 Striche auf 9 mm';
+    nonInfo.textContent = N() + ' Striche auf ' + (N() - 1) + ' mm';
     fb.textContent = ''; fb.className = 'fb';
     setzePos(pos, true);
   });
@@ -308,8 +368,8 @@
   // Lupe folgt dem Finger oder der Maus ueber dem Hauptbild
   function lupeAuf(e) {
     const r = c.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width * win() + xl();
-    lupeX = x; zeichne();
+    lupeX = (e.clientX - r.left) / r.width * win() + xl();
+    zeichne();
   }
   c.addEventListener('pointermove', lupeAuf);
   c.addEventListener('pointerdown', lupeAuf);
