@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nonius ablesen: Messen mit dem Messschieber</title>
+<!--
+  Applet zur Stunde "Welcher Messschieber streut staerker?" in 11NF PHT-Pr —
+  zum Ueben zu Hause. Eine Datei, kein Internet noetig: HTML, CSS und
+  JavaScript zusammen, keine Formelschrift (alles Unicode).
+  Gezeichnet werden die Hauptskala eines Messschiebers (Millimeter) und der
+  Nonius am Schieber, wahlweise 1/10 mm (10 Striche auf 9 mm, wie der
+  Holzmessschieber) oder 1/20 mm (20 Striche auf 19 mm). Ein Regler schiebt
+  den Schieber, "Zufall" stellt einen unbekannten Wert ein, die Lupe zeigt den
+  Bereich unter dem Finger vergroessert. Ablesung eintippen, pruefen, Anzeige
+  einschalten: der fluchtende Noniusstrich wird markiert.
+  Canvas in Geraeteaufloesung (devicePixelRatio), Breite aus dem Layout.
+-->
+<style>
+  :root {
+    --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A;
+    --grau: #B5B5B5; --text: #222; --hell: #f5f5f2;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.4; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 980px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 16px; }
+  .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+  .wrap > * { min-width: 0; }
+  canvas { display: block; width: 100%; border: 1px solid var(--grau); background: #fff; touch-action: none; }
+  #c { height: 190px; cursor: crosshair; }
+  #lupe { height: 120px; margin-top: 8px; border-color: var(--stahl); }
+  .legende { font-size: 12px; color: #555; margin-top: 6px; }
+  .legende b { color: var(--stahl); }
+  @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) {
+    main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
+    #c { height: 150px; } #lupe { height: 100px; }
+  }
+  .panel { background: var(--hell); border: 1px solid var(--grau); padding: 12px 14px; }
+  .panel label { display: block; font-size: 14px; margin: 8px 0 2px; }
+  .panel label b { color: var(--stahl); }
+  .panel input[type=range] { width: 100%; }
+  .panel select { width: 100%; font: inherit; font-size: 14px; padding: 4px; }
+  .panel input[type=text] { width: 100%; font: inherit; font-size: 16px; padding: 6px 8px; border: 1px solid var(--grau); }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 6px; }
+  button { font: inherit; font-size: 14px; padding: 6px 12px; border: 1px solid var(--stahl);
+           background: #fff; color: var(--stahl); cursor: pointer; }
+  button:hover { background: var(--stahl); color: #fff; }
+  .anzeige { font-size: 15px; margin: 6px 0 10px; min-height: 1.4em; font-variant-numeric: tabular-nums; }
+  .anzeige b { color: var(--rot); }
+  .fb { font-size: 14px; min-height: 2.8em; margin-top: 6px; }
+  .fb.ok { color: var(--oliv); font-weight: 600; }
+  .fb.nein { color: var(--rot); }
+  .zaehler { font-size: 13px; color: #555; border-top: 1px solid #ddd; padding-top: 6px; margin-top: 8px; }
+  .box { border: 1px solid var(--grau); padding: 10px 14px; margin-top: 18px; background: #fff; }
+  .box .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; }
+  .box ol { margin: 6px 0 0 18px; padding: 0; }
+  .box li { margin: 5px 0; }
+  .merk { background: #eaf0f4; }
+  .merk ol { margin-top: 4px; }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Physiktechnik-Praktikum (Kaspschak)</div>
+  <div><span class="k">Kurs</span>11NF PHT-Pr</div>
+  <div><span class="k">Reihe</span>Messen und Messfehler</div>
+  <div><span class="k">Thema</span>Messschieber und Nonius</div>
+</header>
+<main>
+  <h1>Nonius ablesen</h1>
+  <p class="lead">Zieh den Schieber oder tipp auf „Zufall“. Dann lies ab: erst die ganzen Millimeter links
+    vom Nullstrich des Nonius, dann der Noniusstrich, der mit einem Strich der Hauptskala fluchtet.
+    Die Lupe zeigt vergrößert, wo dein Finger oder die Maus steht.</p>
+
+  <div class="wrap">
+    <div class="bild">
+      <canvas id="c"></canvas>
+      <canvas id="lupe"></canvas>
+      <div class="legende">Oben die Hauptskala in mm, unten der Nonius am Schieber: <b id="nonInfo">20 Striche auf 19 mm</b>.
+        Der Rahmen zeigt den Ausschnitt der Lupe.</div>
+    </div>
+    <div class="panel">
+      <label><b>Nonius</b>
+        <select id="teil">
+          <option value="0.1">1/10 mm · 10 Striche auf 9 mm (Holzmessschieber)</option>
+          <option value="0.05" selected>1/20 mm · 20 Striche auf 19 mm (Messschieber 1)</option>
+        </select></label>
+      <label><b>Schieber</b>
+        <input type="range" id="pos" min="0" max="40" step="0.05" value="21.35"></label>
+      <div class="btns">
+        <button id="zufall">Zufall</button>
+        <button id="zeig">Anzeige ein</button>
+      </div>
+      <div class="anzeige" id="anz">Anzeige: <b id="wert">aus</b></div>
+      <label><b>Deine Ablesung</b> in mm
+        <input type="text" id="ein" inputmode="decimal" placeholder="z. B. 21,35"></label>
+      <div class="btns"><button id="pruefen">Prüfen</button></div>
+      <div id="fb" class="fb"></div>
+      <div class="zaehler">Treffer in Folge: <b id="serie">0</b> · geprüft: <b id="gesamt">0</b></div>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="lbl">Aufgaben</div>
+    <ol>
+      <li>Nonius 1/10. Stell mit dem Schieber 12,7 mm ein und schalte die Anzeige ein. Welcher Noniusstrich
+          passt? Stell dann 12,0 mm ein: Wo steht jetzt der Nullstrich, und welcher Strich passt?</li>
+      <li>Nonius 1/20, Anzeige aus. Fünfmal „Zufall“, jedes Mal ablesen, eintippen, prüfen. Ziel: fünf
+          Treffer in Folge. Nach einem Fehler: erst die ganzen Millimeter neu lesen, dann erst den Nonius.</li>
+      <li>Stell 21,25 mm ein, dann 21,30 mm. Welcher Noniusstrich passt jeweils? Um wie viel hat sich der
+          Schieber dabei bewegt?</li>
+      <li>Ein Messschieber mit 1/20-Nonius verspricht 0,05 mm. In der Messreihe der Klasse streute er mit
+          σ = 0,17 mm. Was heißt das für seine Anzeige? Ein Satz.</li>
+    </ol>
+  </div>
+
+  <div class="box merk">
+    <div class="lbl">Merke</div>
+    <b>Messen mit dem Messschieber, drei Schritte:</b>
+    <ol>
+      <li><b>Anlegen:</b> Schnäbel durch die Mitte des Werkstücks, leicht hin und her kippen, bis der Wert am
+          größten ist.</li>
+      <li><b>Nonius ablesen:</b> ganze Millimeter links vom Nullstrich des Nonius, dann der Noniusstrich,
+          der mit einem Strich der Hauptskala fluchtet. Er gibt die Stelle nach dem Komma.</li>
+      <li><b>Notieren:</b> Wert mit Einheit, zum Beispiel 21,35 mm.</li>
+    </ol>
+    Der <b>Nonius</b> ist die kurze Skala am Schieber: 20 Striche auf 19 mm, jeder Strich ist 0,05 mm kürzer
+    als ein Millimeter. Darum passt genau ein Strich, und seine Nummer zeigt die Stelle nach dem Komma.
+  </div>
+</main>
+<footer>Kaspschak · nonius-applet.html</footer>
+
+<script>
+(function () {
+  'use strict';
+  const c = document.getElementById('c'), lc = document.getElementById('lupe');
+  const teilSel = document.getElementById('teil'), posIn = document.getElementById('pos');
+  const zufallBtn = document.getElementById('zufall'), zeigBtn = document.getElementById('zeig');
+  const wertOut = document.getElementById('wert'), ein = document.getElementById('ein');
+  const pruefBtn = document.getElementById('pruefen'), fb = document.getElementById('fb');
+  const serieOut = document.getElementById('serie'), gesamtOut = document.getElementById('gesamt');
+  const nonInfo = document.getElementById('nonInfo');
+
+  let t = 0.05;          // Teilung des Nonius in mm
+  let pos = 21.35;       // Stellung des Schiebers in mm (Vielfaches von t)
+  let zeig = false;      // Anzeige ein/aus
+  let lupeX = null;      // Mitte der Lupe in mm
+  let serie = 0, gesamt = 0;
+
+  const N = () => Math.round(1 / t);            // Zahl der Noniusteile
+  const nonLen = () => N() * (1 - t);           // Laenge des Nonius in mm
+  const win = () => nonLen() + 6;               // sichtbare Breite in mm
+  const xl = () => pos - 2;                     // linker Rand in mm
+  const dec = () => (t < 0.1 ? 2 : 1);
+  const fmt = v => v.toFixed(dec()).replace('.', ',');
+  const runde = v => Math.round(v / t) * t;
+
+  function zerlege() {                          // Millimeter und Noniusstrich
+    const mm = Math.floor(pos + 1e-6);
+    let k = Math.round((pos - mm) / t);
+    if (k < 0) k = 0;
+    return { mm, k };
+  }
+
+  function fit(cv) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { g, w, h };
+  }
+
+  // Zeichnet Hauptskala und Nonius in ein Feld der Breite w, Hoehe h;
+  // ppm = Pixel je mm, links = linker Rand in mm, gross = Lupe (dickere Striche).
+  function skalen(g, w, h, ppm, links, gross) {
+    const yM = h * 0.52;                       // Kante, an der beide Skalen sich treffen
+    const lw = gross ? 1.6 : 1;
+    g.clearRect(0, 0, w, h);
+    // Schiene mit Hauptskala
+    g.fillStyle = '#ecece8';
+    g.fillRect(0, h * 0.08, w, yM - h * 0.08);
+    // Schieber mit Nonius
+    const sx0 = (pos - 1 - links) * ppm, sx1 = (pos + nonLen() + 2 - links) * ppm;
+    g.fillStyle = '#d9dfe6';
+    g.fillRect(sx0, yM, sx1 - sx0, h * 0.40);
+    g.strokeStyle = '#8b98a6'; g.lineWidth = 1;
+    g.strokeRect(sx0 + 0.5, yM + 0.5, sx1 - sx0 - 1, h * 0.40 - 1);
+    g.fillStyle = '#222'; g.strokeStyle = '#222'; g.lineWidth = lw;
+    g.textAlign = 'center';
+    // Hauptskala: Striche nach oben von yM
+    g.font = (gross ? 15 : 12) + 'px sans-serif';
+    g.textBaseline = 'bottom';
+    const rechts = links + w / ppm;
+    for (let m = Math.ceil(links - 1e-6); m <= Math.floor(rechts + 1e-6); m++) {
+      if (m < 0) continue;
+      const x = Math.round((m - links) * ppm) + 0.5;
+      const len = (m % 10 === 0) ? h * 0.26 : (m % 5 === 0) ? h * 0.18 : h * 0.11;
+      g.beginPath(); g.moveTo(x, yM); g.lineTo(x, yM - len); g.stroke();
+      if (m % 10 === 0) g.fillText(String(m), x, yM - len - 2);
+    }
+    // Nonius: Striche nach unten von yM
+    g.textBaseline = 'top';
+    const n = N(), z = zerlege();
+    for (let k = 0; k <= n; k++) {
+      const xm = pos + k * (1 - t);
+      const x = Math.round((xm - links) * ppm) + 0.5;
+      if (x < -2 || x > w + 2) continue;
+      let len, lab = null;
+      if (t < 0.1) { len = (k === 0 || k === n) ? h * 0.22 : (k % 2 === 0) ? h * 0.16 : h * 0.10; if (k % 2 === 0) lab = String(k / 2); }
+      else { len = (k === 0 || k === n) ? h * 0.22 : h * 0.14; lab = String(k); }
+      const treffer = zeig && k === z.k;
+      g.strokeStyle = treffer ? '#B01A15' : '#222';
+      g.lineWidth = treffer ? lw + 1.2 : lw;
+      g.beginPath(); g.moveTo(x, yM); g.lineTo(x, yM + len); g.stroke();
+      if (lab !== null) { g.fillStyle = treffer ? '#B01A15' : '#222'; g.fillText(lab, x, yM + len + 2); }
+    }
+    g.strokeStyle = '#222'; g.lineWidth = lw; g.fillStyle = '#222';
+    // Anzeige: Millimeterstrich links vom Nullstrich markieren
+    if (zeig) {
+      const x = (z.mm - links) * ppm;
+      g.fillStyle = '#35638A';
+      g.beginPath(); g.moveTo(x, h * 0.08); g.lineTo(x - 5, h * 0.02); g.lineTo(x + 5, h * 0.02); g.closePath(); g.fill();
+      const xk = (pos + z.k * (1 - t) - links) * ppm;
+      g.fillStyle = '#B01A15';
+      g.beginPath(); g.arc(xk, h * 0.96, gross ? 4 : 3, 0, 2 * Math.PI); g.fill();
+    }
+  }
+
+  function zeichne() {
+    const a = fit(c), ppm = a.w / win(), links = xl();
+    skalen(a.g, a.w, a.h, ppm, links, false);
+    // Lupe: Mitte
+    const z = zerlege();
+    if (lupeX === null) lupeX = pos + z.k * (1 - t);
+    const b = fit(lc), ppmL = ppm * 4, breiteL = b.w / ppmL;
+    let linksL = lupeX - breiteL / 2;
+    if (linksL < links) linksL = links;
+    if (linksL + breiteL > links + win()) linksL = links + win() - breiteL;
+    skalen(b.g, b.w, b.h, ppmL, linksL, true);
+    // Rahmen des Lupenausschnitts im Hauptbild
+    a.g.strokeStyle = '#35638A'; a.g.lineWidth = 1.2; a.g.setLineDash([4, 3]);
+    a.g.strokeRect((linksL - links) * ppm + 0.5, 1.5, breiteL * ppm - 1, a.h - 3);
+    a.g.setLineDash([]);
+    // Anzeige
+    if (zeig) wertOut.textContent = fmt(pos) + ' mm = ' + z.mm + ' mm + ' + z.k + ' · ' + fmt(t) + ' mm';
+    else wertOut.textContent = 'aus';
+    zeigBtn.textContent = zeig ? 'Anzeige aus' : 'Anzeige ein';
+  }
+
+  function setzePos(v, mitLupe) {
+    pos = runde(Math.min(40, Math.max(0, v)));
+    posIn.value = pos.toFixed(2);
+    if (mitLupe) lupeX = null;
+    zeichne();
+  }
+
+  posIn.addEventListener('input', () => { fb.textContent = ''; fb.className = 'fb'; setzePos(parseFloat(posIn.value), true); });
+
+  teilSel.addEventListener('change', () => {
+    t = parseFloat(teilSel.value);
+    posIn.step = String(t);
+    nonInfo.textContent = t < 0.1 ? '20 Striche auf 19 mm' : '10 Striche auf 9 mm';
+    fb.textContent = ''; fb.className = 'fb';
+    setzePos(pos, true);
+  });
+
+  zufallBtn.addEventListener('click', () => {
+    const mm = 3 + Math.floor(Math.random() * 34);
+    const k = Math.floor(Math.random() * N());
+    zeig = false; ein.value = ''; fb.textContent = ''; fb.className = 'fb';
+    setzePos(mm + k * t, true);
+    ein.focus();
+  });
+
+  zeigBtn.addEventListener('click', () => { zeig = !zeig; zeichne(); });
+
+  function pruefen() {
+    const v = parseFloat(ein.value.replace(',', '.'));
+    if (isNaN(v)) { fb.className = 'fb nein'; fb.textContent = 'Bitte eine Zahl eintippen, zum Beispiel 21,35.'; return; }
+    gesamt++;
+    const z = zerlege();
+    if (Math.abs(v - pos) < t / 2) {
+      serie++;
+      fb.className = 'fb ok';
+      fb.textContent = 'Richtig: ' + fmt(pos) + ' mm.';
+    } else {
+      serie = 0;
+      fb.className = 'fb nein';
+      fb.textContent = 'Nicht ganz. Richtig wäre ' + fmt(pos) + ' mm: ' + z.mm + ' mm links vom Nullstrich, Noniusstrich '
+        + z.k + ' passt, also ' + z.k + ' · ' + fmt(t) + ' mm = ' + fmt(z.k * t) + ' mm.';
+    }
+    serieOut.textContent = serie; gesamtOut.textContent = gesamt;
+    zeig = true; lupeX = null; zeichne();
+  }
+  pruefBtn.addEventListener('click', pruefen);
+  ein.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); pruefen(); } });
+
+  // Lupe folgt dem Finger oder der Maus ueber dem Hauptbild
+  function lupeAuf(e) {
+    const r = c.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width * win() + xl();
+    lupeX = x; zeichne();
+  }
+  c.addEventListener('pointermove', lupeAuf);
+  c.addEventListener('pointerdown', lupeAuf);
+
+  window.addEventListener('resize', zeichne);
+  zeichne();
+})();
+</script>
+</body>
+</html>
