@@ -15,7 +15,8 @@
   unteren Platte, die den Nonius traegt — dazwischen bleibt die Hauptskala
   sichtbar. Vom Ende der Schiene haengt der feste Aussenmessschnabel, von der
   unteren Platte der bewegliche; beide lang, nach unten messerartig verjuengt,
-  mit dunklen Messflaechen an der Spitze. Oben die Innenmessschnaebel, unten
+  mit dunklen Messflaechen an der Spitze. Oben die Innenmessschnaebel mit
+  senkrechten Messkanten ueber den Messflaechen (Kreuzschnaebel), unten
   rechts das Daumenrad. Die Messflaechen liegen 1,5 mm links vom Nullstrich
   der jeweiligen Skala; bei geschlossenen Schnaebeln fallen die Nullstriche
   zusammen. Skalenlaengen sind massstaeblich; die Schnaebel, Klingen und Schrauben
@@ -285,8 +286,9 @@
       poly(g, [[bx0, yM - 1], [xf, yM - 1], [xf, yTip], [xf - WT, yTip],
                [xf - WT - h * 0.03, yTip - jawF * 0.12], [bx0, yM + jawF * 0.18]], ST, STR);
       g.fillStyle = DK; g.fillRect(xf - MF, yTip - jawF * 0.20, MF, jawF * 0.20);
-      // fester Innenmessschnabel: Klinge, leicht nach aussen geneigt, Schneide bei x = xf
-      poly(g, [[xf + h * 0.02, yTop + 1], [xf + WB + h * 0.02, yTop + 1], [xf + h * 0.03, yIn + h * 0.03], [xf, yIn]], ST, STR);
+      // fester Innenmessschnabel: Klinge mit senkrechter Messkante bei x = xf, innen verjuengt
+      poly(g, [[xf, yTop + 1], [xf + WB, yTop + 1], [xf + h * 0.03, yIn + h * 0.03], [xf, yIn]], ST, STR);
+      g.fillStyle = DK; g.fillRect(xf, yIn, MF, (yTop - yIn) * 0.4);
       g.strokeStyle = STR; g.beginPath(); g.moveTo(bx0 + 0.5, yTop); g.lineTo(bx0 + 0.5, yM); g.stroke();
     }
     // Hauptskala auf der ganzen Schiene (die obere Platte deckt sie oben ab)
@@ -314,9 +316,10 @@
     poly(g, [[xm, yLo - 1], [xm + WM, yLo - 1], [xm + WM, yLo + jawB * 0.10],
              [xm + WT + h * 0.03, yTip - jawB * 0.12], [xm + WT, yTip], [xm, yTip]], PL, PLR);
     g.fillStyle = DK; g.fillRect(xm, yTip - jawB * 0.22, MF, jawB * 0.22);
-    // beweglicher Innenmessschnabel: Klinge, nach innen geneigt, Schneide bei x = xm;
-    // beide Klingen kreuzen sich bei kleiner Oeffnung (Kreuzschnabel)
-    poly(g, [[xm - WB - h * 0.02, yTop + 1], [xm - h * 0.02, yTop + 1], [xm, yIn], [xm - h * 0.03, yIn + h * 0.03]], PL, PLR);
+    // beweglicher Innenmessschnabel: Klinge mit senkrechter Messkante bei x = xm, innen
+    // verjuengt; beide Klingen kreuzen sich bei kleiner Oeffnung (Kreuzschnabel)
+    poly(g, [[xm - WB, yTop + 1], [xm, yTop + 1], [xm, yIn], [xm - h * 0.03, yIn + h * 0.03]], PL, PLR);
+    g.fillStyle = DK; g.fillRect(xm - MF, yIn, MF, (yTop - yIn) * 0.4);
     // obere Platte, nach rechts versetzt, mit zwei Schrauben, Gravur und Feststellschraube
     const ux0 = xm + h * 0.10, ux1 = px1;
     g.fillStyle = PL; g.fillRect(ux0, yUp0, ux1 - ux0, yUp1 - yUp0);
