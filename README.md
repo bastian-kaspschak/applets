@@ -12,7 +12,7 @@ Pages:
 |---|---|---|
 | `11nf-ph/mittelwert-sigma-applet.html` | 11NF PH, Messen und Messfehler (September 2026) | Mittelwert als Schätzwert für den wahren Wert, Standardabweichung als typische Abweichung; Abweichungen als Pfeile, ihre Quadrate, das mittlere Quadrat und seine Seite σ; Histogramm der Messwerte mit x̄ ± σ |
 | `11nf-ph/zielscheibe-applet.html` | 11NF PH, Messen und Messfehler (September 2026) | Die Zielscheibe des A3-Blatts aus dem Unterricht mit zwei Reglern, Verschiebung (systematischer Fehler) und Wackeln (statistischer Fehler); Würfe simulieren, Mittelwert als Kreuz und Streubereich x̄ ± σ sehen, Histogramm der Treffer je 1-cm-Feld mit Farbskala, Kennzahlen wie auf dem Arbeitsblatt |
-| `11nf-pht-pr/nonius-applet.html` | 11NF PHT-Pr, Messen und Messfehler (September 2026) | Messschieber von vorn (Schiene, Schieber mit Nonius und Schnabel, Werkstück), Nonius 1/10, 1/20 oder 1/50 mm; Schieber ziehen oder Zufallswert, ablesen, eintippen, prüfen; Lupe folgt dem Finger, Anzeige markiert den passenden Noniusstrich; Aufgaben 1 bis 4 und die drei Schritte des Messens |
+| `11nf-pht/nonius-applet.html` | 11NF PHT-Pr, Messen und Messfehler (September 2026) | Messschieber von vorn (Schiene, Schieber mit Nonius und Schnabel, Werkstück), Nonius 1/10, 1/20 oder 1/50 mm; Schieber ziehen oder Zufallswert, ablesen, eintippen, prüfen; Lupe folgt dem Finger, Anzeige markiert den passenden Noniusstrich; Aufgaben 1 bis 4 und die drei Schritte des Messens |
 | `12pe1-m/extrempunkte-applet.html` | 12PE1 M, Extremwertprobleme (September 2026) | Sechs Beispielfunktionen; f, f′ und f″ untereinander mit ziehbarem Punkt und Tangente, f′ und f″ ausblendbar; Rechenweg zu den Extrempunkten in vier Schritten (notwendige und hinreichende Bedingung), jeder Schritt in den Graphen markiert |
 
 `index.html` an der Wurzel ist nur die Liste der Kurse. Die Applets selbst stehen auf der
@@ -27,8 +27,7 @@ Jeder Kurs hat einen eigenen Ordner. Der Ordnername ist die Kurs-ID aus dem Plan
 |---|---|
 | `11nf-etec/` | 11NF ETEC |
 | `11nf-ph/` | 11NF PH |
-| `11nf-pht/` | 11NF PHT |
-| `11nf-pht-pr/` | 11NF PHT-Pr |
+| `11nf-pht/` | 11NF PHT und 11NF PHT-Pr (ein gemeinsamer Ordner für Theorie und Praktikum) |
 | `11np-pht-pr/` | 11NP PHT-Pr |
 | `11wi2-m/` | 11WI2 M |
 | `12pe1-m/` | 12PE1 M |
