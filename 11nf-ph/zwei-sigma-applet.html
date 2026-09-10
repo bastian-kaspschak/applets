@@ -133,20 +133,20 @@
   <div class="box">
     <div class="lbl">Aufgaben</div>
     <ol>
-      <li>Drücke einmal „Zapfen“. Gib an, was die Säule anzeigt und was in der Kanne ist. Nenne zwei
-          mögliche Gründe für den Unterschied.</li>
       <li>Drücke „bis 30“. Lies x̄ und σ ab. Zähle im Bild, wie viele der 30 Punkte im dunkelsten Streifen
           x̄ ± 1σ liegen, und vergleiche mit der Tabelle.</li>
       <li>Drücke „bis 1000“. Gib an, wie viele von 100 Zapfungen in x̄ ± 1σ, in x̄ ± 2σ und in x̄ ± 3σ
-          liegen. Formuliere daraus die 2-Sigma-Regel in einem Satz.</li>
-      <li>Stelle die Streuung der Säule auf 0,010 l, dann auf 0,030 l. Beschreibe, was sich am Bild ändert
-          und was bei den Prozentzahlen gleich bleibt.</li>
+          liegen.</li>
+      <li>Stelle die Streuung der Säule auf 0,010 l, dann auf 0,030 l. Beschreibe, was sich an der
+          Verteilung ändert und was an der Verteilung gleich bleibt.</li>
       <li>Eine andere Säule liefert bei der Prüfung 9,93 l. Die Prüferin kennt diese Säule: x̄ = 10,00 l,
           σ = 0,02 l. Berechne den Bereich x̄ ± 2σ und beurteile, ob der Wert auffällig ist. Erkläre, warum
           „auffällig“ nicht heißt, dass die Säule sicher verstellt ist.</li>
     </ol>
   </div>
 
+  <!-- Merkkasten vorerst ausgeblendet: Die Regel entsteht in der Stunde aus der
+       Zaehlung; der Kasten kommt nach der Stunde hinein (Absprache 10.09.).
   <div class="box merk">
     <div class="lbl">Merke</div>
     <b>2-Sigma-Regel:</b> Streut eine Größe zufällig (Glockenform), dann liegen etwa <b>95 von 100</b>
@@ -155,6 +155,7 @@
     Zum Vergleich: innerhalb von x̄ ± 1σ liegen etwa 68 von 100 Werten, innerhalb von x̄ ± 3σ etwa 997
     von 1000.
   </div>
+  -->
 </main>
 <footer>Kaspschak · zwei-sigma-applet.html</footer>
 
@@ -322,10 +323,6 @@
     segText(g, '10,00', dx1 - (dx1 - dx0) * 0.06, dm + 0.36 * (dy1 - dy0), 0.72 * (dy1 - dy0), '#7ef29a', 'rgba(126,242,154,0.12)');
     g.fillStyle = '#9fd7ab'; g.font = Math.round((dy1 - dy0) * 0.5) + 'px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
     g.fillText('L', dx0 + (dx1 - dx0) * 0.05, dm);
-    g.fillStyle = '#666'; g.font = Math.round((klein ? 8 : 9) * f) + 'px sans-serif'; g.textAlign = 'center';
-    g.fillText('Anzeige der Säule', px + 0.5 * pw, py + 0.76 * ph);
-    g.fillStyle = '#444'; g.font = '700 ' + Math.round((klein ? 11 : 13) * f) + 'px sans-serif';
-    g.fillText('10,00 l', px + 0.5 * pw, py + 0.83 * ph);
 
     // Eichkanne rechts
     const kh = h - 12, kw = kh * 285 / 480;
