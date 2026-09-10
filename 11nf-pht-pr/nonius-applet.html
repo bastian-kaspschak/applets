@@ -64,6 +64,8 @@
   .panel select { width: 100%; font: inherit; font-size: 14px; padding: 4px; }
   .panel input[type=text] { width: 100%; font: inherit; font-size: 16px; padding: 6px 8px; border: 1px solid var(--grau); }
   .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 6px; }
+  .schritte { display: flex; gap: 6px; margin-top: 4px; }
+  .schritte button { flex: 1 1 0; padding: 4px 6px; font-size: 13px; }
   button { font: inherit; font-size: 14px; padding: 6px 12px; border: 1px solid var(--stahl);
            background: #fff; color: var(--stahl); cursor: pointer; }
   button:hover { background: var(--stahl); color: #fff; }
@@ -112,6 +114,10 @@
         </select></label>
       <label><b>Schieber</b>
         <input type="range" id="pos" min="0" max="40" step="0.05" value="21.35"></label>
+      <div class="schritte">
+        <button id="minus" title="Schieber um eine Noniusteilung nach links">◀ eine Teilung</button>
+        <button id="plus" title="Schieber um eine Noniusteilung nach rechts">eine Teilung ▶</button>
+      </div>
       <div class="btns">
         <button id="zufall">Zufall</button>
         <button id="zeig">Anzeige ein</button>
@@ -134,13 +140,11 @@
       <li>Wähle den Nonius 1/20 und schalte die Anzeige aus. Drücke fünfmal „Zufall“, lies jedes Mal ab,
           tippe den Wert ein und prüfe ihn. Ziel: fünf Treffer in Folge. Nach einem Fehler: Lies zuerst die
           ganzen Millimeter neu, dann erst den Nonius.</li>
-      <li>Stelle 21,25 mm ein, dann 21,30 mm. Nenne für beide Werte den Noniusstrich, der passt, und gib an,
-          um wie viel sich der Schieber dabei bewegt hat.</li>
-      <li>Wähle den Nonius 1/50. Drücke dreimal „Zufall“, lies ab und prüfe. Der Nonius ist jetzt lang: Fahre
-          mit der Lupe von links nach rechts, bis ein Strich passt. Beschreibe, woran du erkennst, dass du am
-          passenden Strich vorbei bist.</li>
-      <li>Ein Messschieber mit 1/20-Nonius verspricht 0,05 mm. In der Messreihe der Klasse streute er mit
-          σ ≈ 0,2 mm. Erkläre in einem Satz, was das für seine Anzeige bedeutet.</li>
+      <li>Wähle den Nonius 1/10 und schalte die Anzeige aus. Drücke fünfmal „Zufall“, lies jedes Mal ab,
+          tippe den Wert ein und prüfe ihn. Ziel: fünf Treffer in Folge.</li>
+      <li>Wähle den Nonius 1/50 und schalte die Anzeige aus. Drücke fünfmal „Zufall“, lies jedes Mal ab,
+          tippe den Wert ein und prüfe ihn. Ziel: fünf Treffer in Folge. Der Nonius ist jetzt lang: Fahre mit
+          der Lupe von links nach rechts, bis ein Strich passt.</li>
     </ol>
   </div>
 
@@ -238,9 +242,9 @@
       const x = Math.round(X(m)) + 0.5;
       const len = (m % 10 === 0) ? band * 0.55 : (m % 5 === 0) ? band * 0.40 : band * 0.26;
       const treffer = zeig && m === z.mm;
-      g.strokeStyle = treffer ? BLAU : '#222'; g.lineWidth = treffer ? lw + 1.2 : lw;
+      g.strokeStyle = treffer ? ROT : '#222'; g.lineWidth = treffer ? lw + 1.2 : lw;
       g.beginPath(); g.moveTo(x, yM); g.lineTo(x, yM - len); g.stroke();
-      if (m % 10 === 0) { g.fillStyle = treffer ? BLAU : '#222'; g.fillText(String(m), x, yM - len - 2); }
+      if (m % 10 === 0) { g.fillStyle = treffer ? ROT : '#222'; g.fillText(String(m), x, yM - len - 2); }
     }
     g.textBaseline = 'top';
     const n = N(), lj = labelJe(), bandN = yLo - yM;
@@ -383,6 +387,9 @@
   }
 
   posIn.addEventListener('input', () => { fb.textContent = ''; fb.className = 'fb'; setzePos(parseFloat(posIn.value), true); });
+  // eine Noniusteilung nach links oder rechts
+  document.getElementById('minus').addEventListener('click', () => { fb.textContent = ''; fb.className = 'fb'; setzePos(pos - t, true); });
+  document.getElementById('plus').addEventListener('click', () => { fb.textContent = ''; fb.className = 'fb'; setzePos(pos + t, true); });
 
   teilSel.addEventListener('change', () => {
     t = parseFloat(teilSel.value);
