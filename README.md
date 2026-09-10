@@ -12,6 +12,7 @@ Pages:
 |---|---|---|
 | `11nf-ph/mittelwert-sigma-applet.html` | 11NF PH, Messen und Messfehler (September 2026) | Mittelwert als Schätzwert für den wahren Wert, Standardabweichung als typische Abweichung; Abweichungen als Pfeile, ihre Quadrate, das mittlere Quadrat und seine Seite σ; Histogramm der Messwerte mit x̄ ± σ |
 | `11nf-ph/zielscheibe-applet.html` | 11NF PH, Messen und Messfehler (September 2026) | Die Zielscheibe des A3-Blatts aus dem Unterricht mit zwei Reglern, Verschiebung (systematischer Fehler) und Wackeln (statistischer Fehler); Würfe simulieren, Mittelwert als Kreuz und Streubereich x̄ ± σ sehen, Histogramm der Treffer je 1-cm-Feld mit Farbskala, Kennzahlen wie auf dem Arbeitsblatt |
+| `11nf-ph/zwei-sigma-applet.html` | 11NF PH, Messen und Messfehler (September 2026) | Zapfsäule auf dem Prüfstand des Eichamts: jede Zapfung als Füllstand im Hals der Eichkanne und als Punkt auf der Liter-Achse, Säulendiagramm je 5 ml, Streifen x̄ ± 1σ, ± 2σ, ± 3σ mit „x von n = y %“, Regler für die Streuung; die ersten 30 Zapfungen sind fest, damit Unterricht und Hausaufgabe dieselben Zahlen zeigen |
 | `11nf-pht/nonius-applet.html` | 11NF PHT-Pr, Messen und Messfehler (September 2026) | Messschieber von vorn (Schiene, Schieber mit Nonius und Schnabel, Werkstück), Nonius 1/10, 1/20 oder 1/50 mm; Schieber ziehen oder Zufallswert, ablesen, eintippen, prüfen; Lupe folgt dem Finger, Anzeige markiert den passenden Noniusstrich; Aufgaben 1 bis 4 und die drei Schritte des Messens |
 | `12pe1-m/extrempunkte-applet.html` | 12PE1 M, Extremwertprobleme (September 2026) | Sechs Beispielfunktionen; f, f′ und f″ untereinander mit ziehbarem Punkt und Tangente, f′ und f″ ausblendbar; Rechenweg zu den Extrempunkten in vier Schritten (notwendige und hinreichende Bedingung), jeder Schritt in den Graphen markiert |
 
@@ -61,8 +62,9 @@ Bis zum 06.09.2026 hieß das Repository `physik-applets` und lag flach; die Adre
 
 Die Quelle jedes Applets liegt im (privaten) Planungsrepository im Materialordner der zugehörigen
 Stunde, hier `Jahresplanungen/stunden/11nf-ph/2026-09-04-organisation/material/`,
-`Jahresplanungen/stunden/11nf-ph/2026-09-08-physikalische-grossen/material/` und
-`Jahresplanungen/stunden/12pe1-m/2026-09-04-wiederholung/material/`. Dieses Repo enthält nur
+`Jahresplanungen/stunden/11nf-ph/2026-09-08-physikalische-grossen/material/`,
+`Jahresplanungen/stunden/11nf-ph/2026-09-11-ubung-zehnerpotenzen-vorsilben-grossenordnungen/material/`
+und `Jahresplanungen/stunden/12pe1-m/2026-09-04-wiederholung/material/`. Dieses Repo enthält nur
 Kopien für die Veröffentlichung; im Workspace ist es als `applets/` neben `Vault/` und
 `Jahresplanungen/` ausgecheckt. Nach einer Änderung an der Quelle:
 

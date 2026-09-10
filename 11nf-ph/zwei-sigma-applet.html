@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zufall oder verstellt? Die 2-Sigma-Regel</title>
+<!--
+  Applet zur Stunde "Die 2-Sigma-Regel" in 11NF PH — im Unterricht am Beamer,
+  danach zum Wiederholen zu Hause. Eine Datei, kein Internet noetig: HTML, CSS
+  und JavaScript zusammen, keine Formelschrift (alles Unicode).
+  Kontext: Die Prueferin vom Eichamt zapft bei Anzeige 10,00 l in eine
+  Eichkanne. Die Kanne hat einen schmalen Hals mit Skala um die 10-l-Marke;
+  jede Zapfung endet als Fluessigkeitsstand in diesem Hals, abgelesen auf 5 ml.
+  Oben die Szene (Saeule, Schlauch, Kanne mit Halsskala), unten die Liter-
+  Achse: jede Zapfung als Punkt, darueber das Saeulendiagramm in 5-ml-Klassen
+  und die Streifen x̄ ± 1σ, ± 2σ, ± 3σ mit "x von n = y %", bei jeder Zapfung
+  neu gezaehlt. x̄ und σ kommen aus den abgelesenen Werten, nicht aus der
+  Einstellung (σ geteilt durch n, wie auf dem Arbeitsblatt).
+  Die ersten 30 Zapfungen sind fest (gleiche Reihe im Unterricht und zu
+  Hause): Abweichungen in Vierteln von σ, die erste ist -2,5 σ (9,950 l bei
+  σ = 0,020 l); die 30 ergeben x̄ = 10,000 l, σ = 0,020 l, 20 in ±1σ, 28 in
+  ±2σ, 30 in ±3σ. Danach ein Zufallsgenerator mit festem Startwert (mulberry32
+  + Box-Muller). Der Regler skaliert alle Abweichungen mit der Streuung der
+  Saeule, die Reihe bleibt dieselbe. Canvas in Geraeteaufloesung, Breite aus
+  dem Layout.
+-->
+<style>
+  :root {
+    --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A;
+    --grau: #B5B5B5; --text: #222; --hell: #f5f5f2;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.4; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 1040px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 16px; }
+  .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 20px; align-items: start; }
+  .wrap > * { min-width: 0; }
+  canvas { display: block; width: 100%; border: 1px solid var(--grau); background: #fff; }
+  #szene { height: 230px; }
+  #chart { height: 340px; margin-top: 8px; }
+  .legende { font-size: 12px; color: #555; margin-top: 6px; }
+  .legende b { color: var(--stahl); }
+  .legende .r { color: var(--rot); font-weight: 700; }
+  @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) {
+    main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
+    #szene { height: 190px; } #chart { height: 300px; }
+  }
+  @media (min-width: 1000px) { #szene { height: 250px; } #chart { height: 380px; } }
+  .panel { background: var(--hell); border: 1px solid var(--grau); padding: 12px 14px; }
+  .panel label { display: block; font-size: 14px; margin: 8px 0 2px; }
+  .panel label b { color: var(--stahl); }
+  .panel input[type=range] { width: 100%; }
+  .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+  button { font: inherit; font-size: 14px; padding: 6px 12px; border: 1px solid var(--stahl);
+           background: #fff; color: var(--stahl); cursor: pointer; }
+  button:hover { background: var(--stahl); color: #fff; }
+  button.haupt { background: var(--stahl); color: #fff; font-weight: 600; }
+  button.haupt:hover { background: #274a68; }
+  button.reset { border-color: var(--rot); color: var(--rot); }
+  button.reset:hover { background: var(--rot); color: #fff; }
+  table.werte { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 13.5px; }
+  table.werte td { padding: 4px 4px; border-bottom: 1px solid #ddd; vertical-align: top; white-space: nowrap; }
+  table.werte td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  table.werte tr.s1 td { background: #dce6ee; }
+  table.werte tr.s2 td { background: #e9eff4; }
+  table.werte tr.s3 td { background: #f3f6f9; }
+  table.werte tr.aus td { color: var(--rot); }
+  .box { border: 1px solid var(--grau); padding: 10px 14px; margin-top: 18px; background: #fff; }
+  .box .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; }
+  .box ol { margin: 6px 0 0 18px; padding: 0; }
+  .box li { margin: 5px 0; }
+  .merk { background: #eaf0f4; }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Physik (Kaspschak)</div>
+  <div><span class="k">Kurs</span>11NF PH</div>
+  <div><span class="k">Reihe</span>Messen und Messfehler</div>
+  <div><span class="k">Thema</span>Die 2-Sigma-Regel</div>
+</header>
+<main>
+  <h1>Zufall oder verstellt? Die Zapfsäule auf dem Prüfstand</h1>
+  <p class="lead">Die Prüferin vom Eichamt zapft bei Anzeige 10,00 l in die Eichkanne und liest am Hals
+    der Kanne ab, wie viel wirklich drin ist. Drücke „Zapfen“ und sieh zu, wie sich die Werte auf der
+    Achse verteilen. Die Streifen zählen mit: Wie viele Zapfungen liegen nahe am Mittelwert, wie viele
+    weiter weg?</p>
+
+  <div class="wrap">
+    <div class="bild">
+      <canvas id="szene"></canvas>
+      <canvas id="chart"></canvas>
+      <div class="legende">Oben: die Säule zeigt immer 10,00 l, die Kanne zeigt, was wirklich kam
+        (Halsskala in ml um die 10-l-Marke). Unten: jede Zapfung als Punkt auf der Liter-Achse, darüber
+        die Säulen je 5 ml, dahinter die Streifen <b>x̄ ± 1σ</b>, <b>x̄ ± 2σ</b>, <b>x̄ ± 3σ</b>;
+        <span class="r">rot</span> ist die letzte Zapfung.</div>
+    </div>
+    <div class="panel">
+      <div class="btns">
+        <button id="z1" class="haupt">Zapfen</button>
+        <button id="z30">bis 30</button>
+        <button id="z100">bis 100</button>
+        <button id="z1000">bis 1000</button>
+        <button id="zp1000">+1000</button>
+        <button id="reset" class="reset">Zurücksetzen</button>
+      </div>
+      <label><b>Streuung der Säule σ</b>: <span id="sigOut">0,020</span> l
+        <input type="range" id="sig" min="0.005" max="0.030" step="0.005" value="0.020"></label>
+      <table class="werte">
+        <tr><td>Zapfungen n</td><td id="n">0</td></tr>
+        <tr><td>letzte Zapfung</td><td id="letzte">–</td></tr>
+        <tr><td>Mittelwert x̄</td><td id="mx">–</td></tr>
+        <tr><td>Standardabweichung σ</td><td id="sx">–</td></tr>
+        <tr class="s1"><td>in x̄ ± 1σ</td><td id="b1">–</td></tr>
+        <tr class="s2"><td>in x̄ ± 2σ</td><td id="b2">–</td></tr>
+        <tr class="s3"><td>in x̄ ± 3σ</td><td id="b3">–</td></tr>
+        <tr class="aus"><td>außerhalb x̄ ± 2σ</td><td id="a2">–</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="lbl">Aufgaben</div>
+    <ol>
+      <li>Drücke einmal „Zapfen“. Gib an, was die Säule anzeigt und was in der Kanne ist. Nenne zwei
+          mögliche Gründe für den Unterschied.</li>
+      <li>Drücke „bis 30“. Lies x̄ und σ ab. Zähle im Bild, wie viele der 30 Punkte im dunkelsten Streifen
+          x̄ ± 1σ liegen, und vergleiche mit der Tabelle.</li>
+      <li>Drücke „bis 1000“. Gib an, wie viele von 100 Zapfungen in x̄ ± 1σ, in x̄ ± 2σ und in x̄ ± 3σ
+          liegen. Formuliere daraus die 2-Sigma-Regel in einem Satz.</li>
+      <li>Stelle die Streuung der Säule auf 0,010 l, dann auf 0,030 l. Beschreibe, was sich am Bild ändert
+          und was bei den Prozentzahlen gleich bleibt.</li>
+      <li>Eine andere Säule liefert bei der Prüfung 9,93 l. Die Prüferin kennt diese Säule: x̄ = 10,00 l,
+          σ = 0,02 l. Berechne den Bereich x̄ ± 2σ und beurteile, ob der Wert auffällig ist. Erkläre, warum
+          „auffällig“ nicht heißt, dass die Säule sicher verstellt ist.</li>
+    </ol>
+  </div>
+
+  <div class="box merk">
+    <div class="lbl">Merke</div>
+    <b>2-Sigma-Regel:</b> Streut eine Größe zufällig (Glockenform), dann liegen etwa <b>95 von 100</b>
+    Werten innerhalb von x̄ ± 2σ. Ein Wert außerhalb kommt bei reiner Streuung nur etwa <b>einmal von
+    zwanzig</b> vor: Er ist auffällig, also nachprüfen, aber nicht bewiesen falsch.<br>
+    Zum Vergleich: innerhalb von x̄ ± 1σ liegen etwa 68 von 100 Werten, innerhalb von x̄ ± 3σ etwa 997
+    von 1000.
+  </div>
+</main>
+<footer>Kaspschak · zwei-sigma-applet.html</footer>
+
+<script>
+(function () {
+  'use strict';
+  const sz = document.getElementById('szene'), ch = document.getElementById('chart');
+  const sigIn = document.getElementById('sig'), sigOut = document.getElementById('sigOut');
+  const out = id => document.getElementById(id);
+  const O = { n: out('n'), letzte: out('letzte'), mx: out('mx'), sx: out('sx'),
+              b1: out('b1'), b2: out('b2'), b3: out('b3'), a2: out('a2') };
+
+  const SOLL = 10;              // Anzeige der Saeule in l
+  const RASTER = 0.005;         // Ablesung der Kanne in l (5 ml)
+  const AX0 = 9.88, AX1 = 10.12; // Liter-Achse
+  const HALS = 0.12;            // Halsskala: ±120 ml um die Marke
+  const BLAU = '#35638A', ROT = '#B01A15', OLIV = '#71803C';
+
+  // Die ersten 30 Abweichungen in Vierteln von σ (fest, siehe Kopfkommentar)
+  const FEST = [-10, 3, -1, 0, 6, -2, 1, 5, -3, 0, -6, 2, 1, -5, 0, 9, -1, 3, -2, 0,
+                1, -6, 5, -3, 2, 0, -1, 6, -5, 1].map(k => k / 4);
+
+  // Zufall mit festem Startwert, damit die Reihe reproduzierbar ist
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  let rnd = mulberry32(20260911);
+  function gauss() {                      // Box-Muller
+    let u = 0, v = 0;
+    while (u === 0) u = rnd();
+    while (v === 0) v = rnd();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  let sigma = 0.020;      // Streuung der Saeule in l
+  let zs = [];            // Abweichungen in Einheiten von σ
+  let jitter = [];        // Hoehe des Punktes im Punktstreifen (0..1)
+  let anim = null;        // laufende Animation der Kanne
+
+  const wert = z => Math.round((SOLL + z * sigma) / RASTER) * RASTER;
+  const fmt3 = v => v.toFixed(3).replace('.', ',');
+  const fmtP = (k, n) => n ? k + ' von ' + n + ' = ' + Math.round(100 * k / n) + ' %' : '–';
+
+  function neueZapfung() {
+    const z = zs.length < FEST.length ? FEST[zs.length] : gauss();
+    zs.push(z); jitter.push(rnd());
+  }
+
+  // Kennzahlen: x̄, σ und die Zaehlung je Streifen aus den gezapften Mengen
+  // (was wirklich in der Kanne ist); gezeichnet und angezeigt wird die
+  // Ablesung auf 5 ml. Wuerde man mit den gerundeten Werten zaehlen, laegen
+  // bei σ = 0,020 l ganze 5-ml-Klassen genau auf der 1σ-Grenze, und der
+  // Streifen zaehlte 73 statt 68 von 100. Fuer die 30 festen Zapfungen bei
+  // σ = 0,020 l sind Menge und Ablesung identisch.
+  function statistik() {
+    const n = zs.length;
+    if (!n) return null;
+    const t = zs.map(z => SOLL + z * sigma);
+    const w = t.map(v => Math.round(v / RASTER) * RASTER);
+    const m = t.reduce((a, b) => a + b, 0) / n;
+    const s = Math.sqrt(t.reduce((a, b) => a + (b - m) * (b - m), 0) / n);
+    const inBand = k => t.filter(v => Math.abs(v - m) <= k * s + 1e-9).length;
+    return { n, w, m, s, b1: inBand(1), b2: inBand(2), b3: inBand(3), letzte: w[n - 1] };
+  }
+
+  function fit(cv) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { g, w, h };
+  }
+
+  function rrect(g, x, y, w, h, r) {
+    g.beginPath(); g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r);
+    g.lineTo(x + w, y + h - r); g.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    g.lineTo(x + r, y + h); g.quadraticCurveTo(x, y + h, x, y + h - r);
+    g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y); g.closePath();
+  }
+
+  // ---------- Szene: Saeule, Schlauch, Eichkanne ----------------------------
+  // stand: Fuellstand im Hals in l (Abweichung von 10 l), null = leer
+  function szene(stand, fertigWert) {
+    const { g, w, h } = fit(sz);
+    g.clearRect(0, 0, w, h);
+    const klein = w < 420;
+    const f = Math.min(1, h / 230);
+
+    // Zapfsaeule links (auf dem Handy schmaler, ohne das Wort "Liter" im Display)
+    const px = 12, pw = klein ? 82 : Math.min(150, w * 0.28), py = 14, ph = h - 26;
+    rrect(g, px, py, pw, ph, 8); g.fillStyle = '#e8e8e4'; g.fill(); g.strokeStyle = '#8f8f88'; g.lineWidth = 1; g.stroke();
+    rrect(g, px + 8, py + 12, pw - 16, 48 * f, 4); g.fillStyle = '#1d2a1f'; g.fill();
+    g.fillStyle = '#7ef29a'; g.font = '700 ' + Math.round((klein ? 21 : 26) * f) + 'px "Segoe UI", Arial, sans-serif';
+    g.textAlign = klein ? 'center' : 'right'; g.textBaseline = 'middle';
+    g.fillText('10,00', klein ? px + pw / 2 : px + pw - 18, py + 12 + 24 * f);
+    if (!klein) {
+      g.fillStyle = '#9fd7ab'; g.font = Math.round(11 * f) + 'px sans-serif'; g.textAlign = 'left';
+      g.fillText('Liter', px + 16, py + 12 + 24 * f);
+    }
+    g.fillStyle = '#555'; g.font = Math.round((klein ? 10 : 11) * f) + 'px sans-serif'; g.textAlign = 'center';
+    g.fillText(klein ? 'Anzeige in l' : 'Anzeige der Säule', px + pw / 2, py + 12 + 48 * f + 12 * f);
+    // Zapfventilhalter
+    g.fillStyle = '#cfcfca'; g.fillRect(px + pw - 4, py + ph * 0.45, 6, 22 * f);
+
+    // Eichkanne rechts: Bauch unten, schmaler Hals mit Skala
+    const kx = Math.min(w - 120, px + pw + w * 0.22), kw = Math.min(150, w * 0.30);
+    const by0 = h * 0.70, by1 = h - 10;                       // Bauch
+    const hx = kx + kw * 0.5 - 12, hw = 24;                   // Hals
+    const hy0 = 16, hy1 = by0;                                // Halsoberkante, Halsfuss
+    const Y = ml => hy1 - (ml + HALS) / (2 * HALS) * (hy1 - hy0 - 6);   // ml (in l) -> y
+
+    // Bauch
+    g.fillStyle = '#e8e8e4'; g.strokeStyle = '#8f8f88';
+    g.beginPath(); g.moveTo(kx, by0 + 6); g.lineTo(kx + kw, by0 + 6); g.lineTo(kx + kw - 6, by1); g.lineTo(kx + 6, by1); g.closePath();
+    g.fill(); g.stroke();
+    // Fuellung im Bauch (immer voll bis zum Hals, sobald gezapft wurde)
+    if (stand !== null) {
+      g.fillStyle = '#a9c4dc';
+      g.beginPath(); g.moveTo(kx + 2, by0 + 8); g.lineTo(kx + kw - 2, by0 + 8); g.lineTo(kx + kw - 7, by1 - 1); g.lineTo(kx + 7, by1 - 1); g.closePath(); g.fill();
+    }
+    // Griff
+    g.strokeStyle = '#8f8f88'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(kx + kw - 4, by0 + 18); g.quadraticCurveTo(kx + kw + 22, by0 + 20, kx + kw - 4, by0 + 40); g.stroke();
+    g.lineWidth = 1;
+    // Schulter und Hals
+    g.fillStyle = '#eef0ef';
+    g.beginPath(); g.moveTo(kx + 12, by0 + 6); g.lineTo(hx - 2, hy1 - 14); g.lineTo(hx + hw + 2, hy1 - 14); g.lineTo(kx + kw - 12, by0 + 6); g.closePath();
+    g.fill(); g.stroke();
+    g.fillStyle = '#f7f9fb'; g.fillRect(hx, hy0, hw, hy1 - 14 - hy0); g.strokeRect(hx + 0.5, hy0 + 0.5, hw - 1, hy1 - 14 - hy0 - 1);
+    // Fuellstand im Hals
+    if (stand !== null) {
+      const yl = Math.max(hy0 + 2, Math.min(hy1 - 15, Y(stand)));
+      g.fillStyle = '#a9c4dc'; g.fillRect(hx + 1, yl, hw - 2, hy1 - 15 - yl);
+      g.strokeStyle = BLAU; g.lineWidth = 2; g.beginPath(); g.moveTo(hx - 6, yl + 0.5); g.lineTo(hx + hw + 6, yl + 0.5); g.stroke(); g.lineWidth = 1;
+    }
+    // Skala rechts vom Hals: alle 10 ml ein Strich, Zahlen bei ±50 und ±100, Marke bei 0
+    g.strokeStyle = '#222'; g.fillStyle = '#222';
+    g.font = Math.round(10 * f) + 'px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
+    for (let ml = -100; ml <= 100; ml += 10) {
+      const y = Math.round(Y(ml / 1000)) + 0.5, lang = ml % 50 === 0;
+      g.lineWidth = ml === 0 ? 2 : 1;
+      g.beginPath(); g.moveTo(hx + hw, y); g.lineTo(hx + hw + (lang ? 12 : 6), y); g.stroke();
+      if (lang) g.fillText(ml === 0 ? '10 l' : (ml > 0 ? '+' : '−') + Math.abs(ml), hx + hw + 15, y);
+    }
+    g.lineWidth = 1;
+    g.fillStyle = '#555'; g.font = Math.round(10 * f) + 'px sans-serif'; g.textAlign = 'left';
+    if (!klein) g.fillText('ml', hx + hw + 15, Y(0.115));
+
+    // Schlauch von der Saeule zum Hals
+    g.strokeStyle = '#444'; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(px + pw + 2, py + ph * 0.45 + 10 * f);
+    g.bezierCurveTo(px + pw + 60, py + ph * 0.45 + 10 * f, hx - 30, hy0 - 12, hx + hw / 2 - 4, hy0 - 2);
+    g.stroke(); g.lineWidth = 1;
+
+    // Ablesung: rechts neben der Skala; auf dem Handy rechtsbuendig am Rand
+    g.textAlign = klein ? 'right' : 'left'; g.textBaseline = 'alphabetic';
+    const tx = klein ? w - 6 : Math.min(w - 8, hx + hw + 60), ty = h * 0.42;
+    if (fertigWert !== null) {
+      g.fillStyle = '#555'; g.font = Math.round(11 * f) + 'px sans-serif';
+      g.fillText('in der Kanne:', tx, ty - 16 * f);
+      g.fillStyle = ROT; g.font = '700 ' + Math.round((klein ? 16 : 20) * f) + 'px "Segoe UI", Arial, sans-serif';
+      g.fillText(fmt3(fertigWert) + ' l', tx, ty + 6 * f);
+    } else if (stand === null) {
+      g.fillStyle = '#777'; g.font = Math.round((klein ? 11 : 12) * f) + 'px sans-serif';
+      g.fillText(klein ? 'noch nicht' : 'noch nicht gezapft', tx, ty);
+      if (klein) g.fillText('gezapft', tx, ty + 14 * f);
+    }
+  }
+
+  // ---------- Diagramm: Achse, Punkte, Saeulen, Streifen --------------------
+  function chart() {
+    const { g, w, h } = fit(ch);
+    g.clearRect(0, 0, w, h);
+    const klein = w < 420;
+    const L = 22, R = 22;
+    const X = v => L + (v - AX0) / (AX1 - AX0) * (w - L - R);
+    const yTop = klein ? 58 : 68;          // unter den drei Klammern
+    const yAx = h - (klein ? 66 : 74);     // Achse
+    const yDot0 = yAx + 22, yDot1 = h - 6; // Punktstreifen
+    const st = statistik();
+
+    // Streifen ±3σ, ±2σ, ±1σ (hinter allem)
+    if (st) {
+      const bands = [[3, '#f1f4f7'], [2, '#e2e9ef'], [1, '#cfdbe6']];
+      for (const [k, col] of bands) {
+        const x0 = X(st.m - k * st.s), x1 = X(st.m + k * st.s);
+        g.fillStyle = col; g.fillRect(x0, yTop, x1 - x0, yDot1 - yTop);
+      }
+    }
+
+    // Achse mit Strichen: alle 5 ml fein, alle 20 ml mit Zahl
+    g.strokeStyle = '#222'; g.lineWidth = 1; g.fillStyle = '#222';
+    g.beginPath(); g.moveTo(L, yAx + 0.5); g.lineTo(w - R, yAx + 0.5); g.stroke();
+    g.font = (klein ? 10 : 12) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'top';
+    for (let i = Math.round(AX0 / RASTER); i <= Math.round(AX1 / RASTER); i++) {
+      const v = i * RASTER, x = Math.round(X(v)) + 0.5;
+      const gross = i % 4 === 0;
+      g.beginPath(); g.moveTo(x, yAx); g.lineTo(x, yAx + (gross ? 7 : 3)); g.stroke();
+      if (gross && (!klein || i % 8 === 0)) g.fillText(v.toFixed(2).replace('.', ','), x, yAx + 9);
+    }
+    g.textAlign = 'right'; g.fillStyle = '#555'; g.font = (klein ? 10 : 11) + 'px sans-serif';
+    g.fillText('Zapfung in l', w - R, yAx - 14);
+
+    if (!st) {
+      g.fillStyle = '#777'; g.font = '14px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('Noch keine Zapfung. Drücke „Zapfen“.', w / 2, (yTop + yAx) / 2);
+      return;
+    }
+
+    // Saeulen je 5-ml-Klasse
+    const bins = new Map();
+    for (const v of st.w) { const i = Math.round(v / RASTER); bins.set(i, (bins.get(i) || 0) + 1); }
+    let max = 0; for (const c of bins.values()) max = Math.max(max, c);
+    const bw = X(RASTER) - X(0), hMax = yAx - 22 - yTop;
+    for (const [i, c] of bins) {
+      const v = i * RASTER;
+      if (v < AX0 - RASTER || v > AX1 + RASTER) continue;
+      const x = X(v) - bw / 2, hh = c / max * hMax;
+      g.fillStyle = 'rgba(53,99,138,0.55)'; g.fillRect(x + 0.5, yAx - hh, bw - 1, hh);
+    }
+    // Skala der Saeulen (hoechste Klasse)
+    g.fillStyle = '#555'; g.font = (klein ? 10 : 11) + 'px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.fillText('höchste Säule: ' + max, L + 2, yAx - hMax - 2);
+
+    // Punkte im Streifen unter der Achse, die letzte Zapfung rot
+    const n = st.n;
+    for (let i = 0; i < n; i++) {
+      const v = Math.min(AX1, Math.max(AX0, st.w[i]));
+      const x = X(v), y = yDot0 + 3 + jitter[i] * (yDot1 - yDot0 - 6);
+      g.fillStyle = 'rgba(34,34,34,0.45)';
+      g.beginPath(); g.arc(x, y, klein ? 2 : 2.6, 0, 2 * Math.PI); g.fill();
+    }
+    { const v = Math.min(AX1, Math.max(AX0, st.letzte));
+      const x = X(v), y = yDot0 + 3 + jitter[n - 1] * (yDot1 - yDot0 - 6);
+      g.fillStyle = ROT; g.beginPath(); g.arc(x, y, klein ? 3.2 : 4, 0, 2 * Math.PI); g.fill(); }
+
+    // Mittelwert
+    const xm = Math.round(X(st.m)) + 0.5;
+    g.strokeStyle = OLIV; g.lineWidth = 1.5; g.setLineDash([5, 4]);
+    g.beginPath(); g.moveTo(xm, yTop - 4); g.lineTo(xm, yDot1); g.stroke(); g.setLineDash([]);
+    g.fillStyle = OLIV; g.font = '700 ' + (klein ? 11 : 12) + 'px sans-serif'; g.textAlign = 'left'; g.textBaseline = 'top';
+    g.fillText('x̄', xm + 4, yTop + 2);
+
+    // Klammern oben: ±3σ (oben), ±2σ, ±1σ (unten), jede mit ihrer Zahl
+    // Klammer-Hoehen: die Beschriftung steht 14 px ueber der Linie, die oberste braucht Platz zum Rand
+    const rows = [[3, st.b3, yTop - (klein ? 40 : 46)], [2, st.b2, yTop - (klein ? 25 : 28)], [1, st.b1, yTop - (klein ? 10 : 10)]];
+    g.font = (klein ? 10 : 12) + 'px sans-serif'; g.textBaseline = 'bottom';
+    for (const [k, c, y] of rows) {
+      const x0 = X(st.m - k * st.s), x1 = X(st.m + k * st.s);
+      g.strokeStyle = BLAU; g.lineWidth = k === 2 ? 2 : 1;
+      g.beginPath(); g.moveTo(x0, y + 0.5); g.lineTo(x1, y + 0.5); g.moveTo(x0 + 0.5, y - 4); g.lineTo(x0 + 0.5, y + 5); g.moveTo(x1 - 0.5, y - 4); g.lineTo(x1 - 0.5, y + 5); g.stroke();
+      const txt = 'x̄ ± ' + k + 'σ: ' + fmtP(c, n);
+      g.textAlign = 'center';
+      const tw = g.measureText(txt).width + 8, cx = Math.min(w - R - tw / 2, Math.max(L + tw / 2, xm));
+      g.fillStyle = '#fff'; g.fillRect(cx - tw / 2, y - 14, tw, 13);
+      g.fillStyle = k === 2 ? BLAU : '#333';
+      if (k === 2) g.font = '700 ' + (klein ? 10 : 12) + 'px sans-serif'; else g.font = (klein ? 10 : 12) + 'px sans-serif';
+      g.fillText(txt, cx, y - 2);
+    }
+    g.lineWidth = 1;
+  }
+
+  function tabelle() {
+    const st = statistik();
+    O.n.textContent = zs.length;
+    if (!st) { for (const k of ['letzte', 'mx', 'sx', 'b1', 'b2', 'b3', 'a2']) O[k].textContent = '–'; return; }
+    O.letzte.textContent = fmt3(st.letzte) + ' l';
+    O.mx.textContent = fmt3(st.m) + ' l';
+    O.sx.textContent = fmt3(st.s) + ' l';
+    O.b1.textContent = fmtP(st.b1, st.n);
+    O.b2.textContent = fmtP(st.b2, st.n);
+    O.b3.textContent = fmtP(st.b3, st.n);
+    O.a2.textContent = fmtP(st.n - st.b2, st.n);
+  }
+
+  function zeichneAlles() {
+    chart(); tabelle();
+    const st = statistik();
+    if (anim) return;                      // die Kanne malt die Animation selbst
+    szene(st ? st.letzte - SOLL : null, st ? st.letzte : null);
+  }
+
+  // Einzelne Zapfung mit steigendem Fuellstand im Hals
+  function zapfenEinzeln() {
+    neueZapfung();
+    const st = statistik(), ziel = st.letzte - SOLL;
+    const t0 = performance.now(), dauer = 700;
+    if (anim) cancelAnimationFrame(anim);
+    chart(); tabelle();
+    function schritt(t) {
+      const p = Math.min(1, (t - t0) / dauer), e = 1 - Math.pow(1 - p, 3);
+      szene(-HALS + (ziel + HALS) * e, p >= 1 ? st.letzte : null);
+      if (p < 1) anim = requestAnimationFrame(schritt); else anim = null;
+    }
+    anim = requestAnimationFrame(schritt);
+  }
+
+  function zapfenBis(nZiel) {
+    while (zs.length < nZiel) neueZapfung();
+    if (anim) { cancelAnimationFrame(anim); anim = null; }
+    zeichneAlles();
+  }
+
+  document.getElementById('z1').addEventListener('click', zapfenEinzeln);
+  document.getElementById('z30').addEventListener('click', () => zapfenBis(30));
+  document.getElementById('z100').addEventListener('click', () => zapfenBis(100));
+  document.getElementById('z1000').addEventListener('click', () => zapfenBis(1000));
+  document.getElementById('zp1000').addEventListener('click', () => zapfenBis(zs.length + 1000));
+  document.getElementById('reset').addEventListener('click', () => {
+    zs = []; jitter = []; rnd = mulberry32(20260911);
+    if (anim) { cancelAnimationFrame(anim); anim = null; }
+    zeichneAlles();
+  });
+  sigIn.addEventListener('input', () => {
+    sigma = parseFloat(sigIn.value);
+    sigOut.textContent = fmt3(sigma);
+    if (anim) { cancelAnimationFrame(anim); anim = null; }
+    zeichneAlles();
+  });
+
+  window.addEventListener('resize', zeichneAlles);
+  zeichneAlles();
+})();
+</script>
+</body>
+</html>
