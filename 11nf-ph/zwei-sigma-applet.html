@@ -198,7 +198,21 @@
 
   const wert = z => Math.round((SOLL + z * sigma) / RASTER) * RASTER;
   const fmt3 = v => v.toFixed(3).replace('.', ',');
-  const fmtP = (k, n) => n ? k + ' von ' + n + ' = ' + Math.round(100 * k / n) + ' %' : '–';
+  // Anteil in Prozent: ganze Zahl, aber nie "100 %", wenn Werte fehlen, und nie
+  // "0 %", wenn welche da sind — dann eine Nachkommastelle (99,8 %), notfalls
+  // zwei (99,99 %), immer zur sicheren Seite gerundet.
+  const fmtP = (k, n) => {
+    if (!n) return '–';
+    const p = 100 * k / n;
+    let txt = String(Math.round(p));
+    if (txt === '100' && k < n) {
+      txt = (Math.floor(p * 10) / 10).toFixed(1);
+      if (txt === '100.0') txt = (Math.floor(p * 100) / 100).toFixed(2);
+    } else if (txt === '0' && k > 0) {
+      txt = (Math.ceil(p * 10) / 10).toFixed(1);
+    }
+    return k + ' von ' + n + ' = ' + txt.replace('.', ',') + ' %';
+  };
 
   function neueZapfung() {
     const z = zs.length < FEST.length ? FEST[zs.length] : gauss();
