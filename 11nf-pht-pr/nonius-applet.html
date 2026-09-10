@@ -8,23 +8,24 @@
   Applet zur Stunde "Welcher Messschieber streut staerker?" in 11NF PHT-Pr —
   zum Ueben zu Hause. Eine Datei, kein Internet noetig: HTML, CSS und
   JavaScript zusammen, keine Formelschrift (alles Unicode).
-  Gezeichnet wird ein Messschieber von vorn, in der Geometrie des echten
-  Geraets: Die Messflaechen der Schnaebel liegen einige Millimeter LINKS vom
-  Nullpunkt der jeweiligen Skala (fester Schnabel links vom Nullstrich der
-  Hauptskala, beweglicher Schnabel links vom Nullstrich des Nonius); bei
-  geschlossenen Schnaebeln fallen beide Nullstriche zusammen. Der Schieber
-  umgreift die Schiene, sein Fenster zeigt die Hauptskala, der Nonius sitzt
-  an der unteren Fensterkante; oben die Innenmessschnaebel und die
-  Feststellschraube, unten der Aussenmessschnabel und die Daumenauflage.
-  Ein Werkstueck liegt zwischen den Messflaechen. Die Hoehen sind nicht
-  massstaeblich (die Schnaebel sind nur angedeutet), die Laengen sind es.
+  Gezeichnet wird ein Messschieber klassischer Bauform von vorn (Vorbild: das
+  Foto "Messschieber.jpg" im Wikipedia-Artikel Nonius): Schiene mit der
+  Hauptskala in Millimetern, Zahlen ueber den Strichen; der Schieber besteht
+  aus einer oberen Platte mit Feststellschraube und zwei Schrauben und einer
+  unteren Platte, die den Nonius traegt — dazwischen bleibt die Hauptskala
+  sichtbar. Vom Ende der Schiene haengt der feste Aussenmessschnabel, von der
+  unteren Platte der bewegliche; beide lang, nach unten messerartig verjuengt,
+  mit dunklen Messflaechen an der Spitze. Oben die Innenmessschnaebel, unten
+  rechts das Daumenrad. Die Messflaechen liegen 1,5 mm links vom Nullstrich
+  der jeweiligen Skala; bei geschlossenen Schnaebeln fallen die Nullstriche
+  zusammen. Laengen sind massstaeblich, die Hoehen der Schnaebel verkuerzt.
   Nonius wahlweise 1/10 mm (10 Striche auf 9 mm), 1/20 mm (20 auf 19) oder
   1/50 mm (50 auf 49); die Geometrie folgt der Regel n Striche auf n-1 mm.
   Ein Regler schiebt den Schieber, "Zufall" stellt einen unbekannten Wert ein,
   die Lupe zeigt den Bereich unter dem Finger vergroessert. Ablesung
-  eintippen, pruefen, Anzeige einschalten: der fluchtende Noniusstrich wird
-  markiert. Canvas in Geraeteaufloesung (devicePixelRatio), Breite aus dem
-  Layout.
+  eintippen, pruefen, Anzeige einschalten: Millimeterstrich und fluchtender
+  Noniusstrich werden farbig markiert. Canvas in Geraeteaufloesung
+  (devicePixelRatio), Breite aus dem Layout.
 -->
 <style>
   :root {
@@ -44,14 +45,14 @@
   .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
   .wrap > * { min-width: 0; }
   canvas { display: block; width: 100%; border: 1px solid var(--grau); background: #fff; touch-action: none; }
-  #c { height: 250px; cursor: crosshair; }
+  #c { height: 280px; cursor: crosshair; }
   #lupe { height: 120px; margin-top: 8px; border-color: var(--stahl); }
   .legende { font-size: 12px; color: #555; margin-top: 6px; }
   .legende b { color: var(--stahl); }
   @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
   @media (max-width: 480px) {
     main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
-    #c { height: 185px; } #lupe { height: 100px; }
+    #c { height: 200px; } #lupe { height: 100px; }
   }
   .panel { background: var(--hell); border: 1px solid var(--grau); padding: 12px 14px; }
   .panel label { display: block; font-size: 14px; margin: 8px 0 2px; }
@@ -95,9 +96,9 @@
     <div class="bild">
       <canvas id="c"></canvas>
       <canvas id="lupe"></canvas>
-      <div class="legende">Die Hauptskala in mm sitzt auf der Schiene, der Nonius an der unteren Fensterkante
-        des Schiebers: <b id="nonInfo">20 Striche auf 19 mm</b>. Das Werkstück liegt zwischen den beiden
-        Messflächen; der gestrichelte Rahmen zeigt den Ausschnitt der Lupe.</div>
+      <div class="legende">Die Hauptskala in mm sitzt auf der Schiene, der Nonius auf der unteren Platte des
+        Schiebers: <b id="nonInfo">20 Striche auf 19 mm</b>. Zwischen den Messflächen der Schnäbel liegt das
+        Werkstück; der gestrichelte Rahmen zeigt den Ausschnitt der Lupe.</div>
     </div>
     <div class="panel">
       <label><b>Nonius</b>
@@ -174,19 +175,26 @@
   let serie = 0, gesamt = 0;
 
   // Geometrie in Ablese-Millimetern (x = 0 ist der Nullstrich der Hauptskala)
-  const D = 4;           // Messflaeche liegt D mm links vom Nullstrich ihrer Skala
-  const JW = 7;          // Breite der Aussenmessschnaebel an der Wurzel
+  const D = 1.5;         // Messflaeche liegt D mm links vom Nullstrich ihrer Skala
+  const JW = 11;         // Wurzelbreite des festen Schnabels
+  const JM = 8;          // Wurzelbreite des beweglichen Schnabels
+  const TW = 1.6;        // Breite der Schnabelspitze
   const RAND = 10;       // sichtbarer Rand links vom Nullstrich des Nonius
   const N = () => Math.round(1 / t);            // Zahl der Noniusteile
   const nonLen = () => N() * (1 - t);           // Laenge des Nonius in mm
-  const sEnde = () => pos + nonLen() + 5;       // rechtes Ende des Schiebers
-  const win = () => nonLen() + RAND + 8;        // sichtbare Breite in mm
+  const sEnde = () => pos + nonLen() + 3;       // rechtes Ende der Schieberplatten
+  const win = () => nonLen() + RAND + 6;        // sichtbare Breite in mm
   const xl = () => pos - RAND;                  // linker Rand in mm
   const labelJe = () => Math.round(0.1 / t);    // jeder wievielte Noniusstrich eine Zahl traegt
   const lupeFaktor = () => (t >= 0.05 ? 4 : 6);
   const dec = () => (t < 0.1 ? 2 : 1);
   const fmt = v => v.toFixed(dec()).replace('.', ',');
   const runde = v => Math.round(v / t) * t;
+
+  const ST = '#e4e4e0', STR = '#8f8f88';        // Stahl der Schiene
+  const PL = '#d3d8dd', PLR = '#7f8b96';        // Platten des Schiebers
+  const DK = '#3b3f44';                         // Messflaechen, Schrauben
+  const BLAU = '#35638A', ROT = '#B01A15';
 
   function zerlege() {                          // Millimeter und Noniusstrich
     const mm = Math.floor(pos + 1e-6);
@@ -211,123 +219,122 @@
     if (stroke) { g.strokeStyle = stroke; g.lineWidth = 1; g.stroke(); }
   }
 
-  // Hauptskala (Striche nach unten bis yM, Zahlen darueber) und Nonius (Striche
-  // nach unten ab yM, Zahlen darunter) in ein Feld der Breite w.
-  function striche(g, w, yTop, yM, yS, ppm, links, gross) {
+  // Hauptskala (Zahlen ueber den Strichen, Striche nach unten bis yM) und Nonius
+  // (Striche nach unten ab yM, Zahlen darunter). yStrip = Oberkante des Zahlenstreifens.
+  function striche(g, w, yStrip, yM, yLo, ppm, links, gross) {
     const X = mm => (mm - links) * ppm;
     const lw = gross ? 1.6 : 1;
-    g.fillStyle = '#222'; g.strokeStyle = '#222'; g.lineWidth = lw; g.textAlign = 'center';
-    g.font = (gross ? 15 : 12) + 'px sans-serif';
+    const z = zerlege();
+    g.textAlign = 'center';
+    g.font = (gross ? 15 : (w < 420 ? 11 : 12)) + 'px sans-serif';
     g.textBaseline = 'bottom';
-    const band = yM - yTop, rechts = links + w / ppm;
+    const band = yM - yStrip, rechts = links + w / ppm;
     for (let m = Math.ceil(links - 1e-6); m <= Math.floor(rechts + 1e-6); m++) {
       if (m < 0) continue;
       const x = Math.round(X(m)) + 0.5;
-      const len = (m % 10 === 0) ? band * 0.62 : (m % 5 === 0) ? band * 0.42 : band * 0.26;
+      const len = (m % 10 === 0) ? band * 0.55 : (m % 5 === 0) ? band * 0.40 : band * 0.26;
+      const treffer = zeig && m === z.mm;
+      g.strokeStyle = treffer ? BLAU : '#222'; g.lineWidth = treffer ? lw + 1.2 : lw;
       g.beginPath(); g.moveTo(x, yM); g.lineTo(x, yM - len); g.stroke();
-      if (m % 10 === 0) g.fillText(String(m), x, yM - len - 2);
+      if (m % 10 === 0) { g.fillStyle = treffer ? BLAU : '#222'; g.fillText(String(m), x, yM - len - 2); }
     }
     g.textBaseline = 'top';
-    const n = N(), z = zerlege(), lj = labelJe(), bandN = yS - yM;
+    const n = N(), lj = labelJe(), bandN = yLo - yM;
     for (let k = 0; k <= n; k++) {
       const x = Math.round(X(pos + k * (1 - t))) + 0.5;
       if (x < -2 || x > w + 2) continue;
       const mitZahl = (k % lj === 0);
       const len = (k === 0 || k === n) ? bandN * 0.46 : mitZahl ? bandN * 0.38 : bandN * 0.22;
       const treffer = zeig && k === z.k;
-      g.strokeStyle = treffer ? '#B01A15' : '#222';
-      g.lineWidth = treffer ? lw + 1.2 : lw;
+      g.strokeStyle = treffer ? ROT : '#222'; g.lineWidth = treffer ? lw + 1.2 : lw;
       g.beginPath(); g.moveTo(x, yM); g.lineTo(x, yM + len); g.stroke();
-      if (mitZahl) { g.fillStyle = treffer ? '#B01A15' : '#222'; g.fillText(String(k / lj), x, yM + len + 2); }
+      if (mitZahl) { g.fillStyle = treffer ? ROT : '#222'; g.fillText(String(k / lj), x, yM + len + 2); }
     }
     g.strokeStyle = '#222'; g.lineWidth = lw; g.fillStyle = '#222';
-  }
-
-  function markierungen(g, yTop, yS, ppm, links, gross) {
-    if (!zeig) return;
-    const X = mm => (mm - links) * ppm, z = zerlege();
-    const x = X(z.mm);
-    g.fillStyle = '#35638A';
-    g.beginPath(); g.moveTo(x, yTop - 1); g.lineTo(x - 5, yTop - 9); g.lineTo(x + 5, yTop - 9); g.closePath(); g.fill();
-    const xk = X(pos + z.k * (1 - t));
-    g.fillStyle = '#B01A15';
-    g.beginPath(); g.arc(xk, yS - 5, gross ? 4 : 3, 0, 2 * Math.PI); g.fill();
   }
 
   // Der ganze Messschieber (Hauptbild)
   function messschieber(g, w, h, ppm, links) {
     const X = mm => (mm - links) * ppm;
-    const yTop = h * 0.13, yM = h * 0.34, yBot = h * 0.42;   // Schiene, Skalenkante, Unterkante
-    const yS0 = h * 0.06, yS = h * 0.50;                     // Schieber oben und unten
-    const yTip = h - 4, yIn = 2;                             // Schnabelspitze unten, Innenschnabel oben
-    const SCH = '#ecece8', SCHR = '#8f8f88', SL = '#cfd6de', SLR = '#8b98a6';
+    const yIn = h * 0.02;                     // Spitzen der Innenmessschnaebel
+    const yUp0 = h * 0.12, yUp1 = h * 0.28;   // obere Platte
+    const yTop = h * 0.20, yM = h * 0.44;     // Schiene: Oberkante, Unterkante = Skalenkante
+    const yLo = h * 0.60;                     // Unterkante der Noniusplatte
+    const yTip = h - 3;                       // Schnabelspitzen
+    const jawF = yTip - yM, jawB = yTip - yLo;
     g.clearRect(0, 0, w, h);
     g.lineJoin = 'round';
 
-    // Schiene mit festem Aussen- und Innenmessschnabel (Messflaechen bei x = -D)
+    // Schiene
     const bx0 = X(-D - JW);
-    g.fillStyle = SCH; g.fillRect(bx0, yTop, w - bx0, yBot - yTop);
-    g.strokeStyle = SCHR; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(bx0, yTop + 0.5); g.lineTo(w, yTop + 0.5); g.moveTo(bx0, yBot - 0.5); g.lineTo(w, yBot - 0.5); g.stroke();
+    g.fillStyle = ST; g.fillRect(bx0, yTop, w - bx0 + 2, yM - yTop);
+    g.strokeStyle = STR; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(bx0, yTop + 0.5); g.lineTo(w, yTop + 0.5); g.moveTo(bx0, yM - 0.5); g.lineTo(w, yM - 0.5); g.stroke();
+    // fester Aussenmessschnabel und Innenmessschnabel (Messflaechen bei x = -D)
     if (X(-D) > 0) {
-      poly(g, [[X(-D - JW), yBot - 1], [X(-D), yBot - 1], [X(-D), yTip], [X(-D - 2.5), yTip],
-               [X(-D - JW), yBot + (yTip - yBot) * 0.35]], SCH, SCHR);
-      poly(g, [[X(-D - 3), yTop + 1], [X(-D), yTop + 1], [X(-D), yIn], [X(-D - 1.2), yIn],
-               [X(-D - 3), yTop - (yTop - yIn) * 0.5]], SCH, SCHR);
-      g.beginPath(); g.moveTo(bx0, yTop); g.lineTo(bx0, yBot); g.stroke();
+      poly(g, [[X(-D - JW), yM - 1], [X(-D), yM - 1], [X(-D), yTip], [X(-D - TW), yTip],
+               [X(-D - JW), yM + jawF * 0.20]], ST, STR);
+      g.fillStyle = DK; g.fillRect(X(-D) - 0.5 * ppm, yTip - jawF * 0.20, 0.5 * ppm, jawF * 0.20);
+      poly(g, [[X(-D - 2.6), yTop + 1], [X(-D), yTop + 1], [X(-D - 0.4), yIn + 3], [X(-D - 2.2), yIn]], ST, STR);
+      g.beginPath(); g.moveTo(bx0 + 0.5, yTop); g.lineTo(bx0 + 0.5, yM); g.stroke();
     }
-    // Hauptskala auf der ganzen Schiene; der Schieber deckt sie gleich teilweise ab
-    striche(g, w, yTop, yM, yS, ppm, links, false);
+    // Hauptskala auf der ganzen Schiene (die obere Platte deckt sie oben ab)
+    striche(g, w, yUp1, yM, yLo, ppm, links, false);
 
     // Werkstueck zwischen den Messflaechen
     if (pos > 0) {
-      const wy0 = yS + (yTip - yS) * 0.42, wy1 = yTip - 6;
+      const wy0 = yTip - jawB * 0.22, wy1 = yTip - 2;
       const wx0 = Math.max(0, X(-D)), wx1 = X(pos - D);
       g.fillStyle = '#c9b27f'; g.fillRect(wx0, wy0, wx1 - wx0, wy1 - wy0);
       g.strokeStyle = '#8a7a52'; g.strokeRect(wx0 + 0.5, wy0 + 0.5, wx1 - wx0 - 1, wy1 - wy0 - 1);
     }
 
-    // Schieber: Rahmen um die Schiene mit Fenster, buendig mit seinem Schnabel bei x = pos - D
-    const sx0 = X(pos - D), sx1 = X(sEnde());
-    const fx0 = X(pos - 1.5), fx1 = X(pos + nonLen() + 1.5);   // Fenster
-    g.fillStyle = SL;
-    g.fillRect(sx0, yS0, fx0 - sx0, yS - yS0);                 // linker Pfosten
-    g.fillRect(fx1, yS0, sx1 - fx1, yS - yS0);                 // rechter Pfosten
-    g.fillRect(fx0, yS0, fx1 - fx0, yTop + 1 - yS0);           // oberer Steg
-    g.fillRect(fx0, yM, fx1 - fx0, yS - yM);                   // unterer Teil mit Nonius
-    // beweglicher Aussenmessschnabel (Messflaeche links, bei x = pos - D) und Innenschnabel
-    poly(g, [[X(pos - D), yS - 1], [X(pos - D + JW), yS - 1], [X(pos - D + JW), yS + (yTip - yS) * 0.35],
-             [X(pos - D + 2.5), yTip], [X(pos - D), yTip]], SL, SLR);
-    poly(g, [[X(pos - D), yS0 + 1], [X(pos - D + 3), yS0 + 1], [X(pos - D + 3), yS0 - (yS0 - yIn) * 0.5],
-             [X(pos - D + 1.2), yIn], [X(pos - D), yIn]], SL, SLR);
-    // Daumenauflage unten rechts, Feststellschraube oben
-    g.fillStyle = SL; g.fillRect(sx1 - 5 * ppm, yS - 1, 5 * ppm, (yTip - yS) * 0.18);
-    g.strokeStyle = SLR; g.strokeRect(sx1 - 5 * ppm + 0.5, yS - 0.5, 5 * ppm - 1, (yTip - yS) * 0.18);
-    g.strokeRect(sx0 + 0.5, yS0 + 0.5, sx1 - sx0 - 1, yS - yS0 - 1);
-    g.strokeRect(fx0 + 0.5, yTop + 1.5, fx1 - fx0 - 1, yM - yTop - 1);
-    const r = Math.min(6, (yTop - yS0) * 0.42);
-    g.fillStyle = '#9aa6b2';
-    g.beginPath(); g.arc(fx1 + (sx1 - fx1) / 2, yS0 + (yTop - yS0) / 2, r, 0, 2 * Math.PI); g.fill();
-    // Nonius auf dem unteren Teil des Schiebers
-    g.save(); g.beginPath(); g.rect(fx0, yM, fx1 - fx0, yS - yM); g.clip();
-    striche(g, w, yTop, yM, yS, ppm, links, false);
+    // Schieber: untere Platte mit Nonius, buendig mit dem beweglichen Schnabel bei x = pos - D
+    const px0 = X(pos - D), px1 = X(sEnde());
+    g.fillStyle = PL; g.fillRect(px0, yM, px1 - px0, yLo - yM);
+    g.strokeStyle = PLR; g.strokeRect(px0 + 0.5, yM + 0.5, px1 - px0 - 1, yLo - yM - 1);
+    g.save(); g.beginPath(); g.rect(px0, yM, px1 - px0, yLo - yM); g.clip();
+    striche(g, w, yUp1, yM, yLo, ppm, links, false);
     g.restore();
-    // Skalenkante im Fenster
     g.strokeStyle = '#222'; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(fx0, yM + 0.5); g.lineTo(fx1, yM + 0.5); g.stroke();
-    markierungen(g, yTop, yS, ppm, links, false);
+    g.beginPath(); g.moveTo(px0, yM + 0.5); g.lineTo(px1, yM + 0.5); g.stroke();
+    // beweglicher Aussenmessschnabel (Messflaeche links) und Innenmessschnabel
+    poly(g, [[X(pos - D), yLo - 1], [X(pos - D + JM), yLo - 1], [X(pos - D + JM), yLo + jawB * 0.16],
+             [X(pos - D + TW), yTip], [X(pos - D), yTip]], PL, PLR);
+    g.fillStyle = DK; g.fillRect(X(pos - D), yTip - jawB * 0.22, 0.5 * ppm, jawB * 0.22);
+    poly(g, [[X(pos - D), yTop + 1], [X(pos - D + 2.6), yTop + 1], [X(pos - D + 2.2), yIn], [X(pos - D + 0.4), yIn + 3]], PL, PLR);
+    // obere Platte, nach rechts versetzt, mit zwei Schrauben, Gravur und Feststellschraube
+    const ux0 = X(pos - D + 3), ux1 = px1;
+    g.fillStyle = PL; g.fillRect(ux0, yUp0, ux1 - ux0, yUp1 - yUp0);
+    g.strokeStyle = PLR; g.strokeRect(ux0 + 0.5, yUp0 + 0.5, ux1 - ux0 - 1, yUp1 - yUp0 - 1);
+    const uy = (yUp0 + yUp1) / 2, sr = Math.min(3, (yUp1 - yUp0) * 0.16);
+    g.fillStyle = DK;
+    for (const f of [0.14, 0.86]) { g.beginPath(); g.arc(ux0 + (ux1 - ux0) * f, uy, sr, 0, 2 * Math.PI); g.fill(); }
+    if (ux1 - ux0 > 70) {
+      g.fillStyle = '#5a6168'; g.font = (w < 420 ? 10 : 11) + 'px sans-serif';
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(fmt(t) + ' mm', (ux0 + ux1) / 2, uy + 1);
+    }
+    const kw = Math.min(26, 3.6 * ppm), kh = yUp0 - yIn - 2, kx = (ux0 + ux1) / 2;
+    g.fillStyle = '#a9b1ba'; g.fillRect(kx - kw / 2, yUp0 - kh, kw, kh);
+    g.strokeStyle = PLR; g.strokeRect(kx - kw / 2 + 0.5, yUp0 - kh + 0.5, kw - 1, kh - 1);
+    g.strokeStyle = '#7f8b96';
+    for (let i = 1; i <= 3; i++) { const x = kx - kw / 2 + (kw * i) / 4; g.beginPath(); g.moveTo(x, yUp0 - kh + 2); g.lineTo(x, yUp0 - 2); g.stroke(); }
+    // Daumenrad unten rechts an der Noniusplatte
+    const r = h * 0.055;
+    g.fillStyle = '#b8c0c8'; g.beginPath(); g.arc(px1 - 1.8 * ppm, yLo + r * 0.45, r, 0, 2 * Math.PI); g.fill();
+    g.strokeStyle = PLR; g.stroke();
   }
 
   // Nur die Skalen (Lupe)
   function lupe(g, w, h, ppm, links) {
     const yTop = h * 0.10, yM = h * 0.54, yS = h * 0.96;
     g.clearRect(0, 0, w, h);
-    g.fillStyle = '#ecece8'; g.fillRect(0, yTop, w, yM - yTop);
-    g.fillStyle = '#d9dfe6'; g.fillRect(0, yM, w, yS - yM);
+    g.fillStyle = ST; g.fillRect(0, yTop, w, yM - yTop);
+    g.fillStyle = PL; g.fillRect(0, yM, w, yS - yM);
     striche(g, w, yTop, yM, yS, ppm, links, true);
     g.strokeStyle = '#222'; g.lineWidth = 1.6;
     g.beginPath(); g.moveTo(0, yM + 0.5); g.lineTo(w, yM + 0.5); g.stroke();
-    markierungen(g, yTop, yS, ppm, links, true);
   }
 
   function zeichne() {
@@ -341,7 +348,7 @@
     if (linksL + breiteL > links + win()) linksL = links + win() - breiteL;
     lupe(b.g, b.w, b.h, ppmL, linksL);
     // Rahmen des Lupenausschnitts im Hauptbild
-    a.g.strokeStyle = '#35638A'; a.g.lineWidth = 1.2; a.g.setLineDash([4, 3]);
+    a.g.strokeStyle = BLAU; a.g.lineWidth = 1.2; a.g.setLineDash([4, 3]);
     a.g.strokeRect((linksL - links) * ppm + 0.5, 1.5, breiteL * ppm - 1, a.h - 3);
     a.g.setLineDash([]);
     if (zeig) wertOut.textContent = fmt(pos) + ' mm = ' + z.mm + ' mm + ' + z.k + ' · ' + fmt(t) + ' mm';
