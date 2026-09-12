@@ -26,7 +26,6 @@ Jeder Kurs hat einen eigenen Ordner. Der Ordnername ist die Kurs-ID aus dem Plan
 
 | Ordner | Kurs |
 |---|---|
-| `11nf-etec/` | 11NF ETEC |
 | `11nf-ph/` | 11NF PH |
 | `11nf-pht/` | 11NF PHT und 11NF PHT-Pr (ein gemeinsamer Ordner für Theorie und Praktikum) |
 | `11np-pht-pr/` | 11NP PHT-Pr |
