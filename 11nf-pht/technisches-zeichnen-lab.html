@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Technisches-Zeichnen-Lab</title>
+<style>
+:root{--rot:#B01A15;--oliv:#71803C;--stahl:#35638A;--grau:#B5B5B5;--label:#6b6b6b;--kopfblau:#e9eef3;--olivhell:#eef0e4;--text:#1a1a1a}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:var(--text);font-family:"Fira Sans","Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.4}
+header.kopf{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:14px 18px 8px;border-bottom:1px solid var(--grau)}
+.kopf .titel{font-size:1.4rem;font-weight:700}
+.kopf .untertitel{font-size:.85rem;color:var(--label)}
+.kopf .meta{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--label);text-align:right;white-space:nowrap}
+nav.tabs{display:flex;gap:4px;padding:8px 18px 0;border-bottom:1px solid var(--grau);flex-wrap:wrap}
+nav.tabs button{background:none;border:1px solid var(--grau);border-bottom:none;padding:7px 14px;border-radius:6px 6px 0 0;cursor:pointer;font:inherit;color:var(--label)}
+nav.tabs button.aktiv{color:var(--text);font-weight:600;background:var(--kopfblau)}
+main{padding:12px 18px 28px;max-width:1400px}
+section.tab{display:none}section.tab.aktiv{display:block}
+.zweispaltig{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:18px}
+@media (max-width:860px){.zweispaltig{grid-template-columns:minmax(0,1fr)}}
+.zweispaltig>*{min-width:0}
+h2{font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--label);margin:14px 0 6px;border-bottom:1px solid var(--grau);padding-bottom:3px}
+p.hinweis{margin:6px 0 10px;color:#333}
+button.k,label.k{font:inherit;font-size:.9rem;padding:5px 10px;border:1px solid var(--grau);background:#fff;border-radius:5px;cursor:pointer}
+button.k:hover{background:var(--kopfblau)}
+button.k.rot{border-color:var(--rot);color:var(--rot)}
+button.k.voll{background:var(--stahl);color:#fff;border-color:var(--stahl)}
+.leiste{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+.leiste select,.leiste input[type=number]{font:inherit;font-size:.9rem;padding:4px 6px;border:1px solid var(--grau);border-radius:4px;background:#fff;max-width:100%}
+.karte{border:1px solid var(--grau);border-radius:6px;padding:8px 10px;margin:8px 0;background:#fcfcfc}
+.karte.sub{border-left:4px solid var(--rot)}
+.karte.add{border-left:4px solid var(--oliv)}
+.karte-kopf{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between}
+.karte-kopf strong{font-size:.95rem}
+.karte-kopf select{font:inherit;font-size:.85rem;padding:3px 5px;border:1px solid var(--grau);border-radius:4px}
+.karte-kopf .kn button{font:inherit;font-size:.8rem;padding:2px 7px;border:1px solid var(--grau);background:#fff;border-radius:4px;cursor:pointer}
+.felder{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:6px}
+.felder label{font-size:.8rem;color:var(--label);display:flex;flex-direction:column;gap:2px}
+.felder input,.felder select{font:inherit;font-size:.9rem;width:5.2em;padding:3px 5px;border:1px solid var(--grau);border-radius:4px}
+.felder select{width:auto}
+canvas.flaeche{width:100%;display:block;border:1px solid var(--grau);border-radius:6px;background:#fff;touch-action:none}
+.kennzahlen{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:10px 0}
+.kennzahl{border:1px solid var(--grau);border-radius:6px;padding:6px 10px;background:var(--kopfblau)}
+.kennzahl .l{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
+.kennzahl .w{font-size:1.15rem;font-weight:600}
+.legende{font-size:.8rem;color:var(--label);margin:4px 0}
+.legende b{font-weight:600}
+.aufgabe{border:1px solid var(--grau);border-radius:6px;padding:8px 12px;background:var(--olivhell);margin:10px 0;font-size:.95rem}
+.aufgabe .l{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--label)}
+.aufgabe ol{margin:4px 0 0 1.2em;padding:0}
+.karten3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:8px 0}
+.karten3>div{border:1px solid var(--grau);border-radius:6px;padding:6px;text-align:center;min-width:0}
+.karten3 canvas{width:100%;display:block}
+.karten3 select{font:inherit;font-size:.9rem;margin-top:4px;max-width:100%}
+.karten3 .ok{color:var(--oliv);font-weight:600}.karten3 .nein{color:var(--rot);font-weight:600}
+.meldung{color:var(--rot);font-size:.9rem;min-height:1.3em}
+input[type=file]{font:inherit;font-size:.9rem}
+.klein{font-size:.8rem;color:var(--label)}
+.fuss{margin-top:20px;font-size:.72rem;color:var(--label)}
+</style>
+</head>
+<body>
+<header class="kopf">
+  <div><div class="titel">Technisches-Zeichnen-Lab</div>
+  <div class="untertitel">Körper bauen, Volumen berechnen, drei Ansichten ableiten, Dreitafelprojektion üben</div></div>
+  <div class="meta">Fach<br><span style="letter-spacing:0;text-transform:none;font-size:.85rem;color:var(--text)">Physiktechnik · 11NF</span></div>
+</header>
+<nav class="tabs">
+  <button data-tab="bauen" class="aktiv">Bauen</button>
+  <button data-tab="zeichnung">Zeichnung</button>
+  <button data-tab="ueben">Üben</button>
+  <button data-tab="datei">Datei</button>
+</nav>
+<main>
+
+<section class="tab aktiv" id="tab-bauen">
+ <div class="zweispaltig">
+  <div>
+   <h2>Bauliste</h2>
+   <p class="hinweis">Baue einen Körper aus Quadern, Zylindern und Kugeln. Der erste Körper ist der Rohling. Jeder weitere wird <b>hinzugefügt</b> oder <b>ausgeschnitten</b>, in der Reihenfolge der Liste.</p>
+   <div class="leiste">
+     <button class="k" data-neu="box">+ Quader</button>
+     <button class="k" data-neu="cyl">+ Zylinder</button>
+     <button class="k" data-neu="sphere">+ Kugel</button>
+     <button class="k" data-neu="bohrung">+ Bohrung</button>
+     <button class="k" data-neu="nut">+ Nut</button>
+   </div>
+   <div class="leiste">
+     <label class="klein">Beispiel laden:</label>
+     <select id="preset">
+       <option value="">bitte wählen</option>
+       <option value="platte">Platte mit Bohrung</option>
+       <option value="nut">Klotz mit Nut</option>
+       <option value="welle">Welle mit Bund</option>
+       <option value="sackloch">Klotz mit Sackloch</option>
+       <option value="zugprobe">Flachzugprobe</option>
+       <option value="kugel">Kugel mit Bohrung</option>
+     </select>
+   </div>
+   <div id="bauliste"></div>
+   <div class="meldung" id="meldung"></div>
+  </div>
+  <div>
+   <h2>3D-Ansicht</h2>
+   <canvas class="flaeche" id="gl3d"></canvas>
+   <div class="leiste">
+     <span class="klein">Blick:</span>
+     <button class="k" data-cam="vorn">von vorn</button>
+     <button class="k" data-cam="oben">von oben</button>
+     <button class="k" data-cam="links">von links</button>
+     <button class="k" data-cam="iso">schräg</button>
+     <label class="klein"><input type="checkbox" id="ortho"> ohne Perspektive</label>
+   </div>
+   <div class="legende">Drehen: ziehen · Zoom: Rad oder zwei Finger · Achsen: <b style="color:#c33">x rot</b> nach rechts, <b style="color:#3a3">y grün</b> nach hinten, <b style="color:#36c">z blau</b> nach oben. Die Vorderansicht blickt von vorn, also aus Richtung −y.</div>
+   <h2>Kennzahlen</h2>
+   <div class="kennzahlen">
+     <div class="kennzahl"><div class="l">Volumen V</div><div class="w" id="kzV">–</div></div>
+     <div class="kennzahl"><div class="l">Oberfläche A</div><div class="w" id="kzA">–</div></div>
+     <div class="kennzahl"><div class="l">Masse m = ρ·V</div><div class="w" id="kzM">–</div></div>
+   </div>
+   <div class="leiste"><label class="klein">Werkstoff:</label>
+     <select id="werkstoff">
+       <option value="2.70">Aluminium, ρ = 2,70 g/cm³</option>
+       <option value="7.85">Stahl, ρ = 7,85 g/cm³</option>
+       <option value="8.40">Messing, ρ = 8,40 g/cm³</option>
+       <option value="8.96">Kupfer, ρ = 8,96 g/cm³</option>
+       <option value="4.51">Titan, ρ = 4,51 g/cm³</option>
+       <option value="1.24">PLA (3D-Druck), ρ = 1,24 g/cm³</option>
+     </select></div>
+   <div class="aufgabe"><div class="l">Aufgabe</div>
+     <ol><li>Berechne das Volumen deines Körpers von Hand: Zerlege ihn in Quader und Zylinder, addiere die Teile, ziehe Bohrungen und Nuten ab. Vergleiche mit der Anzeige.</li>
+     <li>Gib an, wie schwer der Körper aus Stahl und aus Aluminium wäre.</li></ol>
+     <div class="klein">Kreise sind mit 64 Ecken angenähert; das Volumen liegt deshalb rund 0,2 % unter dem Wert mit π.</div></div>
+  </div>
+ </div>
+</section>
+
+<section class="tab" id="tab-zeichnung">
+ <p class="hinweis">Die drei Ansichten nach Projektionsmethode 1: <b>Vorderansicht</b>, darunter die <b>Draufsicht</b>, rechts daneben die <b>Seitenansicht von links</b>. Sichtbare Kanten breit, verdeckte Kanten gestrichelt, Mittellinien als Strichpunktlinie.</p>
+ <div class="leiste">
+   <label class="klein"><input type="checkbox" id="oHidden" checked> verdeckte Kanten</label>
+   <label class="klein"><input type="checkbox" id="oCenter" checked> Mittellinien</label>
+   <label class="klein"><input type="checkbox" id="oProj" checked> Projektionslinien</label>
+   <label class="klein"><input type="checkbox" id="oGrid"> Raster 10 mm</label>
+   <label class="klein"><input type="checkbox" id="oLabel" checked> Beschriftung</label>
+ </div>
+ <canvas class="flaeche" id="zeichnung"></canvas>
+ <div class="legende" id="massInfo"></div>
+ <div class="aufgabe"><div class="l">Aufgabe</div>
+   <ol><li>Nenne die Ansicht, in der eine Bohrung als Kreis erscheint, und die Ansichten, in denen sie als zwei Strichlinien erscheint.</li>
+   <li>Erkläre am 3D-Körper, warum eine Kante gestrichelt ist: Von wo aus schaut man, und was liegt davor?</li>
+   <li>Schalte die verdeckten Kanten aus und beschreibe, welche Information der Zeichnung dann fehlt.</li></ol></div>
+</section>
+
+<section class="tab" id="tab-ueben">
+ <div class="leiste">
+   <label class="k"><input type="radio" name="modus" value="skizze" checked> Ansichten skizzieren</label>
+   <label class="k"><input type="radio" name="modus" value="zuordnen"> Ansichten zuordnen</label>
+ </div>
+ <div id="ueb-skizze">
+  <p class="hinweis">Zeichne die fehlenden Ansichten mit Maus oder Finger in die Rahmen. Wähle vorher die Linienart. Prüfe zum Schluss mit „Lösung einblenden“.</p>
+  <div class="leiste">
+    <label class="klein">Gegeben: <select id="gegeben"><option value="V">Vorderansicht</option><option value="VD">Vorderansicht und Draufsicht</option><option value="VS">Vorderansicht und Seitenansicht</option><option value="">keine Ansicht</option></select></label>
+    <label class="klein">Linienart: <select id="linienart"><option value="voll">breite Volllinie</option><option value="strich">schmale Strichlinie</option><option value="punkt">Strichpunktlinie</option></select></label>
+    <label class="klein"><input type="checkbox" id="oRahmen" checked> Rahmen der Ansichten</label>
+    <button class="k" id="undo">Rückgängig</button>
+    <button class="k rot" id="clearSk">Alles löschen</button>
+    <button class="k voll" id="loesung">Lösung einblenden</button>
+  </div>
+  <canvas class="flaeche" id="skizze"></canvas>
+ </div>
+ <div id="ueb-zuordnen" style="display:none">
+  <p class="hinweis">Ordne jeder Ansicht ihren Namen zu. Sind zwei Ansichten gleich, zählt jede der beiden Zuordnungen als richtig.</p>
+  <div class="karten3" id="zuKarten"></div>
+  <div class="leiste"><button class="k voll" id="pruefen">Prüfen</button><button class="k" id="mischen">Neu mischen</button><span id="zuErgebnis"></span></div>
+ </div>
+</section>
+
+<section class="tab" id="tab-datei">
+ <h2>STL</h2>
+ <p class="hinweis">Exportiere den Körper als STL-Datei (für Slicer und CAD-Programme). Importiere eine STL-Datei, zum Beispiel aus dem CAD-Programm, und leite daraus die Zeichnung ab. Maßeinheit ist Millimeter.</p>
+ <div class="leiste"><button class="k voll" id="stlExport">STL exportieren</button>
+   <label class="k">STL importieren <input type="file" id="stlImport" accept=".stl" style="display:none"></label>
+   <label class="klein"><input type="checkbox" id="stlErsetzen" checked> Bauliste dabei ersetzen</label></div>
+ <h2>Bauliste als Datei</h2>
+ <p class="hinweis">Die Bauliste enthält die Körper mit ihren Maßen und lässt sich später weiterbearbeiten. Sie wird außerdem automatisch im Browser gespeichert.</p>
+ <div class="leiste"><button class="k" id="jsonExport">Bauliste speichern</button>
+   <label class="k">Bauliste laden <input type="file" id="jsonImport" accept=".json" style="display:none"></label>
+   <button class="k rot" id="alleLoeschen">Alles löschen</button></div>
+ <div class="meldung" id="dateiMeldung"></div>
+ <div class="fuss">Technisches-Zeichnen-Lab · Kaspschak · eine Datei, ohne Internet lauffähig. Linienarten nach DIN ISO 128-2, Anordnung der Ansichten nach DIN ISO 5456-2 (Methode 1).</div>
+</section>
+
+</main>
+<script id="kern">
+// =============================================================================
+//  Kern: Geometrie ohne DOM. Vektoren, CSG mit BSP-Baum (Bauart wie csg.js),
+//  Grundkörper, Volumen und Oberfläche, Kantenklassifikation, Tiefenpuffer,
+//  verdeckte Kanten je Ansicht, Mittellinien, STL lesen und schreiben.
+//  Einheit: Millimeter. Achsen: x nach rechts, y nach hinten, z nach oben.
+// =============================================================================
+const K = (function(){
+const EPS = 1e-4;
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const len=a=>Math.hypot(a[0],a[1],a[2]);
+const norm=a=>{const l=len(a);return l>1e-12?[a[0]/l,a[1]/l,a[2]/l]:[0,0,1];};
+const lerp=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+function newell(v){let nx=0,ny=0,nz=0;for(let i=0;i<v.length;i++){const p=v[i],q=v[(i+1)%v.length];nx+=(p[1]-q[1])*(p[2]+q[2]);ny+=(p[2]-q[2])*(p[0]+q[0]);nz+=(p[0]-q[0])*(p[1]+q[1]);}return norm([nx,ny,nz]);}
+
+class Plane{
+  constructor(n,w){this.n=n;this.w=w;}
+  clone(){return new Plane(this.n.slice(),this.w);}
+  flip(){this.n=mul(this.n,-1);this.w=-this.w;}
+  splitPolygon(poly,cf,cb,f,b){
+    let type=0;const n=poly.v.length;const types=new Array(n);
+    for(let i=0;i<n;i++){const t=dot(this.n,poly.v[i])-this.w;const ty=t<-EPS?2:(t>EPS?1:0);type|=ty;types[i]=ty;}
+    if(type===0){(dot(this.n,poly.plane.n)>0?cf:cb).push(poly);}
+    else if(type===1){f.push(poly);}
+    else if(type===2){b.push(poly);}
+    else{
+      const fv=[],bv=[];
+      for(let i=0;i<n;i++){
+        const j=(i+1)%n,ti=types[i],tj=types[j],vi=poly.v[i],vj=poly.v[j];
+        if(ti!==2)fv.push(vi);
+        if(ti!==1)bv.push(vi);
+        if((ti|tj)===3){const t=(this.w-dot(this.n,vi))/dot(this.n,sub(vj,vi));const v=lerp(vi,vj,t);fv.push(v);bv.push(v);}
+      }
+      if(fv.length>=3)f.push(new Polygon(fv,poly.plane));
+      if(bv.length>=3)b.push(new Polygon(bv,poly.plane));
+    }
+  }
+}
+class Polygon{
+  constructor(v,plane){this.v=v;if(plane){this.plane=plane.clone();}else{const n=newell(v);this.plane=new Plane(n,dot(n,v[0]));}}
+  flip(){this.v=this.v.slice().reverse();this.plane.flip();}
+}
+class Node{
+  constructor(polys){this.plane=null;this.front=null;this.back=null;this.polygons=[];if(polys)this.build(polys);}
+  invert(){for(const p of this.polygons)p.flip();if(this.plane)this.plane.flip();if(this.front)this.front.invert();if(this.back)this.back.invert();const t=this.front;this.front=this.back;this.back=t;}
+  clipPolygons(polys){if(!this.plane)return polys.slice();let f=[],b=[];for(const p of polys)this.plane.splitPolygon(p,f,b,f,b);if(this.front)f=this.front.clipPolygons(f);if(this.back)b=this.back.clipPolygons(b);else b=[];return f.concat(b);}
+  clipTo(bsp){this.polygons=bsp.clipPolygons(this.polygons);if(this.front)this.front.clipTo(bsp);if(this.back)this.back.clipTo(bsp);}
+  allPolygons(){let p=this.polygons.slice();if(this.front)p=p.concat(this.front.allPolygons());if(this.back)p=p.concat(this.back.allPolygons());return p;}
+  build(polys){if(!polys.length)return;if(!this.plane)this.plane=polys[0].plane.clone();const f=[],b=[];for(const p of polys)this.plane.splitPolygon(p,this.polygons,this.polygons,f,b);if(f.length){if(!this.front)this.front=new Node();this.front.build(f);}if(b.length){if(!this.back)this.back=new Node();this.back.build(b);}}
+}
+const clonePolys=ps=>ps.map(p=>new Polygon(p.v.slice(),p.plane));
+function csgUnion(pa,pb){const a=new Node(clonePolys(pa)),b=new Node(clonePolys(pb));a.clipTo(b);b.clipTo(a);b.invert();b.clipTo(a);b.invert();a.build(b.allPolygons());return a.allPolygons();}
+function csgSubtract(pa,pb){const a=new Node(clonePolys(pa)),b=new Node(clonePolys(pb));a.invert();a.clipTo(b);b.clipTo(a);b.invert();b.clipTo(a);b.invert();a.build(b.allPolygons());a.invert();return a.allPolygons();}
+
+// ---- Grundkörper -----------------------------------------------------------
+function primBox(c,s){
+  const h=[s[0]/2,s[1]/2,s[2]/2];
+  const faces=[[0,4,6,2],[1,3,7,5],[0,1,5,4],[2,6,7,3],[0,2,3,1],[4,5,7,6]];
+  return faces.map(f=>new Polygon(f.map(i=>[c[0]+h[0]*((i&1)?1:-1),c[1]+h[1]*((i&2)?1:-1),c[2]+h[2]*((i&4)?1:-1)])));
+}
+function axisMap(axis){return axis==='x'?(p=>[p[2],p[0],p[1]]):axis==='y'?(p=>[p[1],p[2],p[0]]):(p=>p);}
+function primCylinder(c,d,h,axis,N){
+  N=N||64;const r=d/2,map=axisMap(axis);
+  const pt=(i,z)=>{const a=i/N*2*Math.PI;return add(map([r*Math.cos(a),r*Math.sin(a),z]),c);};
+  const polys=[],top=[],bot=[];
+  for(let i=0;i<N;i++){const p0=pt(i,-h/2),p1=pt(i+1,-h/2),p2=pt(i+1,h/2),p3=pt(i,h/2);polys.push(new Polygon([p0,p1,p2,p3]));top.push(p3);bot.push(p0);}
+  polys.push(new Polygon(top));polys.push(new Polygon(bot.reverse()));
+  return polys;
+}
+function primSphere(c,d,slices,stacks){
+  slices=slices||32;stacks=stacks||16;const r=d/2;const polys=[];
+  const vert=(th,ph)=>{th*=2*Math.PI;ph*=Math.PI;return add(c,mul([Math.cos(th)*Math.sin(ph),Math.sin(th)*Math.sin(ph),Math.cos(ph)],r));};
+  for(let i=0;i<slices;i++)for(let j=0;j<stacks;j++){const v=[];v.push(vert(i/slices,j/stacks));if(j>0)v.push(vert((i+1)/slices,j/stacks));if(j<stacks-1)v.push(vert((i+1)/slices,(j+1)/stacks));v.push(vert(i/slices,(j+1)/stacks));polys.push(new Polygon(v));}
+  return ensureOutward(polys);
+}
+function ensureOutward(polys){if(volume(triangles(polys))<0){for(const p of polys)p.flip();}return polys;}
+
+// ---- Dreiecke, Kennzahlen ---------------------------------------------------
+function triangles(polys){const t=[];for(const p of polys){const v=p.v;for(let i=1;i<v.length-1;i++){const a=v[0],b=v[i],c=v[i+1];if(len(cross(sub(b,a),sub(c,a)))>1e-9)t.push([a,b,c]);}}return t;}
+function volume(tris){let s=0;for(const t of tris)s+=dot(t[0],cross(t[1],t[2]));return s/6;}
+function area(tris){let s=0;for(const t of tris)s+=len(cross(sub(t[1],t[0]),sub(t[2],t[0])));return s/2;}
+function bbox(polys){const mn=[Infinity,Infinity,Infinity],mx=[-Infinity,-Infinity,-Infinity];for(const p of polys)for(const v of p.v)for(let k=0;k<3;k++){if(v[k]<mn[k])mn[k]=v[k];if(v[k]>mx[k])mx[k]=v[k];}
+  if(mn[0]===Infinity)return {min:[0,0,0],max:[0,0,0],size:[0,0,0],center:[0,0,0],diag:0};
+  const size=sub(mx,mn);return {min:mn,max:mx,size,center:lerp(mn,mx,0.5),diag:len(size)};}
+
+// ---- Kanten: Nachbar über Sondenpunkt, T-Stöße unschädlich ------------------
+function extractEdges(polys,box){
+  const diag=box.diag||1;const delta=Math.max(diag*2e-4,1e-3),tol=delta*0.8;
+  const cell=Math.max(diag/40,1e-3);const grid=new Map();
+  const info=polys.map(p=>{const mn=[Infinity,Infinity,Infinity],mx=[-Infinity,-Infinity,-Infinity];for(const v of p.v)for(let k=0;k<3;k++){if(v[k]<mn[k])mn[k]=v[k];if(v[k]>mx[k])mx[k]=v[k];}
+    const n=p.plane.n;const an=[Math.abs(n[0]),Math.abs(n[1]),Math.abs(n[2])];const ax=an[0]>=an[1]&&an[0]>=an[2]?0:(an[1]>=an[2]?1:2);return {p,mn,mx,ax};});
+  const ci=(x,k)=>Math.floor((x-box.min[k])/cell);
+  info.forEach((f,idx)=>{const i0=ci(f.mn[0]-tol,0),i1=ci(f.mx[0]+tol,0),j0=ci(f.mn[1]-tol,1),j1=ci(f.mx[1]+tol,1),k0=ci(f.mn[2]-tol,2),k1=ci(f.mx[2]+tol,2);
+    for(let i=i0;i<=i1;i++)for(let j=j0;j<=j1;j++)for(let k=k0;k<=k1;k++){const key=i+','+j+','+k;let l=grid.get(key);if(!l){l=[];grid.set(key,l);}l.push(idx);}});
+  function pip(q,f){const ax=f.ax,i=ax===0?1:(ax===1?2:0),j=ax===0?2:(ax===1?0:1);const v=f.p.v;const x=q[i],y=q[j];let inside=false;
+    for(let a=0,b=v.length-1;a<v.length;b=a++){const xa=v[a][i],ya=v[a][j],xb=v[b][i],yb=v[b][j];if(((ya>y)!==(yb>y))&&(x<(xb-xa)*(y-ya)/(yb-ya)+xa))inside=!inside;}return inside;}
+  function containing(q,exclude){const l=grid.get(ci(q[0],0)+','+ci(q[1],1)+','+ci(q[2],2));if(!l)return -1;
+    for(const idx of l){if(idx===exclude)continue;const f=info[idx];if(q[0]<f.mn[0]-tol||q[0]>f.mx[0]+tol||q[1]<f.mn[1]-tol||q[1]>f.mx[1]+tol||q[2]<f.mn[2]-tol||q[2]>f.mx[2]+tol)continue;
+      const pl=f.p.plane;if(Math.abs(dot(pl.n,q)-pl.w)>tol)continue;if(pip(q,f))return idx;}return -1;}
+  // Kandidaten entlang einer Strecke: alle Polygone, deren Zellen die Strecke berührt
+  function candidatesAlong(a,b){const set=new Set();const lo=[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.min(a[2],b[2])],hi=[Math.max(a[0],b[0]),Math.max(a[1],b[1]),Math.max(a[2],b[2])];
+    const i0=ci(lo[0]-tol,0),i1=ci(hi[0]+tol,0),j0=ci(lo[1]-tol,1),j1=ci(hi[1]+tol,1),k0=ci(lo[2]-tol,2),k1=ci(hi[2]+tol,2);
+    for(let i=i0;i<=i1;i++)for(let j=j0;j<=j1;j++)for(let k=k0;k<=k1;k++){const l=grid.get(i+','+j+','+k);if(l)for(const x of l)set.add(x);}return set;}
+  const cosCrease=Math.cos(20*Math.PI/180);const edges=[];const seen=new Set();
+  const key=v=>v.map(x=>Math.round(x/(diag*1e-6+1e-9))).join(',');
+  polys.forEach((p,idx)=>{const n1=p.plane.n,v=p.v;
+    for(let i=0;i<v.length;i++){const a=v[i],b=v[(i+1)%v.length];const e=sub(b,a);const L=len(e);if(L<tol)continue;
+      const ka=key(a),kb=key(b);const kk=ka<kb?ka+'|'+kb:kb+'|'+ka;if(seen.has(kk))continue;seen.add(kk);
+      const ed=mul(e,1/L);const inward=cross(n1,ed);
+      // T-Stöße: die Kante an allen Fremdecken teilen, die auf ihr liegen
+      const ts=[0,1];for(const j of candidatesAlong(a,b)){if(j===idx)continue;for(const w of polys[j].v){const d=sub(w,a);const t=dot(d,ed);if(t<=tol||t>=L-tol)continue;const off=len(sub(d,mul(ed,t)));if(off<tol)ts.push(t/L);}}
+      ts.sort((x,y)=>x-y);
+      let prev=0;const pieces=[];for(const t of ts){if(t-prev>1e-9){pieces.push([prev,t]);prev=t;}}
+      let last=null;
+      for(const [t0,t1] of pieces){const m=lerp(a,b,(t0+t1)/2);const q=add(m,mul(inward,-delta));const j=containing(q,idx);let n2=null,crease=true;
+        if(j>=0){n2=polys[j].plane.n;crease=dot(n1,n2)<cosCrease;}
+        const sameClass=last&&last.crease===crease&&((!last.n2&&!n2)||(last.n2&&n2&&dot(last.n2,n2)>0.9999));
+        if(sameClass){last.b=lerp(a,b,t1);}else{last={a:lerp(a,b,t0),b:lerp(a,b,t1),n1,n2,crease};edges.push(last);}}
+    }});
+  return edges;
+}
+
+// ---- Ansichten --------------------------------------------------------------
+const VIEWS=[
+  {id:'V',name:'Vorderansicht',r:[1,0,0],u:[0,0,1],v:[0,1,0]},
+  {id:'D',name:'Draufsicht',r:[1,0,0],u:[0,1,0],v:[0,0,-1]},
+  {id:'S',name:'Seitenansicht von links',r:[0,-1,0],u:[0,0,1],v:[1,0,0]}
+];
+function rasterDepth(tris,view,res){
+  const P=[];let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;
+  for(const t of tris){const q=t.map(p=>[dot(p,view.r),dot(p,view.u),dot(p,view.v)]);for(const a of q){if(a[0]<xmin)xmin=a[0];if(a[0]>xmax)xmax=a[0];if(a[1]<ymin)ymin=a[1];if(a[1]>ymax)ymax=a[1];}P.push(q);}
+  if(!P.length)return null;
+  const rx=Math.max(xmax-xmin,1e-6),ry=Math.max(ymax-ymin,1e-6);const scale=res/Math.max(rx,ry);
+  const W=Math.ceil(rx*scale)+6,H=Math.ceil(ry*scale)+6;const z=new Float32Array(W*H).fill(Infinity);
+  const tx=x=>(x-xmin)*scale+3,ty=y=>(y-ymin)*scale+3;const dil=0.35;
+  for(const q of P){const x0=tx(q[0][0]),y0=ty(q[0][1]),x1=tx(q[1][0]),y1=ty(q[1][1]),x2=tx(q[2][0]),y2=ty(q[2][1]);
+    let ar=(x1-x0)*(y2-y0)-(x2-x0)*(y1-y0);if(Math.abs(ar)<1e-9)continue;const sg=ar>0?1:-1;
+    const bx0=Math.max(0,Math.floor(Math.min(x0,x1,x2)-1)),bx1=Math.min(W-1,Math.ceil(Math.max(x0,x1,x2)+1)),by0=Math.max(0,Math.floor(Math.min(y0,y1,y2)-1)),by1=Math.min(H-1,Math.ceil(Math.max(y0,y1,y2)+1));
+    const e=(ax,ay,bx,by,px,py)=>((bx-ax)*(py-ay)-(by-ay)*(px-ax))*sg;
+    const l01=Math.hypot(x1-x0,y1-y0)||1,l12=Math.hypot(x2-x1,y2-y1)||1,l20=Math.hypot(x0-x2,y0-y2)||1;
+    for(let py=by0;py<=by1;py++)for(let px=bx0;px<=bx1;px++){const cx=px+0.5,cy=py+0.5;
+      const w0=e(x1,y1,x2,y2,cx,cy),w1=e(x2,y2,x0,y0,cx,cy),w2=e(x0,y0,x1,y1,cx,cy);
+      if(w0<-dil*l12||w1<-dil*l20||w2<-dil*l01)continue;
+      const s=w0+w1+w2;if(Math.abs(s)<1e-12)continue;const d=(w0*q[0][2]+w1*q[1][2]+w2*q[2][2])/s;
+      const k=py*W+px;if(d<z[k])z[k]=d;}}
+  return {z,W,H,xmin,ymin,scale,tx,ty};
+}
+function occluded(dep,X,Y,Z,bias){const px=Math.round(dep.tx(X)-0.5),py=Math.round(dep.ty(Y)-0.5);let mx=-Infinity;
+  for(let j=py-1;j<=py+1;j++)for(let i=px-1;i<=px+1;i++){if(i<0||j<0||i>=dep.W||j>=dep.H){return false;}const d=dep.z[j*dep.W+i];if(d>mx)mx=d;}
+  return mx<Z-bias;}
+function computeView(tris,edges,axes,view,res){
+  res=res||1000;const dep=rasterDepth(tris,view,res);const segs=[],center=[];
+  let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;
+  if(!dep)return {view,segs,center,xmin:0,xmax:0,ymin:0,ymax:0};
+  const bias=1.5/dep.scale+1e-4*res/dep.scale;
+  for(const e of edges){
+    let draw=e.crease;if(!draw&&e.n2){const f1=dot(e.n1,view.v)<0,f2=dot(e.n2,view.v)<0;draw=f1!==f2;}
+    if(!draw)continue;
+    const A=[dot(e.a,view.r),dot(e.a,view.u),dot(e.a,view.v)],B=[dot(e.b,view.r),dot(e.b,view.u),dot(e.b,view.v)];
+    const Lpx=Math.hypot(B[0]-A[0],B[1]-A[1])*dep.scale;const n=Math.min(240,Math.max(6,Math.ceil(Lpx/1.2)));
+    const runs=[];let cur=null;
+    for(let i=0;i<=n;i++){const t=i/n;const X=A[0]+(B[0]-A[0])*t,Y=A[1]+(B[1]-A[1])*t,Z=A[2]+(B[2]-A[2])*t;const vis=!occluded(dep,X,Y,Z,bias);
+      if(!cur||cur.vis!==vis){cur={vis,t0:t,t1:t};runs.push(cur);}else cur.t1=t;}
+    // Läufe von höchstens zwei Abtastpunkten sind Rasterartefakte an Kanten: in den Nachbarlauf aufnehmen
+    let merged=true;while(merged&&runs.length>1){merged=false;for(let k=0;k<runs.length;k++){if((runs[k].t1-runs[k].t0)*n<=2){const nb=k>0?runs[k-1]:runs[k+1];nb.t0=Math.min(nb.t0,runs[k].t0);nb.t1=Math.max(nb.t1,runs[k].t1);runs.splice(k,1);merged=true;break;}}
+      for(let k=1;k<runs.length;k++){if(runs[k].vis===runs[k-1].vis){runs[k-1].t1=runs[k].t1;runs.splice(k,1);merged=true;break;}}}
+    for(let k=0;k<runs.length;k++){const r=runs[k];const ta=k===0?0:(runs[k-1].t1+r.t0)/2,tb=k===runs.length-1?1:(r.t1+runs[k+1].t0)/2;
+      if(tb-ta<1e-6)continue;
+      segs.push({x1:A[0]+(B[0]-A[0])*ta,y1:A[1]+(B[1]-A[1])*ta,x2:A[0]+(B[0]-A[0])*tb,y2:A[1]+(B[1]-A[1])*tb,vis:r.vis});}
+    for(const p of [A,B]){if(p[0]<xmin)xmin=p[0];if(p[0]>xmax)xmax=p[0];if(p[1]<ymin)ymin=p[1];if(p[1]>ymax)ymax=p[1];}
+  }
+  if(xmin===Infinity){xmin=xmax=ymin=ymax=0;}
+  // Mittellinien nur, wenn die Achse in dieser Ansicht innerhalb der Kontur liegt
+  // (Radienmittelpunkte einer Aussparung liegen außerhalb und bekommen kein Kreuz)
+  const innen=(X,Y)=>X>=xmin-0.5&&X<=xmax+0.5&&Y>=ymin-0.5&&Y<=ymax+0.5;
+  for(const ax of axes){
+    const c=[dot(ax.c,view.r),dot(ax.c,view.u)];const ext=3;
+    if(ax.p0){const P0=[dot(ax.p0,view.r),dot(ax.p0,view.u)],P1=[dot(ax.p1,view.r),dot(ax.p1,view.u)];const L=Math.hypot(P1[0]-P0[0],P1[1]-P0[1]);
+      if(L>0.05){if(!innen((P0[0]+P1[0])/2,(P0[1]+P1[1])/2))continue;const dx=(P1[0]-P0[0])/L,dy=(P1[1]-P0[1])/L;center.push({x1:P0[0]-ext*dx,y1:P0[1]-ext*dy,x2:P1[0]+ext*dx,y2:P1[1]+ext*dy});continue;}}
+    if(!innen(c[0],c[1]))continue;
+    const h=ax.d/2+ext;center.push({x1:c[0]-h,y1:c[1],x2:c[0]+h,y2:c[1]});center.push({x1:c[0],y1:c[1]-h,x2:c[0],y2:c[1]+h});
+  }
+  return {view,segs,center,xmin,xmax,ymin,ymax};
+}
+
+// ---- STL -------------------------------------------------------------------
+function stlWrite(tris){
+  const buf=new ArrayBuffer(84+tris.length*50);const dv=new DataView(buf);const head='Technisches-Zeichnen-Lab, Einheit mm';
+  for(let i=0;i<80;i++)dv.setUint8(i,i<head.length?head.charCodeAt(i):32);
+  dv.setUint32(80,tris.length,true);let o=84;
+  for(const t of tris){const n=norm(cross(sub(t[1],t[0]),sub(t[2],t[0])));for(const p of [n,t[0],t[1],t[2]]){for(let k=0;k<3;k++){dv.setFloat32(o,p[k],true);o+=4;}}dv.setUint16(o,0,true);o+=2;}
+  return buf;
+}
+function stlRead(buf){
+  const bytes=new Uint8Array(buf);let head='';for(let i=0;i<Math.min(80,bytes.length);i++)head+=String.fromCharCode(bytes[i]);
+  const dv=new DataView(buf);const nBin=bytes.length>=84?dv.getUint32(80,true):-1;const looksBinary=bytes.length===84+50*nBin;
+  const tris=[];
+  if(!looksBinary&&/^\s*solid/i.test(head)){
+    const text=new TextDecoder('utf-8').decode(bytes);const re=/vertex\s+([-+\d.eE]+)\s+([-+\d.eE]+)\s+([-+\d.eE]+)/g;let m,cur=[];
+    while((m=re.exec(text))){cur.push([parseFloat(m[1]),parseFloat(m[2]),parseFloat(m[3])]);if(cur.length===3){tris.push(cur);cur=[];}}
+  }else{
+    let o=84;for(let i=0;i<nBin;i++){o+=12;const t=[];for(let k=0;k<3;k++){t.push([dv.getFloat32(o,true),dv.getFloat32(o+4,true),dv.getFloat32(o+8,true)]);o+=12;}o+=2;tris.push(t);}
+  }
+  return tris;
+}
+function polysFromTris(tris,offset){const off=offset||[0,0,0];const polys=[];for(const t of tris){const v=t.map(p=>add(p,off));if(len(cross(sub(v[1],v[0]),sub(v[2],v[0])))>1e-9)polys.push(new Polygon(v));}return polys;}
+
+// ---- Szene auswerten --------------------------------------------------------
+function bodyPolys(b){
+  const pad=b.op==='sub'?0.002:0; // Schneidkörper minimal größer: keine deckungsgleichen Flächen
+  if(b.type==='box')return primBox(b.pos,[b.lx+pad,b.ly+pad,b.lz+pad]);
+  if(b.type==='cyl')return primCylinder(b.pos,b.d+pad,b.h+pad,b.axis||'z');
+  if(b.type==='sphere')return primSphere(b.pos,b.d+pad);
+  if(b.type==='stl')return ensureOutward(polysFromTris(b.tris,b.pos));
+  return [];
+}
+function bodyAxes(b){
+  if(b.type==='cyl'){const map=axisMap(b.axis||'z');const p0=add(map([0,0,-b.h/2]),b.pos),p1=add(map([0,0,b.h/2]),b.pos);return [{c:b.pos.slice(),p0,p1,d:b.d}];}
+  if(b.type==='sphere')return [{c:b.pos.slice(),d:b.d}];
+  return [];
+}
+function evaluate(bodies){
+  let polys=null;const axes=[];
+  for(const b of bodies){const p=bodyPolys(b);if(!p.length)continue;
+    if(polys===null){if(b.op==='sub')continue;polys=p;}
+    else polys=b.op==='sub'?csgSubtract(polys,p):csgUnion(polys,p);
+    axes.push(...bodyAxes(b));}
+  polys=polys||[];const tris=triangles(polys);
+  return {polys,tris,box:bbox(polys),axes,volume:volume(tris),area:area(tris)};
+}
+function computeViews(model,res){const edges=extractEdges(model.polys,model.box);return VIEWS.map(v=>computeView(model.tris,edges,model.axes,v,res));}
+function viewSignature(vw){const r=x=>Math.round(x*4);const parts=vw.segs.map(s=>{const a=[r(s.x1-vw.xmin),r(s.y1-vw.ymin)],b=[r(s.x2-vw.xmin),r(s.y2-vw.ymin)];const k=(a[0]<b[0]||(a[0]===b[0]&&a[1]<=b[1]))?a.concat(b):b.concat(a);return k.join(',')+(s.vis?'v':'h');});
+  return Array.from(new Set(parts)).sort().join(';')+'|'+r(vw.xmax-vw.xmin)+'x'+r(vw.ymax-vw.ymin);}
+
+return {EPS,sub,add,mul,dot,cross,len,norm,lerp,Plane,Polygon,Node,csgUnion,csgSubtract,primBox,primCylinder,primSphere,triangles,volume,area,bbox,extractEdges,VIEWS,rasterDepth,computeView,computeViews,stlWrite,stlRead,polysFromTris,evaluate,viewSignature,ensureOutward};
+})();
+</script>
+<script>
+// =============================================================================
+//  Oberfläche, Teil 1: Zustand, Bauliste, Auswertung, 3D-Ansicht (WebGL)
+// =============================================================================
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const fmt=(x,d)=>{if(!isFinite(x))return '–';return x.toFixed(d).replace('.',',');};
+let nextId=1;
+const state={bodies:[],rho:2.70};
+let model=null;      // Ergebnis von K.evaluate
+let views=null;      // drei Ansichten, träge berechnet
+let viewsDirty=true;
+const PRESETS={
+  platte:[{type:'box',op:'add',pos:[0,0,0],lx:100,ly:60,lz:10},{type:'cyl',op:'sub',pos:[0,0,0],d:20,h:10,axis:'z'}],
+  nut:[{type:'box',op:'add',pos:[0,0,0],lx:80,ly:40,lz:30},{type:'box',op:'sub',pos:[0,0,10],lx:12,ly:42,lz:10}],
+  welle:[{type:'cyl',op:'add',pos:[0,0,0],d:20,h:100,axis:'x'},{type:'cyl',op:'add',pos:[-20,0,0],d:40,h:15,axis:'x'},{type:'cyl',op:'sub',pos:[45,0,0],d:8,h:20,axis:'x'}],
+  sackloch:[{type:'box',op:'add',pos:[0,0,0],lx:60,ly:40,lz:20},{type:'cyl',op:'sub',pos:[0,0,4],d:16,h:12,axis:'z'}],
+  // Flachzugprobe steht hochkant (Dicke in y): die Vorderansicht zeigt dann die Kontur wie auf dem Zwischenstand
+  zugprobe:[{type:'box',op:'add',pos:[0,0,0],lx:200,ly:3,lz:25},{type:'cyl',op:'sub',pos:[-40,0,32.5],d:50,h:3,axis:'y'},{type:'cyl',op:'sub',pos:[-40,0,-32.5],d:50,h:3,axis:'y'},{type:'cyl',op:'sub',pos:[40,0,32.5],d:50,h:3,axis:'y'},{type:'cyl',op:'sub',pos:[40,0,-32.5],d:50,h:3,axis:'y'}],
+  kugel:[{type:'sphere',op:'add',pos:[0,0,0],d:40},{type:'cyl',op:'sub',pos:[0,0,0],d:10,h:44,axis:'z'}]
+};
+const TYPNAME={box:'Quader',cyl:'Zylinder',sphere:'Kugel',stl:'STL-Körper'};
+
+function addBody(b){b.id=nextId++;if(!b.name)b.name=TYPNAME[b.type]+' '+b.id;b.pos=b.pos||[0,0,0];state.bodies.push(b);return b;}
+function loadBodies(list){state.bodies=[];nextId=1;for(const b of list)addBody(JSON.parse(JSON.stringify(b)));}
+
+// ---- Bauliste ---------------------------------------------------------------
+function renderListe(){
+  const el=$('bauliste');el.innerHTML='';
+  state.bodies.forEach((b,i)=>{
+    const k=document.createElement('div');k.className='karte '+(i===0?'add':b.op);k.dataset.id=b.id;
+    const opSel=i===0?'<span class="klein">Rohling</span>':`<select data-f="op"><option value="add"${b.op==='add'?' selected':''}>hinzufügen</option><option value="sub"${b.op==='sub'?' selected':''}>ausschneiden</option></select>`;
+    let felder=`<label>x <input type="number" step="1" data-f="pos0" value="${b.pos[0]}"></label><label>y <input type="number" step="1" data-f="pos1" value="${b.pos[1]}"></label><label>z <input type="number" step="1" data-f="pos2" value="${b.pos[2]}"></label>`;
+    if(b.type==='box')felder+=`<label>Länge x <input type="number" step="1" min="0.1" data-f="lx" value="${b.lx}"></label><label>Tiefe y <input type="number" step="1" min="0.1" data-f="ly" value="${b.ly}"></label><label>Höhe z <input type="number" step="1" min="0.1" data-f="lz" value="${b.lz}"></label>`;
+    else if(b.type==='cyl')felder+=`<label>⌀ <input type="number" step="1" min="0.1" data-f="d" value="${b.d}"></label><label>Höhe <input type="number" step="1" min="0.1" data-f="h" value="${b.h}"></label><label>Achse <select data-f="axis"><option value="x"${b.axis==='x'?' selected':''}>x</option><option value="y"${b.axis==='y'?' selected':''}>y</option><option value="z"${(b.axis||'z')==='z'?' selected':''}>z</option></select></label>`;
+    else if(b.type==='sphere')felder+=`<label>⌀ <input type="number" step="1" min="0.1" data-f="d" value="${b.d}"></label>`;
+    else felder+=`<span class="klein">${b.tris.length} Dreiecke</span>`;
+    k.innerHTML=`<div class="karte-kopf"><strong>${b.name}</strong>${opSel}<span class="kn"><button data-a="up" title="nach oben">▲</button><button data-a="down" title="nach unten">▼</button><button data-a="dup" title="kopieren">⧉</button><button data-a="del" title="löschen">✕</button></span></div><div class="felder">${felder}</div>`;
+    el.appendChild(k);
+  });
+  if(!state.bodies.length)el.innerHTML='<p class="klein">Noch kein Körper. Füge einen Quader, Zylinder oder eine Kugel hinzu oder lade ein Beispiel.</p>';
+}
+let rebuildTimer=null;
+function scheduleRebuild(){clearTimeout(rebuildTimer);rebuildTimer=setTimeout(rebuild,250);}
+$('bauliste').addEventListener('input',e=>{const k=e.target.closest('.karte');if(!k)return;const b=state.bodies.find(x=>x.id==k.dataset.id);const f=e.target.dataset.f;if(!b||!f)return;
+  if(e.target.tagName==='SELECT'){b[f]=e.target.value;rebuild();return;}
+  const v=parseFloat(e.target.value);if(!isFinite(v))return;
+  if(f.startsWith('pos'))b.pos[+f[3]]=v;else b[f]=Math.max(0.1,v);scheduleRebuild();});
+$('bauliste').addEventListener('click',e=>{const btn=e.target.closest('button[data-a]');if(!btn)return;const k=btn.closest('.karte');const i=state.bodies.findIndex(x=>x.id==k.dataset.id);if(i<0)return;const a=btn.dataset.a;
+  if(a==='del')state.bodies.splice(i,1);
+  else if(a==='up'&&i>0){[state.bodies[i-1],state.bodies[i]]=[state.bodies[i],state.bodies[i-1]];}
+  else if(a==='down'&&i<state.bodies.length-1){[state.bodies[i+1],state.bodies[i]]=[state.bodies[i],state.bodies[i+1]];}
+  else if(a==='dup'){const c=JSON.parse(JSON.stringify(state.bodies[i]));delete c.id;c.name='';c.pos[0]+=10;state.bodies.splice(i+1,0,addBody(c));state.bodies.pop();}
+  if(state.bodies.length&&state.bodies[0].op==='sub')state.bodies[0].op='add';
+  renderListe();rebuild();});
+document.querySelectorAll('button[data-neu]').forEach(btn=>btn.addEventListener('click',()=>{
+  const t=btn.dataset.neu;const box=model&&model.box.diag>0?model.box:null;const first=!state.bodies.length;
+  let b;
+  if(t==='box')b={type:'box',op:'add',pos:[0,0,0],lx:60,ly:40,lz:20};
+  else if(t==='cyl')b={type:'cyl',op:'add',pos:[0,0,0],d:20,h:40,axis:'z'};
+  else if(t==='sphere')b={type:'sphere',op:'add',pos:[0,0,0],d:30};
+  else if(t==='bohrung'){const h=box?box.size[2]+1:20;b={type:'cyl',op:first?'add':'sub',pos:box?box.center.slice():[0,0,0],d:10,h:Math.round(h*10)/10,axis:'z'};}
+  else{const sz=box?box.size:[60,40,20];const c=box?box.center:[0,0,0];const lz=Math.max(1,Math.round(sz[2]/2));b={type:'box',op:first?'add':'sub',pos:[c[0],c[1],box?box.max[2]-lz/2:0],lx:Math.max(1,Math.round(sz[0]/6)),ly:Math.round(sz[1]+2),lz};}
+  if(!first&&(t==='box'||t==='cyl'||t==='sphere')){b.pos=[Math.round(box?box.max[0]:0),0,0];}
+  addBody(b);renderListe();rebuild();}));
+$('preset').addEventListener('change',e=>{const p=PRESETS[e.target.value];if(!p)return;loadBodies(p);renderListe();rebuild();e.target.value='';});
+$('werkstoff').addEventListener('change',e=>{state.rho=parseFloat(e.target.value);updateKennzahlen();});
+
+// ---- Auswertung -------------------------------------------------------------
+function rebuild(){
+  clearTimeout(rebuildTimer);$('meldung').textContent='';
+  try{model=K.evaluate(state.bodies);}catch(err){$('meldung').textContent='Der Körper ließ sich nicht berechnen: '+err.message;model=K.evaluate([]);}
+  viewsDirty=true;views=null;
+  updateKennzahlen();gl3d.setModel(model);
+  save();
+  if(activeTab==='zeichnung'||activeTab==='ueben')window.dispatchEvent(new CustomEvent('tzlab-views'));
+}
+function updateKennzahlen(){if(!model)return;const V=model.volume/1000,A=model.area/100;$('kzV').textContent=fmt(V,2)+' cm³';$('kzA').textContent=fmt(A,1)+' cm²';$('kzM').textContent=fmt(V*state.rho,1)+' g';}
+function getViews(){if(viewsDirty||!views){views=model&&model.tris.length?K.computeViews(model,1000):null;viewsDirty=false;}return views;}
+function save(){try{localStorage.setItem('tzlab-bauliste',JSON.stringify({bodies:state.bodies,rho:state.rho}));}catch(e){}}
+function restore(){try{const s=JSON.parse(localStorage.getItem('tzlab-bauliste'));if(s&&Array.isArray(s.bodies)&&s.bodies.length){loadBodies(s.bodies);state.rho=s.rho||2.70;$('werkstoff').value=String(state.rho.toFixed(2));return true;}}catch(e){}return false;}
+
+// ---- Tabs -------------------------------------------------------------------
+let activeTab='bauen';
+document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('nav.tabs button').forEach(x=>x.classList.toggle('aktiv',x===b));
+  document.querySelectorAll('section.tab').forEach(s=>s.classList.toggle('aktiv',s.id==='tab-'+b.dataset.tab));
+  activeTab=b.dataset.tab;window.dispatchEvent(new CustomEvent('tzlab-tab',{detail:activeTab}));
+  if(activeTab==='bauen')gl3d.resize();}));
+
+// ---- 3D-Ansicht (WebGL) -----------------------------------------------------
+const M4={
+  perspective(f,a,n,fa){const t=1/Math.tan(f/2);const m=new Float32Array(16);m[0]=t/a;m[5]=t;m[10]=(fa+n)/(n-fa);m[11]=-1;m[14]=2*fa*n/(n-fa);return m;},
+  ortho(l,r,b,t,n,f){const m=new Float32Array(16);m[0]=2/(r-l);m[5]=2/(t-b);m[10]=-2/(f-n);m[12]=-(r+l)/(r-l);m[13]=-(t+b)/(t-b);m[14]=-(f+n)/(f-n);m[15]=1;return m;},
+  lookAt(e,c,up){const z=K.norm(K.sub(e,c)),x=K.norm(K.cross(up,z)),y=K.cross(z,x);const m=new Float32Array(16);m[0]=x[0];m[4]=x[1];m[8]=x[2];m[1]=y[0];m[5]=y[1];m[9]=y[2];m[2]=z[0];m[6]=z[1];m[10]=z[2];m[12]=-K.dot(x,e);m[13]=-K.dot(y,e);m[14]=-K.dot(z,e);m[15]=1;return m;},
+  mul(a,b){const m=new Float32Array(16);for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+j]*b[i*4+k];m[i*4+j]=s;}return m;}
+};
+const gl3d=(function(){
+  const canvas=$('gl3d');let gl=null,prog=null,loc={},bufPos=null,bufNrm=null,bufEdge=null,nTri=0,nEdge=0,bufAx=null;
+  const cam={az:0.6,el:0.5,dist:300,target:[0,0,0],ortho:false,diag:100};
+  function init(){
+    gl=canvas.getContext('webgl',{antialias:true});if(!gl){canvas.style.display='none';const p=document.createElement('p');p.className='meldung';p.textContent='Die 3D-Ansicht braucht WebGL. Zeichnung und Übungen funktionieren trotzdem.';canvas.parentNode.insertBefore(p,canvas);return;}
+    const vs='attribute vec3 aPos;attribute vec3 aNrm;uniform mat4 uMVP;varying vec3 vN;void main(){vN=aNrm;gl_Position=uMVP*vec4(aPos,1.0);}';
+    const fs='precision mediump float;uniform vec3 uColor;uniform vec3 uLight;uniform float uFlat;varying vec3 vN;void main(){float d=max(dot(normalize(vN),normalize(uLight)),0.0);float sh=mix(0.40+0.60*d,1.0,uFlat);gl_FragColor=vec4(uColor*sh,1.0);}';
+    const sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;};
+    prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,vs));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(prog);gl.useProgram(prog);
+    loc={aPos:gl.getAttribLocation(prog,'aPos'),aNrm:gl.getAttribLocation(prog,'aNrm'),uMVP:gl.getUniformLocation(prog,'uMVP'),uColor:gl.getUniformLocation(prog,'uColor'),uLight:gl.getUniformLocation(prog,'uLight'),uFlat:gl.getUniformLocation(prog,'uFlat')};
+    bufPos=gl.createBuffer();bufNrm=gl.createBuffer();bufEdge=gl.createBuffer();bufAx=gl.createBuffer();
+    gl.enable(gl.DEPTH_TEST);gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);gl.clearColor(1,1,1,1);
+  }
+  function setModel(m){
+    if(!gl)return;
+    const tris=m.tris;nTri=tris.length;const pos=new Float32Array(nTri*9),nrm=new Float32Array(nTri*9);let o=0;
+    for(const t of tris){const n=K.norm(K.cross(K.sub(t[1],t[0]),K.sub(t[2],t[0])));for(const p of t){pos[o]=p[0];pos[o+1]=p[1];pos[o+2]=p[2];nrm[o]=n[0];nrm[o+1]=n[1];nrm[o+2]=n[2];o+=3;}}
+    gl.bindBuffer(gl.ARRAY_BUFFER,bufPos);gl.bufferData(gl.ARRAY_BUFFER,pos,gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER,bufNrm);gl.bufferData(gl.ARRAY_BUFFER,nrm,gl.STATIC_DRAW);
+    const edges=m.polys.length?K.extractEdges(m.polys,m.box).filter(e=>e.crease):[];nEdge=edges.length;const ed=new Float32Array(nEdge*6);o=0;
+    for(const e of edges){ed[o++]=e.a[0];ed[o++]=e.a[1];ed[o++]=e.a[2];ed[o++]=e.b[0];ed[o++]=e.b[1];ed[o++]=e.b[2];}
+    gl.bindBuffer(gl.ARRAY_BUFFER,bufEdge);gl.bufferData(gl.ARRAY_BUFFER,ed,gl.STATIC_DRAW);
+    const d=Math.max(m.box.diag,20);cam.diag=d;cam.target=m.box.center.slice();cam.dist=d*2.2;
+    const L=d*0.45;const c=cam.target;
+    gl.bindBuffer(gl.ARRAY_BUFFER,bufAx);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([c[0],c[1],c[2],c[0]+L,c[1],c[2], c[0],c[1],c[2],c[0],c[1]+L,c[2], c[0],c[1],c[2],c[0],c[1],c[2]+L]),gl.STATIC_DRAW);
+    resize();
+  }
+  function resize(){const w=canvas.clientWidth||600;const h=Math.min(Math.round(w*0.72),540);const dpr=Math.min(window.devicePixelRatio||1,2);canvas.style.height=h+'px';canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);draw();}
+  function eye(){return K.add(cam.target,K.mul([Math.cos(cam.el)*Math.sin(cam.az),-Math.cos(cam.el)*Math.cos(cam.az),Math.sin(cam.el)],cam.dist));}
+  function draw(){
+    if(!gl)return;gl.viewport(0,0,canvas.width,canvas.height);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);if(!nTri&&!nEdge)return;
+    const a=canvas.width/canvas.height;const e=eye();const up=Math.abs(cam.el)>1.45?[0,1,0]:[0,0,1];
+    const view=M4.lookAt(e,cam.target,up);
+    const proj=cam.ortho?M4.ortho(-cam.dist*0.32*a,cam.dist*0.32*a,-cam.dist*0.32,cam.dist*0.32,-cam.diag*4,cam.diag*4+cam.dist):M4.perspective(0.6,a,cam.dist*0.02,cam.dist*8);
+    const mvp=M4.mul(proj,view);gl.uniformMatrix4fv(loc.uMVP,false,mvp);
+    const ld=K.norm(K.add(K.norm(K.sub(e,cam.target)),[0.25,-0.15,0.55]));gl.uniform3fv(loc.uLight,ld);
+    gl.bindBuffer(gl.ARRAY_BUFFER,bufPos);gl.enableVertexAttribArray(loc.aPos);gl.vertexAttribPointer(loc.aPos,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,bufNrm);gl.enableVertexAttribArray(loc.aNrm);gl.vertexAttribPointer(loc.aNrm,3,gl.FLOAT,false,0,0);
+    gl.uniform1f(loc.uFlat,0);gl.uniform3f(loc.uColor,0.84,0.86,0.88);gl.drawArrays(gl.TRIANGLES,0,nTri*3);
+    gl.disableVertexAttribArray(loc.aNrm);gl.vertexAttrib3f(loc.aNrm,0,0,1);gl.uniform1f(loc.uFlat,1);
+    gl.bindBuffer(gl.ARRAY_BUFFER,bufEdge);gl.vertexAttribPointer(loc.aPos,3,gl.FLOAT,false,0,0);gl.uniform3f(loc.uColor,0.12,0.12,0.12);gl.drawArrays(gl.LINES,0,nEdge*2);
+    gl.bindBuffer(gl.ARRAY_BUFFER,bufAx);gl.vertexAttribPointer(loc.aPos,3,gl.FLOAT,false,0,0);
+    gl.uniform3f(loc.uColor,0.8,0.2,0.2);gl.drawArrays(gl.LINES,0,2);gl.uniform3f(loc.uColor,0.2,0.6,0.2);gl.drawArrays(gl.LINES,2,2);gl.uniform3f(loc.uColor,0.2,0.35,0.8);gl.drawArrays(gl.LINES,4,2);
+  }
+  // Zeiger: drehen, zoomen
+  const pts=new Map();let last=null,pinch=0;
+  canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pts.set(e.pointerId,[e.clientX,e.clientY]);last=[e.clientX,e.clientY];if(pts.size===2){const a=[...pts.values()];pinch=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);}});
+  canvas.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;pts.set(e.pointerId,[e.clientX,e.clientY]);
+    if(pts.size===1){cam.az+=(e.clientX-last[0])*0.01;cam.el=Math.max(-1.5,Math.min(1.5,cam.el+(e.clientY-last[1])*0.01));last=[e.clientX,e.clientY];draw();}
+    else if(pts.size===2){const a=[...pts.values()];const d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);if(pinch>0){cam.dist*=pinch/d;}pinch=d;draw();}});
+  const up=e=>{pts.delete(e.pointerId);};canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);
+  canvas.addEventListener('wheel',e=>{e.preventDefault();cam.dist*=Math.pow(1.1,e.deltaY/100);draw();},{passive:false});
+  document.querySelectorAll('button[data-cam]').forEach(b=>b.addEventListener('click',()=>{const v=b.dataset.cam;if(v==='vorn'){cam.az=0;cam.el=0;}else if(v==='oben'){cam.az=0;cam.el=1.5;}else if(v==='links'){cam.az=-Math.PI/2;cam.el=0;}else{cam.az=0.6;cam.el=0.5;}draw();}));
+  $('ortho').addEventListener('change',e=>{cam.ortho=e.target.checked;draw();});
+  window.addEventListener('resize',()=>{if(activeTab==='bauen')resize();});
+  init();
+  return {setModel,resize,draw};
+})();
+
+// ---- Start ------------------------------------------------------------------
+if(!restore())loadBodies(PRESETS.platte);
+renderListe();rebuild();
+window.TZ={state,K,getViews,getModel:()=>model,rebuild,renderListe,loadBodies,addBody,fmt,save,getTab:()=>activeTab};
+})();
+</script>
+<script>
+// =============================================================================
+//  Oberfläche, Teil 2: Zeichnung (drei Ansichten), Üben, Datei
+// =============================================================================
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const TZ=window.TZ,K=TZ.K;
+const COL={vis:'#111',hid:'#333',center:'#35638A',proj:'#9fb3c4',grid:'#e4e4e4',label:'#6b6b6b',rot:'#B01A15',frame:'#c8c8c8',sketch:'#1f3b5c'};
+
+// ---- Layout nach Projektionsmethode 1 -------------------------------------
+function layoutFor(vs,cw,ch,margin){
+  const V=vs[0],D=vs[1],S=vs[2];const xr=Math.max(V.xmax-V.xmin,1e-3),zr=Math.max(V.ymax-V.ymin,1e-3),yr=Math.max(D.ymax-D.ymin,1e-3);
+  const g=Math.max(10,0.14*Math.max(xr,zr,yr));const W=xr+g+yr,H=zr+g+yr;
+  const s=Math.min((cw-2*margin)/W,(ch-2*margin)/H);const ox=margin+((cw-2*margin)-W*s)/2,oy=margin+((ch-2*margin)-H*s)/2;
+  return {s,ox,oy,g,W,H,vs,boxes:{V:[0,0,xr,zr],D:[0,zr+g,xr,yr],S:[xr+g,0,yr,zr]}};
+}
+// Ansichtskoordinaten (mm, y nach oben) -> Layout-mm (y nach unten) -> Pixel
+function toLayout(L,id,X,Y){const vw=L.vs[id==='V'?0:id==='D'?1:2];const b=L.boxes[id];return [b[0]+(X-vw.xmin),b[1]+(vw.ymax-Y)];}
+function toPx(L,lx,ly){return [L.ox+lx*L.s,L.oy+ly*L.s];}
+function fromPx(L,px,py){return [(px-L.ox)/L.s,(py-L.oy)/L.s];}
+
+function setupCanvas(canvas,ratio,maxH){const w=canvas.clientWidth||600;const h=Math.min(Math.round(w*ratio),maxH);const dpr=Math.min(window.devicePixelRatio||1,2);canvas.style.height=h+'px';canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);return {ctx,w,h};}
+
+function drawSegs(ctx,L,id,segs,vis,color,alpha){
+  // Gestrichelte Linien immer mit stumpfen Enden: runde Kappen auf Tausenden kurzen Strichen lassen Chrome beim Malen hängen
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;
+  if(vis){ctx.lineWidth=2.2;ctx.setLineDash([]);ctx.lineCap='round';}else{ctx.lineWidth=1.1;ctx.setLineDash([7,3.5]);ctx.lineCap='butt';}
+  ctx.beginPath();for(const sg of segs){if(sg.vis!==vis)continue;const a=toPx(L,...toLayout(L,id,sg.x1,sg.y1)),b=toPx(L,...toLayout(L,id,sg.x2,sg.y2));ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();ctx.restore();
+}
+function drawCenter(ctx,L,id,center,color,alpha){
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.lineWidth=0.9;ctx.lineCap='butt';ctx.setLineDash([12,3,2,3]);ctx.beginPath();
+  for(const c of center){const a=toPx(L,...toLayout(L,id,c.x1,c.y1)),b=toPx(L,...toLayout(L,id,c.x2,c.y2));ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
+  ctx.stroke();ctx.restore();
+}
+function drawView(ctx,L,id,o){
+  const vw=L.vs[id==='V'?0:id==='D'?1:2];const color=o.color||COL.vis,alpha=o.alpha==null?1:o.alpha;
+  if(o.hidden)drawSegs(ctx,L,id,vw.segs,false,o.color||COL.hid,alpha);
+  if(o.center)drawCenter(ctx,L,id,vw.center,o.color||COL.center,alpha);
+  drawSegs(ctx,L,id,vw.segs,true,color,alpha);
+}
+function drawFrame(ctx,L,id,dashed){const b=L.boxes[id];const a=toPx(L,b[0],b[1]);ctx.save();ctx.strokeStyle=COL.frame;ctx.lineWidth=1;ctx.setLineDash(dashed?[4,4]:[]);ctx.strokeRect(a[0]-6,a[1]-6,b[2]*L.s+12,b[3]*L.s+12);ctx.restore();}
+function drawLabel(ctx,L,id){const b=L.boxes[id];const a=toPx(L,b[0],b[1]+b[3]);ctx.save();ctx.fillStyle=COL.label;ctx.font='600 11px sans-serif';ctx.letterSpacing='1px';const t=K.VIEWS[id==='V'?0:id==='D'?1:2].name.toUpperCase();const tw=ctx.measureText(t).width;const x=Math.max(4,Math.min(a[0],ctx.canvas.clientWidth-tw-6));ctx.fillText(t,x,a[1]+18);ctx.restore();}
+function drawGrid(ctx,L,w,h){ctx.save();ctx.strokeStyle=COL.grid;ctx.lineWidth=0.8;ctx.beginPath();const step=10*L.s;for(let x=L.ox;x<=w;x+=step){ctx.moveTo(x,0);ctx.lineTo(x,h);}for(let x=L.ox-step;x>=0;x-=step){ctx.moveTo(x,0);ctx.lineTo(x,h);}for(let y=L.oy;y<=h;y+=step){ctx.moveTo(0,y);ctx.lineTo(w,y);}for(let y=L.oy-step;y>=0;y-=step){ctx.moveTo(0,y);ctx.lineTo(w,y);}ctx.stroke();ctx.restore();}
+function drawProj(ctx,L){
+  const bV=L.boxes.V,bD=L.boxes.D,bS=L.boxes.S;ctx.save();ctx.strokeStyle=COL.proj;ctx.lineWidth=0.8;ctx.setLineDash([2,4]);ctx.beginPath();
+  const line=(a,b)=>{const p=toPx(L,a[0],a[1]),q=toPx(L,b[0],b[1]);ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);};
+  line([bV[0],bV[1]+bV[3]],[bV[0],bD[1]]);line([bV[0]+bV[2],bV[1]+bV[3]],[bV[0]+bV[2],bD[1]]);
+  line([bV[0]+bV[2],bV[1]],[bS[0],bS[1]]);line([bV[0]+bV[2],bV[1]+bV[3]],[bS[0],bS[1]+bS[3]]);
+  const cx=bV[0]+bV[2]+L.g/2,cy=bV[1]+bV[3]+L.g/2;const l=Math.max(bD[3],bS[2])+L.g/2;
+  line([bV[0]+bV[2],bD[1]+bD[3]],[cx+l-L.g/2,bD[1]+bD[3]]);line([cx+l-L.g/2,bD[1]+bD[3]],[cx+l-L.g/2,bS[1]+bS[3]]);
+  ctx.setLineDash([]);line([cx,cy],[cx+l,cy+l]);ctx.stroke();ctx.restore();
+}
+function drawAll(canvas,o){
+  const vs=TZ.getViews();const {ctx,w,h}=setupCanvas(canvas,0.72,640);ctx.clearRect(0,0,w,h);
+  if(!vs){ctx.fillStyle=COL.label;ctx.font='14px sans-serif';ctx.fillText('Kein Körper. Baue zuerst einen Körper im Reiter „Bauen“.',16,30);return null;}
+  const L=layoutFor(vs,w,h,26);
+  if(o.grid)drawGrid(ctx,L,w,h);if(o.proj)drawProj(ctx,L);
+  for(const id of ['V','D','S']){if(o.frames&&o.frames[id])drawFrame(ctx,L,id,true);if(o.show[id])drawView(ctx,L,id,o);if(o.labels)drawLabel(ctx,L,id);}
+  return L;
+}
+
+// ---- Reiter Zeichnung -------------------------------------------------------
+const zOpts=()=>({show:{V:true,D:true,S:true},hidden:$('oHidden').checked,center:$('oCenter').checked,proj:$('oProj').checked,grid:$('oGrid').checked,labels:$('oLabel').checked});
+function redrawZeichnung(){drawAll($('zeichnung'),zOpts());const m=TZ.getModel();$('massInfo').textContent=m&&m.box.diag>0?'Abmessungen: '+TZ.fmt(m.box.size[0],1)+' × '+TZ.fmt(m.box.size[1],1)+' × '+TZ.fmt(m.box.size[2],1)+' mm (x × y × z). Die Ansichten sind auf die Bildschirmbreite skaliert.':'';}
+['oHidden','oCenter','oProj','oGrid','oLabel'].forEach(id=>$(id).addEventListener('change',redrawZeichnung));
+
+// ---- Üben: skizzieren -------------------------------------------------------
+let strokes=[],cur=null,L_sk=null,loesungAn=false;
+const skOpts=()=>{const g=$('gegeben').value;const show={V:g.includes('V'),D:g.includes('D'),S:g.includes('S')};const fr=$('oRahmen').checked;return {show,hidden:true,center:true,proj:true,grid:true,labels:true,frames:{V:fr&&!show.V,D:fr&&!show.D,S:fr&&!show.S}};};
+function redrawSkizze(){
+  const canvas=$('skizze');const o=skOpts();L_sk=drawAll(canvas,o);if(!L_sk)return;const ctx=canvas.getContext('2d');
+  for(const st of strokes)drawStroke(ctx,st);
+  if(loesungAn){for(const id of ['V','D','S'])if(!o.show[id])drawView(ctx,L_sk,id,{hidden:true,center:true,color:COL.rot,alpha:0.75});}
+}
+function drawStroke(ctx,st){if(st.pts.length<2)return;ctx.save();ctx.strokeStyle=COL.sketch;ctx.lineJoin='round';
+  if(st.type==='voll'){ctx.lineWidth=2.4;ctx.setLineDash([]);ctx.lineCap='round';}else if(st.type==='strich'){ctx.lineWidth=1.2;ctx.setLineDash([7,3.5]);ctx.lineCap='butt';}else{ctx.lineWidth=1;ctx.setLineDash([12,3,2,3]);ctx.lineCap='butt';}
+  ctx.beginPath();st.pts.forEach((p,i)=>{const q=toPx(L_sk,p[0],p[1]);if(i)ctx.lineTo(q[0],q[1]);else ctx.moveTo(q[0],q[1]);});ctx.stroke();ctx.restore();}
+const sk=$('skizze');
+sk.addEventListener('pointerdown',e=>{if(!L_sk)return;sk.setPointerCapture(e.pointerId);const r=sk.getBoundingClientRect();cur={type:$('linienart').value,pts:[fromPx(L_sk,e.clientX-r.left,e.clientY-r.top)]};strokes.push(cur);});
+sk.addEventListener('pointermove',e=>{if(!cur)return;const r=sk.getBoundingClientRect();cur.pts.push(fromPx(L_sk,e.clientX-r.left,e.clientY-r.top));redrawSkizze();});
+const skEnd=()=>{cur=null;};sk.addEventListener('pointerup',skEnd);sk.addEventListener('pointercancel',skEnd);
+$('undo').addEventListener('click',()=>{strokes.pop();redrawSkizze();});
+$('clearSk').addEventListener('click',()=>{strokes=[];redrawSkizze();});
+$('loesung').addEventListener('click',()=>{loesungAn=!loesungAn;$('loesung').textContent=loesungAn?'Lösung ausblenden':'Lösung einblenden';redrawSkizze();});
+['gegeben','oRahmen','linienart'].forEach(id=>$(id).addEventListener('change',redrawSkizze));
+
+// ---- Üben: zuordnen ---------------------------------------------------------
+let zuKarten=[];
+function mischen(){
+  const vs=TZ.getViews();const el=$('zuKarten');el.innerHTML='';$('zuErgebnis').textContent='';zuKarten=[];
+  if(!vs){el.innerHTML='<p class="klein">Kein Körper vorhanden.</p>';return;}
+  const idx=[0,1,2].sort(()=>Math.random()-0.5);
+  // erst alle Karten anlegen, dann zeichnen: die Spaltenbreite steht erst mit allen drei Karten fest
+  idx.forEach((vi,n)=>{const d=document.createElement('div');const c=document.createElement('canvas');d.appendChild(c);
+    const sel=document.createElement('select');sel.innerHTML='<option value="">Ansicht '+(n+1)+': …</option>'+K.VIEWS.map((v,i)=>'<option value="'+i+'">'+v.name+'</option>').join('');d.appendChild(sel);
+    const fb=document.createElement('div');fb.className='klein';d.appendChild(fb);el.appendChild(d);zuKarten.push({vi,sel,fb,c});});
+  for(const k of zuKarten){const vw=vs[k.vi];const {ctx,w,h}=setupCanvas(k.c,0.75,220);const xr=Math.max(vw.xmax-vw.xmin,1e-3),yr=Math.max(vw.ymax-vw.ymin,1e-3);const s=Math.min((w-24)/xr,(h-24)/yr);
+    const L={s,ox:(w-xr*s)/2,oy:(h-yr*s)/2,vs,boxes:{V:[0,0,xr,yr],D:[0,0,xr,yr],S:[0,0,xr,yr]}};
+    ctx.clearRect(0,0,w,h);drawView(ctx,L,K.VIEWS[k.vi].id,{hidden:true,center:true});}
+}
+function pruefen(){const vs=TZ.getViews();if(!vs)return;const sig=vs.map(K.viewSignature);let richtig=0;
+  for(const k of zuKarten){const w=k.sel.value;if(w===''){k.fb.textContent='noch nicht zugeordnet';k.fb.className='klein';continue;}
+    const ok=sig[+w]===sig[k.vi];k.fb.textContent=ok?'richtig':'nicht richtig';k.fb.className=ok?'ok':'nein';if(ok)richtig++;}
+  $('zuErgebnis').textContent=richtig+' von 3 richtig'+(richtig===3?'. Sehr gut.':'. Vergleiche mit der 3D-Ansicht: Von wo schaut man?');}
+$('pruefen').addEventListener('click',pruefen);$('mischen').addEventListener('click',mischen);
+document.querySelectorAll('input[name=modus]').forEach(r=>r.addEventListener('change',()=>{const m=document.querySelector('input[name=modus]:checked').value;$('ueb-skizze').style.display=m==='skizze'?'':'none';$('ueb-zuordnen').style.display=m==='zuordnen'?'':'none';redrawUeben();}));
+function redrawUeben(){const m=document.querySelector('input[name=modus]:checked').value;if(m==='skizze')redrawSkizze();else mischen();}
+
+// ---- Ereignisse: Reiterwechsel, Körperwechsel, Größe ------------------------
+window.addEventListener('tzlab-tab',e=>{if(e.detail==='zeichnung')redrawZeichnung();else if(e.detail==='ueben')redrawUeben();});
+window.addEventListener('tzlab-views',()=>{strokes=[];loesungAn=false;$('loesung').textContent='Lösung einblenden';if(TZ.getTab()==='zeichnung')redrawZeichnung();else if(TZ.getTab()==='ueben')redrawUeben();});
+window.addEventListener('resize',()=>{const t=TZ.getTab();if(t==='zeichnung')redrawZeichnung();else if(t==='ueben'&&document.querySelector('input[name=modus]:checked').value==='skizze')redrawSkizze();});
+
+// ---- Datei ------------------------------------------------------------------
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
+$('stlExport').addEventListener('click',()=>{const m=TZ.getModel();if(!m||!m.tris.length){$('dateiMeldung').textContent='Kein Körper zum Exportieren.';return;}download(new Blob([K.stlWrite(m.tris)],{type:'model/stl'}),'koerper.stl');$('dateiMeldung').textContent='STL mit '+m.tris.length+' Dreiecken geschrieben.';});
+$('stlImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const tris=K.stlRead(rd.result);if(!tris.length)throw new Error('keine Dreiecke gefunden');
+  const b={type:'stl',op:'add',pos:[0,0,0],tris,name:'STL: '+f.name};
+  if($('stlErsetzen').checked)TZ.loadBodies([b]);else TZ.addBody(b);
+  TZ.renderListe();TZ.rebuild();$('dateiMeldung').textContent=f.name+': '+tris.length+' Dreiecke geladen.';}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsArrayBuffer(f);});
+$('jsonExport').addEventListener('click',()=>{download(new Blob([JSON.stringify({format:'tzlab-bauliste',bodies:TZ.state.bodies,rho:TZ.state.rho})],{type:'application/json'}),'bauliste.json');});
+$('jsonImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const s=JSON.parse(rd.result);if(!s||!Array.isArray(s.bodies))throw new Error('keine Bauliste');TZ.loadBodies(s.bodies);TZ.renderListe();TZ.rebuild();$('dateiMeldung').textContent=f.name+' geladen.';}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsText(f);});
+$('alleLoeschen').addEventListener('click',()=>{TZ.loadBodies([]);TZ.renderListe();TZ.rebuild();$('dateiMeldung').textContent='Bauliste geleert.';});
+})();
+</script>
+</body>
+</html>
