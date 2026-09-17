@@ -168,6 +168,7 @@ input[type=file]{font:inherit;font-size:.9rem}
    <label class="klein"><input type="checkbox" id="oProj" checked> Projektionslinien</label>
    <label class="klein"><input type="checkbox" id="oGrid"> Raster 10 mm</label>
    <label class="klein"><input type="checkbox" id="oLabel" checked> Beschriftung</label>
+   <button class="k" id="pdfExport" title="A4 quer mit Rahmen und Schriftfeld, Maßstab 1:1, wenn es passt">Als PDF speichern</button>
  </div>
  <canvas class="flaeche" id="zeichnung"></canvas>
  <div class="legende" id="massInfo"></div>
@@ -215,6 +216,10 @@ input[type=file]{font:inherit;font-size:.9rem}
 </section>
 
 <section class="tab" id="tab-datei">
+ <h2>Zeichnung als PDF</h2>
+ <p class="hinweis">Die drei Ansichten als Zeichnung auf <b>A4 quer</b> mit Rahmen und Schriftfeld, wie das Vorlagenblatt aus dem Praktikum: Linien 0,5 mm und 0,25 mm, Maßstab 1:1, wenn das Werkstück auf das Blatt passt, sonst verkleinert oder vergrößert (steht im Schriftfeld). Maße, die im Übungsmodus „Bemaßen“ gesetzt sind, kommen mit aufs Blatt; verdeckte Kanten und Mittellinien nach den Häkchen im Reiter Zeichnung.</p>
+ <div class="leiste"><input type="text" id="pdfName" placeholder="Name für das Schriftfeld" maxlength="40" style="width:16em">
+   <button class="k voll" id="pdfExport2">Zeichnung als PDF speichern</button></div>
  <h2>CAD: FreeCAD und OpenSCAD</h2>
  <p class="hinweis">Die Bauliste als <b>OpenSCAD-CSG</b>: Grundkörper mit Maßen und Booleschen Verknüpfungen, kein Netz. <b>FreeCAD</b> liest die Datei über <i>Datei → Importieren</i> (Dateityp „OpenSCAD CSG“) ohne Zusatzsoftware und macht daraus einen Part-Körper mit echten Zylindern und Kugeln; die OpenSCAD-Arbeitsbank von FreeCAD schreibt mit <i>Export CSG</i> denselben Typ zurück, den das Lab wieder lädt. OpenSCAD öffnet die Datei direkt. Gewinde stehen nur als Kommentar in der Datei.</p>
  <div class="leiste"><button class="k voll" id="csgExport">CSG exportieren (.csg)</button>
@@ -562,6 +567,21 @@ function bodyThread(b,first){
   const internal=b.op==='sub'&&!first;const g=gewindeMasse(b.d);
   return {p0:ax.p0,p1:ax.p1,rMajor:b.d/2,rThin:internal?b.d/2:g.d3/2,internal,d:b.d,P:g.P};
 }
+// Punkt im Koerper? Strahl in schraeger Richtung, Zahl der Durchstoesse (Moeller-Trumbore)
+const RAYDIR=norm([0.3187,0.7351,0.5972]);
+function pointInside(tris,o){let n=0;const d=RAYDIR;for(const t of tris){const e1=sub(t[1],t[0]),e2=sub(t[2],t[0]);const p=cross(d,e2);const det=dot(e1,p);if(Math.abs(det)<1e-12)continue;const inv=1/det;const s=sub(o,t[0]);const u=dot(s,p)*inv;if(u<0||u>1)continue;const q=cross(s,e1);const v=dot(d,q)*inv;if(v<0||u+v>1)continue;if(dot(e2,q)*inv>1e-9)n++;}return n%2===1;}
+// Innengewinde nur dort kennzeichnen, wo die Bohrung durch Werkstoff laeuft (Schneidkoerper
+// stehen meist ueber): Sondenpunkte knapp ausserhalb des Nenndurchmessers, Enden per Halbierung
+function clipThread(th,tris){
+  if(!th.internal||!tris.length)return th;const ax=sub(th.p1,th.p0);const L=len(ax);if(L<1e-6)return th;const ud=mul(ax,1/L);
+  const a=Math.abs(ud[0])<0.9?[1,0,0]:[0,1,0];const e1=norm(cross(ud,a)),e2=cross(ud,e1);const r=th.rMajor+0.05;
+  const dirs=[e1,e2,mul(e1,-1),mul(e2,-1)];const inside=t=>{const c=lerp(th.p0,th.p1,t);return dirs.some(d=>pointInside(tris,add(c,mul(d,r))));};
+  const N=Math.max(16,Math.ceil(L/0.25));let lo=-1,hi=-1;for(let i=0;i<=N;i++){if(inside(i/N)){if(lo<0)lo=i;hi=i;}}
+  if(lo<0)return null;let t0=lo/N,t1=hi/N;
+  if(lo>0){let a0=(lo-1)/N,b0=t0;for(let k=0;k<8;k++){const m=(a0+b0)/2;if(inside(m))b0=m;else a0=m;}t0=b0;}
+  if(hi<N){let a0=t1,b0=(hi+1)/N;for(let k=0;k<8;k++){const m=(a0+b0)/2;if(inside(m))a0=m;else b0=m;}t1=a0;}
+  if(t0<1e-6&&t1>1-1e-6)return th;return Object.assign({},th,{p0:lerp(th.p0,th.p1,t0),p1:lerp(th.p0,th.p1,t1)});
+}
 function evaluate(bodies){
   let polys=null;const axes=[],threads=[];
   for(const b of bodies){const p=bodyPolys(b);if(!p.length)continue;const first=polys===null;
@@ -569,13 +589,14 @@ function evaluate(bodies){
     else polys=b.op==='sub'?csgSubtract(polys,p):csgUnion(polys,p);
     axes.push(...bodyAxes(b));const th=bodyThread(b,first);if(th)threads.push(th);}
   polys=polys||[];const tris=triangles(polys);
-  return {polys,tris,box:bbox(polys),axes,threads,volume:volume(tris),area:area(tris)};
+  const threadsC=threads.map(th=>clipThread(th,tris)).filter(Boolean);
+  return {polys,tris,box:bbox(polys),axes,threads:threadsC,volume:volume(tris),area:area(tris)};
 }
 function computeViews(model,res){const edges=extractEdges(model.polys,model.box);return VIEWS.map(v=>computeView(model.tris,edges,model.axes,v,res,model.threads));}
 function viewSignature(vw){const r=x=>Math.round(x*4);const parts=vw.segs.concat(vw.thread||[]).map(s=>{const a=[r(s.x1-vw.xmin),r(s.y1-vw.ymin)],b=[r(s.x2-vw.xmin),r(s.y2-vw.ymin)];const k=(a[0]<b[0]||(a[0]===b[0]&&a[1]<=b[1]))?a.concat(b):b.concat(a);return k.join(',')+(s.vis?'v':'h');});
   return Array.from(new Set(parts)).sort().join(';')+'|'+r(vw.xmax-vw.xmin)+'x'+r(vw.ymax-vw.ymin);}
 
-return {EPS,sub,add,mul,dot,cross,len,norm,lerp,Plane,Polygon,Node,csgUnion,csgSubtract,primBox,primCylinder,primSphere,primCone,primPrism,primRevolve,earClip,cleanProfile,rotatePoint,gewindeMasse,GEWINDE,triangles,volume,area,bbox,extractEdges,VIEWS,rasterDepth,computeView,computeViews,stlWrite,stlRead,polysFromTris,evaluate,viewSignature,ensureOutward};
+return {EPS,sub,add,mul,dot,cross,len,norm,lerp,Plane,Polygon,Node,csgUnion,csgSubtract,primBox,primCylinder,primSphere,primCone,primPrism,primRevolve,earClip,cleanProfile,rotatePoint,gewindeMasse,GEWINDE,triangles,volume,area,bbox,pointInside,extractEdges,VIEWS,rasterDepth,computeView,computeViews,stlWrite,stlRead,polysFromTris,evaluate,viewSignature,ensureOutward};
 })();
 </script>
 <script id="cadio">
@@ -717,7 +738,70 @@ function objWrite(tris){const pts=[],idx=new Map();const lines=['# Technisches-Z
 function objRead(text){const v=[],tris=[];for(const raw of text.split(/\r?\n/)){const line=raw.trim();if(line.startsWith('v ')){const a=line.slice(2).trim().split(/\s+/).map(Number);if(a.length>=3)v.push([a[0],a[1],a[2]]);}
     else if(line.startsWith('f ')){const ids=line.slice(2).trim().split(/\s+/).map(s=>{const i=parseInt(s.split('/')[0],10);return i<0?v.length+i:i-1;}).filter(i=>i>=0&&i<v.length);for(let i=1;i<ids.length-1;i++)tris.push([v[ids[0]],v[ids[i]],v[ids[i+1]]]);}}
   return tris;}
-return {csgWrite,csgRead,objWrite,objRead,parse,tokenize};
+// ---- PDF ohne Bibliothek: eine Seite, Vektorlinien, Helvetica (WinAnsi) --------
+function pdfWrite(pageW,pageH,content,fonts){
+  const objs=[];const push=s=>objs.push(s);
+  push('<< /Type /Catalog /Pages 2 0 R >>');
+  push('<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+  push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW.toFixed(2)} ${pageH.toFixed(2)}] /Contents 4 0 R /Resources << /Font << ${fonts.map((f,i)=>'/F'+(i+1)+' '+(5+i)+' 0 R').join(' ')} >> >> >>`);
+  push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+  fonts.forEach(f=>push(`<< /Type /Font /Subtype /Type1 /BaseFont /${f} /Encoding /WinAnsiEncoding >>`));
+  let out='%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';const offs=[];
+  objs.forEach((o,i)=>{offs.push(out.length);out+=`${i+1} 0 obj\n${o}\nendobj\n`;});
+  const xref=out.length;
+  out+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`+offs.map(o=>String(o).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size ${objs.length+1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  const bytes=new Uint8Array(out.length);for(let i=0;i<out.length;i++)bytes[i]=out.charCodeAt(i)&255;return bytes;
+}
+// Text nach WinAnsi: Umlaute bleiben, ⌀ wird Ø, alles andere Unbekannte ein ?
+function pdfText(s){let r='';for(const ch of String(s)){const c=ch.codePointAt(0);let b;if(c<128)b=ch;else if(c<=255)b=ch;else if(ch==='⌀')b='\xD8';else if(ch==='−')b='-';else if(ch==='–')b='\x96';else if(ch==='„')b='\x84';else if(ch==='“')b='\x93';else if(ch==='³')b='\xB3';else b='?';r+=b;}
+  return '('+r.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)')+')';}
+const textW=(s,size)=>String(s).length*0.56*size;   // Helvetica-Näherung für das Zentrieren
+const f3=x=>(Math.round(x*1000)/1000).toString();
+// Zeichnung als PDF: A4 quer, Rahmen, Schriftfeld, drei Ansichten nach Methode 1, Maße
+// vs: die drei Ansichten; opts: {hidden,center,labels}; meta: {benennung,werkstoff,datum,name,klasse}; dims: Maße aus der Übung
+function zeichnungPdf(vs,opts,meta,dims){
+  const MM=72/25.4,PW=297,PH=210;const ops=[];const o=s=>ops.push(s);
+  const line=(x1,y1,x2,y2)=>o(`${f3(x1)} ${f3(y1)} m ${f3(x2)} ${f3(y2)} l S`);
+  const text=(x,y,s,size,font,rot)=>o(`BT /F${font||1} ${size} Tf ${rot?'0 1 -1 0':'1 0 0 1'} ${f3(x)} ${f3(y)} Tm ${pdfText(s)} Tj ET`);
+  o(`q ${f3(MM)} 0 0 ${f3(MM)} 0 0 cm 0 J 0 j 0 0 0 RG 0 0 0 rg`);
+  // Rahmen und Schriftfeld
+  o('0.5 w [] 0 d');o('10 10 277 190 re S');o('197 10 90 33 re S');
+  o('0.25 w');line(197,21,287,21);line(197,32,287,32);line(242,10,242,43);
+  const felder=[['BENENNUNG',meta.benennung||'',197,32],['WERKSTOFF',meta.werkstoff||'',242,32],['MASSSTAB',meta.massstab||'',197,21],['DATUM',meta.datum||'',242,21],['NAME',meta.name||'',197,10],['KLASSE',meta.klasse||'',242,10]];
+  o('0.45 g');for(const [l,,x,y] of felder)text(x+1.5,y+8.2,l,2,1);o('0 g');for(const [,v,x,y] of felder)if(v)text(x+2,y+2.6,v,3.5,1);
+  o('0.45 g');text(12,196.5,'Technisches-Zeichnen-Lab · Projektionsmethode 1 · Maße in mm',2.2,1);o('0 g');
+  if(!vs||!vs.length){o('Q');return pdfWrite(PW*MM,PH*MM,ops.join('\n'),['Helvetica','Helvetica-Bold']);}
+  // Maßstab und Anordnung
+  const V=vs[0],D=vs[1],S=vs[2];const xr=Math.max(V.xmax-V.xmin,1e-3),zr=Math.max(V.ymax-V.ymin,1e-3),yr=Math.max(D.ymax-D.ymin,1e-3);
+  const Wa=277-28,Ha=190-33-24,g=24;const fits=s=>(xr+yr)*s+g<=Wa&&(zr+yr)*s+g<=Ha;
+  let s=1;if(!fits(1)){s=[0.5,0.2,0.1,0.05].find(fits)||0.05;}else if((xr+yr)+g<Wa/3&&(zr+yr)+g<Ha/3){s=[5,2].find(fits)||1;}
+  const massstab=s>=1?`${s}:1`:`1:${Math.round(1/s)}`;if(!meta.massstab){o('0 g');text(199,23.6,massstab,3.5,1);}
+  const Wt=(xr+yr)*s+g,Ht=(zr+yr)*s+g;const x0=24+(Wa-Wt)/2,yTop=188-(Ha-Ht)/2;
+  const box={V:{x0,y0:yTop-zr*s,xmin:V.xmin,ymin:V.ymin},D:{x0,y0:yTop-zr*s-g-yr*s,xmin:D.xmin,ymin:D.ymin},S:{x0:x0+xr*s+g,y0:yTop-zr*s,xmin:S.xmin,ymin:S.ymin}};
+  const P=(b,X,Y)=>[b.x0+(X-b.xmin)*s,b.y0+(Y-b.ymin)*s];
+  const segs=(b,list,filter)=>{let n=0;for(const sg of list){if(!filter(sg))continue;const a=P(b,sg.x1,sg.y1),c=P(b,sg.x2,sg.y2);o(`${f3(a[0])} ${f3(a[1])} m ${f3(c[0])} ${f3(c[1])} l`);n++;}if(n)o('S');};
+  for(const vw of vs){const b=box[vw.view.id];
+    if(opts.hidden){o('0.25 w [3 1.5] 0 d');segs(b,vw.segs,x=>!x.vis);if(vw.thread)segs(b,vw.thread,x=>!x.vis);}
+    if(opts.center){o('0.25 w [8 1 1 1] 0 d');segs(b,vw.center,()=>true);}
+    if(vw.thread){o('0.25 w [] 0 d');segs(b,vw.thread,x=>x.vis&&x.thin);o('0.5 w');segs(b,vw.thread,x=>x.vis&&x.wide);}
+    o('0.5 w [] 0 d');segs(b,vw.segs,x=>x.vis);
+    if(opts.labels!==false){let low=b.y0;for(const m of dims||[]){if(m.view!==vw.view.id||m.axis!=='h')continue;const y=P(b,0,m.pos)[1]-2.5;if(y<low)low=y;}
+      o('0.35 g');text(b.x0,low-5.5,vw.view.name.toUpperCase(),2.8,2);o('0 g');}
+  }
+  // Maße: Maßhilfslinien 0,25, Pfeile 3 x 1 mm, Maßzahl 3,5 mm über der Linie
+  o('0.25 w [] 0 d');
+  for(const m of dims||[]){const b=box[m.view];if(!b)continue;const a=m.axis==='h';const ext=2;
+    const lo=a?Math.min(m.p1.x,m.p2.x):Math.min(m.p1.y,m.p2.y),hi=a?Math.max(m.p1.x,m.p2.x):Math.max(m.p1.y,m.p2.y);
+    for(const p of [m.p1,m.p2]){const q0=P(b,p.x,p.y);const dir=a?Math.sign(m.pos-p.y)||1:Math.sign(m.pos-p.x)||1;const q1=a?P(b,p.x,m.pos):P(b,m.pos,p.y);const q2=a?[q1[0],q1[1]+dir*ext]:[q1[0]+dir*ext,q1[1]];line(q0[0],q0[1],q2[0],q2[1]);}
+    const A=a?P(b,lo,m.pos):P(b,m.pos,lo),B=a?P(b,hi,m.pos):P(b,m.pos,hi);line(A[0],A[1],B[0],B[1]);
+    const ang=Math.atan2(B[1]-A[1],B[0]-A[0]);const al=3,aw=1;
+    for(const [Q,d] of [[A,1],[B,-1]]){const t1=[Q[0]+d*al*Math.cos(ang)-aw*Math.sin(ang),Q[1]+d*al*Math.sin(ang)+aw*Math.cos(ang)],t2=[Q[0]+d*al*Math.cos(ang)+aw*Math.sin(ang),Q[1]+d*al*Math.sin(ang)-aw*Math.cos(ang)];o(`${f3(Q[0])} ${f3(Q[1])} m ${f3(t1[0])} ${f3(t1[1])} l ${f3(t2[0])} ${f3(t2[1])} l h f`);}
+    const txt=(m.dia?'⌀':'')+String(Math.round(m.val*10)/10).replace('.',',');const tw=textW(txt,3.5);const M=[(A[0]+B[0])/2,(A[1]+B[1])/2];
+    if(a)text(M[0]-tw/2,M[1]+1,txt,3.5,1);else text(M[0]-1,M[1]-tw/2,txt,3.5,1,true);
+  }
+  o('Q');return pdfWrite(PW*MM,PH*MM,ops.join('\n'),['Helvetica','Helvetica-Bold']);
+}
+return {csgWrite,csgRead,objWrite,objRead,parse,tokenize,pdfWrite,zeichnungPdf};
 })();
 </script>
 <script>
@@ -1193,6 +1277,15 @@ $('objExport').addEventListener('click',()=>{const m=TZ.getModel();if(!m||!m.tri
 $('objImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const tris=CADIO.objRead(rd.result);importBodies([{type:'stl',op:'add',pos:[0,0,0],tris,name:'OBJ: '+f.name}],f.name);$('dateiMeldung').textContent=f.name+': '+tris.length+' Dreiecke geladen.';}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsText(f);});
 $('jsonExport').addEventListener('click',()=>{download(new Blob([JSON.stringify({format:'tzlab-bauliste',bodies:TZ.state.bodies,rho:TZ.state.rho})],{type:'application/json'}),'bauliste.json');});
 $('jsonImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const s=JSON.parse(rd.result);if(!s||!Array.isArray(s.bodies))throw new Error('keine Bauliste');TZ.loadBodies(s.bodies);TZ.renderListe();TZ.rebuild();$('dateiMeldung').textContent=f.name+' geladen.';}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsText(f);});
+// Zeichnung als PDF: Ansichten, Haekchen des Zeichnung-Reiters, Masse aus der Uebung, Schriftfeld aus Bauliste und Werkstoff
+function pdfExport(){const vs=TZ.getViews();if(!vs||!vs.length||!TZ.getModel()||!TZ.getModel().tris.length){$('dateiMeldung').textContent='Kein Körper für eine Zeichnung.';return;}
+  const ws=$('werkstoff');const werkstoff=(ws.options[ws.selectedIndex]||{}).text||'';const d=new Date();const datum=String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
+  const erst=(TZ.state.bodies.find(b=>b.op!=='sub')||{});const benennung=(erst.name||'').trim()||'Werkstück';
+  const meta={benennung,werkstoff:werkstoff.split(',')[0],datum,name:$('pdfName').value.trim(),klasse:'11NF'};
+  const bytes=CADIO.zeichnungPdf(vs,{hidden:$('oHidden').checked,center:$('oCenter').checked,labels:$('oLabel').checked},meta,masse);
+  const dateiname=benennung.toLowerCase().replace(/[^a-z0-9äöüß]+/g,'-').replace(/^-|-$/g,'')||'zeichnung';
+  download(new Blob([bytes],{type:'application/pdf'}),'zeichnung-'+dateiname+'.pdf');$('dateiMeldung').textContent='PDF geschrieben: '+meta.benennung+', A4 quer.';}
+$('pdfExport').addEventListener('click',pdfExport);$('pdfExport2').addEventListener('click',pdfExport);
 $('alleLoeschen').addEventListener('click',()=>{TZ.loadBodies([]);TZ.renderListe();TZ.rebuild();$('dateiMeldung').textContent='Bauliste geleert.';});
 })();
 </script>
