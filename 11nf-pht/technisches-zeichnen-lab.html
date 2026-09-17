@@ -107,6 +107,7 @@ input[type=file]{font:inherit;font-size:.9rem}
        <option value="">bitte wählen</option>
        <option value="platte">Platte mit Bohrung</option>
        <option value="senkbohrung">Platte mit Senkbohrung</option>
+       <option value="gewindebohrung">Platte mit Gewindebohrung M8</option>
        <option value="nut">Klotz mit Nut</option>
        <option value="schwalbenschwanz">Klotz mit Schwalbenschwanznut</option>
        <option value="welle">Welle mit Bund</option>
@@ -156,7 +157,7 @@ input[type=file]{font:inherit;font-size:.9rem}
 </section>
 
 <section class="tab" id="tab-zeichnung">
- <p class="hinweis">Die drei Ansichten nach Projektionsmethode 1: <b>Vorderansicht</b>, darunter die <b>Draufsicht</b>, rechts daneben die <b>Seitenansicht von links</b>. Sichtbare Kanten breit, verdeckte Kanten gestrichelt, Mittellinien als Strichpunktlinie.</p>
+ <p class="hinweis">Die drei Ansichten nach Projektionsmethode 1: <b>Vorderansicht</b>, darunter die <b>Draufsicht</b>, rechts daneben die <b>Seitenansicht von links</b>. Sichtbare Kanten breit, verdeckte Kanten gestrichelt, Mittellinien als Strichpunktlinie. Gewinde vereinfacht nach DIN ISO 6410: Kerndurchmesser des Bolzens bzw. Nenndurchmesser der Bohrung als schmale Volllinie, in der Achsansicht als Dreiviertelkreis, Gewindeende als breite Linie; verdeckt alles gestrichelt.</p>
  <div class="leiste">
    <label class="klein"><input type="checkbox" id="oHidden" checked> verdeckte Kanten</label>
    <label class="klein"><input type="checkbox" id="oCenter" checked> Mittellinien</label>
@@ -418,13 +419,44 @@ function rasterDepth(tris,view,res){
       const k=py*W+px;if(d<z[k])z[k]=d;}}
   return {z,W,H,xmin,ymin,scale,tx,ty};
 }
+// Metrisches Regelgewinde (DIN 13-1): Steigung P je Nenndurchmesser; Kerndurchmesser d3 des
+// Bolzens = d - 1,2268 P; Kernlochbohrer fuer die Gewindebohrung praktisch d - P.
+const GEWINDE={1.6:0.35,2:0.4,2.5:0.45,3:0.5,4:0.7,5:0.8,6:1,8:1.25,10:1.5,12:1.75,14:2,16:2,18:2.5,20:2.5,22:2.5,24:3,27:3,30:3.5,36:4,42:4.5,48:5};
+function gewindeMasse(d){const P=GEWINDE[Math.round(d*10)/10]||Math.max(0.35,Math.round(d*0.12*4)/4);return {P,d3:d-1.2268*P,dk:d-P};}
+// Punkte (3D, dicht) -> sichtbare und verdeckte Teilstrecken (Ansichtskoordinaten)
+function runsToSegs(pts3,view,dep,bias,extra){
+  const P=pts3.map(p=>[dot(p,view.r),dot(p,view.u),dot(p,view.v)]);const n=P.length-1;if(n<1)return [];
+  const vis=P.map(q=>!occluded(dep,q[0],q[1],q[2],bias));const runs=[];let cur=null;
+  for(let i=0;i<=n;i++){if(!cur||cur.vis!==vis[i]){cur={vis:vis[i],i0:i,i1:i};runs.push(cur);}else cur.i1=i;}
+  let merged=true;while(merged&&runs.length>1){merged=false;for(let k=0;k<runs.length;k++){if(runs[k].i1-runs[k].i0<=1){const nb=k>0?runs[k-1]:runs[k+1];nb.i0=Math.min(nb.i0,runs[k].i0);nb.i1=Math.max(nb.i1,runs[k].i1);runs.splice(k,1);merged=true;break;}}
+    for(let k=1;k<runs.length;k++){if(runs[k].vis===runs[k-1].vis){runs[k-1].i1=runs[k].i1;runs.splice(k,1);merged=true;break;}}}
+  const out=[];for(let k=0;k<runs.length;k++){const r=runs[k];const ia=k===0?0:r.i0,ib=k===runs.length-1?n:runs[k+1].i0;
+    for(let i=ia;i<ib;i++)out.push(Object.assign({x1:P[i][0],y1:P[i][1],x2:P[i+1][0],y2:P[i+1][1],vis:r.vis},extra||{}));}
+  // gerade Stuecke zusammenfassen
+  const res=[];for(const s of out){const l=res[res.length-1];if(l&&l.vis===s.vis&&Math.abs(l.x2-s.x1)<1e-9&&Math.abs(l.y2-s.y1)<1e-9){const dx1=l.x2-l.x1,dy1=l.y2-l.y1,dx2=s.x2-s.x1,dy2=s.y2-s.y1;if(Math.abs(dx1*dy2-dy1*dx2)<1e-9*(1+Math.hypot(dx1,dy1)*Math.hypot(dx2,dy2))){l.x2=s.x2;l.y2=s.y2;continue;}}res.push(s);}
+  return res;
+}
+// Gewinde vereinfacht nach DIN ISO 6410-1: schmale Volllinie am Kerndurchmesser (Bolzen) bzw.
+// Nenndurchmesser (Bohrung), Dreiviertelkreis in der Achsansicht, Gewindeende als breite Linie.
+function threadSegs(threads,view,dep,bias){
+  const out=[];if(!dep)return out;
+  for(const th of threads){const ax=sub(th.p1,th.p0);const L=len(ax);if(L<1e-6)continue;const ud=mul(ax,1/L);const along=Math.abs(dot(ud,view.v));
+    if(along<0.05){const lat=norm(cross(ud,view.v));const N=Math.max(8,Math.ceil(L*dep.scale/1.2));
+      for(const s of [th.rThin,-th.rThin]){const dz=th.internal?0:Math.sqrt(Math.max(0,th.rMajor*th.rMajor-s*s));const off=add(mul(lat,s),mul(view.v,-dz));const pts=[];for(let i=0;i<=N;i++)pts.push(add(lerp(th.p0,th.p1,i/N),off));out.push(...runsToSegs(pts,view,dep,bias,{thin:true}));}
+      for(const end of [th.p0,th.p1]){const M=Math.max(8,Math.ceil(2*th.rMajor*dep.scale/1.2));const pts=[];for(let i=0;i<=M;i++){const s=-th.rMajor+2*th.rMajor*i/M;const dz=th.internal?0:Math.sqrt(Math.max(0,th.rMajor*th.rMajor-s*s));pts.push(add(add(end,mul(lat,s)),mul(view.v,-dz)));}out.push(...runsToSegs(pts,view,dep,bias,{wide:true}));}
+    }else if(along>0.95){const near=dot(th.p0,view.v)<dot(th.p1,view.v)?th.p0:th.p1;const pts=[];const a0=100,a1=370;const M=48;
+      for(let i=0;i<=M;i++){const a=(a0+(a1-a0)*i/M)*Math.PI/180;pts.push(add(near,add(mul(view.r,th.rThin*Math.cos(a)),mul(view.u,th.rThin*Math.sin(a)))));}
+      out.push(...runsToSegs(pts,view,dep,bias,{thin:true}));}
+  }
+  return out;
+}
 function occluded(dep,X,Y,Z,bias){const px=Math.round(dep.tx(X)-0.5),py=Math.round(dep.ty(Y)-0.5);let mx=-Infinity;
   for(let j=py-1;j<=py+1;j++)for(let i=px-1;i<=px+1;i++){if(i<0||j<0||i>=dep.W||j>=dep.H){return false;}const d=dep.z[j*dep.W+i];if(d>mx)mx=d;}
   return mx<Z-bias;}
-function computeView(tris,edges,axes,view,res){
+function computeView(tris,edges,axes,view,res,threads){
   res=res||1000;const dep=rasterDepth(tris,view,res);const segs=[],center=[];
   let xmin=Infinity,xmax=-Infinity,ymin=Infinity,ymax=-Infinity;
-  if(!dep)return {view,segs,center,xmin:0,xmax:0,ymin:0,ymax:0};
+  if(!dep)return {view,segs,center,thread:[],xmin:0,xmax:0,ymin:0,ymax:0};
   const bias=1.5/dep.scale+1e-4*res/dep.scale;
   for(const e of edges){
     let draw=e.crease;if(!draw&&e.n2){const f1=dot(e.n1,view.v)<0,f2=dot(e.n2,view.v)<0;draw=f1!==f2;}
@@ -453,7 +485,8 @@ function computeView(tris,edges,axes,view,res){
     if(!innen(c[0],c[1]))continue;
     const h=ax.d/2+ext;center.push({x1:c[0]-h,y1:c[1],x2:c[0]+h,y2:c[1]});center.push({x1:c[0],y1:c[1]-h,x2:c[0],y2:c[1]+h});
   }
-  return {view,segs,center,xmin,xmax,ymin,ymax};
+  const thread=threadSegs(threads||[],view,dep,bias);
+  return {view,segs,center,thread,xmin,xmax,ymin,ymax};
 }
 
 // ---- STL -------------------------------------------------------------------
@@ -483,7 +516,7 @@ function bodyPolys(b){
   const sub_=b.op==='sub';const pad=sub_?0.002:0; // Schneidkörper minimal größer: keine deckungsgleichen Flächen
   let polys=[];
   if(b.type==='box')polys=primBox(b.pos,[b.lx+pad,b.ly+pad,b.lz+pad]);
-  else if(b.type==='cyl')polys=primCylinder(b.pos,b.d+pad,b.h+pad,b.axis||'z',b.n||64);
+  else if(b.type==='cyl'){const dg=(b.gewinde&&sub_)?gewindeMasse(b.d).dk:b.d;polys=primCylinder(b.pos,dg+pad,b.h+pad,b.axis||'z',b.n||64);}
   else if(b.type==='cone')polys=primCone(b.pos,b.d1+pad,b.d2+(b.d2>0?pad:0),b.h+pad,b.axis||'z');
   else if(b.type==='sphere')polys=primSphere(b.pos,b.d+pad);
   else if(b.type==='prism')polys=primPrism(b.pos,b.pts,b.h+pad,b.axis||'z',sub_?0.001:0);
@@ -502,20 +535,25 @@ function bodyAxes(b){
   if(b.rot&&b.rot.deg)ax=ax.map(a=>({c:rotatePoint(a.c,b.pos,b.rot.axis||'z',b.rot.deg),p0:a.p0&&rotatePoint(a.p0,b.pos,b.rot.axis||'z',b.rot.deg),p1:a.p1&&rotatePoint(a.p1,b.pos,b.rot.axis||'z',b.rot.deg),d:a.d}));
   return ax;
 }
-function evaluate(bodies){
-  let polys=null;const axes=[];
-  for(const b of bodies){const p=bodyPolys(b);if(!p.length)continue;
-    if(polys===null){if(b.op==='sub')continue;polys=p;}
-    else polys=b.op==='sub'?csgSubtract(polys,p):csgUnion(polys,p);
-    axes.push(...bodyAxes(b));}
-  polys=polys||[];const tris=triangles(polys);
-  return {polys,tris,box:bbox(polys),axes,volume:volume(tris),area:area(tris)};
+function bodyThread(b,first){
+  if(b.type!=='cyl'||!b.gewinde||(b.n||64)<16)return null;const ax=bodyAxes(b)[0];if(!ax)return null;
+  const internal=b.op==='sub'&&!first;const g=gewindeMasse(b.d);
+  return {p0:ax.p0,p1:ax.p1,rMajor:b.d/2,rThin:internal?b.d/2:g.d3/2,internal,d:b.d,P:g.P};
 }
-function computeViews(model,res){const edges=extractEdges(model.polys,model.box);return VIEWS.map(v=>computeView(model.tris,edges,model.axes,v,res));}
-function viewSignature(vw){const r=x=>Math.round(x*4);const parts=vw.segs.map(s=>{const a=[r(s.x1-vw.xmin),r(s.y1-vw.ymin)],b=[r(s.x2-vw.xmin),r(s.y2-vw.ymin)];const k=(a[0]<b[0]||(a[0]===b[0]&&a[1]<=b[1]))?a.concat(b):b.concat(a);return k.join(',')+(s.vis?'v':'h');});
+function evaluate(bodies){
+  let polys=null;const axes=[],threads=[];
+  for(const b of bodies){const p=bodyPolys(b);if(!p.length)continue;const first=polys===null;
+    if(first){if(b.op==='sub')continue;polys=p;}
+    else polys=b.op==='sub'?csgSubtract(polys,p):csgUnion(polys,p);
+    axes.push(...bodyAxes(b));const th=bodyThread(b,first);if(th)threads.push(th);}
+  polys=polys||[];const tris=triangles(polys);
+  return {polys,tris,box:bbox(polys),axes,threads,volume:volume(tris),area:area(tris)};
+}
+function computeViews(model,res){const edges=extractEdges(model.polys,model.box);return VIEWS.map(v=>computeView(model.tris,edges,model.axes,v,res,model.threads));}
+function viewSignature(vw){const r=x=>Math.round(x*4);const parts=vw.segs.concat(vw.thread||[]).map(s=>{const a=[r(s.x1-vw.xmin),r(s.y1-vw.ymin)],b=[r(s.x2-vw.xmin),r(s.y2-vw.ymin)];const k=(a[0]<b[0]||(a[0]===b[0]&&a[1]<=b[1]))?a.concat(b):b.concat(a);return k.join(',')+(s.vis?'v':'h');});
   return Array.from(new Set(parts)).sort().join(';')+'|'+r(vw.xmax-vw.xmin)+'x'+r(vw.ymax-vw.ymin);}
 
-return {EPS,sub,add,mul,dot,cross,len,norm,lerp,Plane,Polygon,Node,csgUnion,csgSubtract,primBox,primCylinder,primSphere,primCone,primPrism,primRevolve,earClip,cleanProfile,rotatePoint,triangles,volume,area,bbox,extractEdges,VIEWS,rasterDepth,computeView,computeViews,stlWrite,stlRead,polysFromTris,evaluate,viewSignature,ensureOutward};
+return {EPS,sub,add,mul,dot,cross,len,norm,lerp,Plane,Polygon,Node,csgUnion,csgSubtract,primBox,primCylinder,primSphere,primCone,primPrism,primRevolve,earClip,cleanProfile,rotatePoint,gewindeMasse,GEWINDE,triangles,volume,area,bbox,extractEdges,VIEWS,rasterDepth,computeView,computeViews,stlWrite,stlRead,polysFromTris,evaluate,viewSignature,ensureOutward};
 })();
 </script>
 <script>
@@ -539,7 +577,9 @@ const PRESETS={
   schwalbenschwanz:[{type:'box',op:'add',pos:[0,0,0],lx:80,ly:40,lz:30},{type:'prism',op:'sub',pos:[0,0,0],h:42,axis:'y',pts:[[-15,5],[15,5],[10,16],[-10,16]]}],
   welle:[{type:'cyl',op:'add',pos:[0,0,0],d:20,h:100,axis:'x'},{type:'cyl',op:'add',pos:[-20,0,0],d:40,h:15,axis:'x'},{type:'cyl',op:'sub',pos:[45,0,0],d:8,h:20,axis:'x'}],
   welle2:[{type:'revolve',op:'add',pos:[0,0,0],axis:'x',prof:[[0,-40],[8,-40],[8,0],[12,0],[12,40],[0,40]]}],
-  sechskant:[{type:'cyl',op:'add',pos:[0,0,4],d:17.3,h:8,axis:'z',n:6},{type:'cyl',op:'add',pos:[0,0,-20],d:10,h:40,axis:'z'}],
+  // Sechskantschraube M10 x 40 mit Gewindelaenge 26: Schaft glatt, Gewindeteil mit Kennzeichnung
+  sechskant:[{type:'cyl',op:'add',pos:[0,0,4],d:17.3,h:8,axis:'z',n:6},{type:'cyl',op:'add',pos:[0,0,-7],d:10,h:14,axis:'z'},{type:'cyl',op:'add',pos:[0,0,-27],d:10,h:26,axis:'z',gewinde:true}],
+  gewindebohrung:[{type:'box',op:'add',pos:[0,0,0],lx:60,ly:40,lz:15},{type:'cyl',op:'sub',pos:[0,0,0],d:8,h:15,axis:'z',gewinde:true}],
   sackloch:[{type:'box',op:'add',pos:[0,0,0],lx:60,ly:40,lz:20},{type:'cyl',op:'sub',pos:[0,0,4],d:16,h:12,axis:'z'}],
   // Flachzugprobe steht hochkant (Dicke in y): die Vorderansicht zeigt dann die Kontur wie auf dem Zwischenstand
   zugprobe:[{type:'box',op:'add',pos:[0,0,0],lx:200,ly:3,lz:25},{type:'cyl',op:'sub',pos:[-40,0,32.5],d:50,h:3,axis:'y'},{type:'cyl',op:'sub',pos:[-40,0,-32.5],d:50,h:3,axis:'y'},{type:'cyl',op:'sub',pos:[40,0,32.5],d:50,h:3,axis:'y'},{type:'cyl',op:'sub',pos:[40,0,-32.5],d:50,h:3,axis:'y'}],
@@ -581,7 +621,8 @@ function renderListe(){
     const num=(f,label,v,min)=>`<label>${label} <input type="number" step="1"${min!=null?' min="'+min+'"':''} data-f="${f}" value="${v}"></label>`;
     let felder=num('pos0','x',b.pos[0])+num('pos1','y',b.pos[1])+num('pos2','z',b.pos[2]);
     if(b.type==='box')felder+=num('lx','Länge x',b.lx,0.1)+num('ly','Tiefe y',b.ly,0.1)+num('lz','Höhe z',b.lz,0.1);
-    else if(b.type==='cyl')felder+=num('d','⌀',b.d,0.1)+num('h','Höhe',b.h,0.1)+`<label>Achse ${achseSel('axis',b.axis)}</label>`+num('n','Ecken (64 = rund)',b.n||64,3);
+    else if(b.type==='cyl'){const g=K.gewindeMasse(b.d);felder+=num('d',b.gewinde?'M (Nenn-⌀)':'⌀',b.d,0.1)+num('h','Höhe',b.h,0.1)+`<label>Achse ${achseSel('axis',b.axis)}</label>`+num('n','Ecken (64 = rund)',b.n||64,3)
+      +`<label>Gewinde <input type="checkbox" data-f="gewinde"${b.gewinde?' checked':''}></label>`+(b.gewinde?`<span class="klein" style="align-self:flex-end">M${String(+b.d.toFixed(2)).replace('.',',')}, P = ${String(g.P).replace('.',',')}${(b.op==='sub'&&i>0)?', Kernloch ⌀ '+String(+g.dk.toFixed(2)).replace('.',','):', Kern-⌀ '+String(+g.d3.toFixed(2)).replace('.',',')}</span>`:'');}
     else if(b.type==='cone')felder+=num('d1','⌀ unten',b.d1,0)+num('d2','⌀ oben',b.d2,0)+num('h','Höhe',b.h,0.1)+`<label>Achse ${achseSel('axis',b.axis)}</label>`;
     else if(b.type==='sphere')felder+=num('d','⌀',b.d,0.1);
     else if(b.type==='prism'||b.type==='revolve'){const V=VORLAGEN[b.type];
@@ -599,6 +640,7 @@ let rebuildTimer=null;
 function scheduleRebuild(){clearTimeout(rebuildTimer);rebuildTimer=setTimeout(()=>rebuild(),300);}
 $('bauliste').addEventListener('input',e=>{const k=e.target.closest('.karte');if(!k)return;const b=state.bodies.find(x=>x.id==k.dataset.id);const f=e.target.dataset.f;if(!b||!f)return;
   if(e.target.tagName==='TEXTAREA'){const pts=parsePoints(e.target.value);if(pts.length>=3){b[f]=pts;scheduleRebuild();}return;}
+  if(e.target.type==='checkbox'){b[f]=e.target.checked;renderListe();rebuild();return;}
   if(e.target.tagName==='SELECT'){
     if(f==='vorlage'){const v=VORLAGEN[b.type][e.target.value];if(!v)return;if(b.type==='prism')b.pts=v.pts.map(p=>p.slice());else b.prof=v.pts.map(p=>p.slice());k.querySelector('textarea').value=pointsText(v.pts);e.target.value='';rebuild();return;}
     if(f==='rotAxis'){b.rot=b.rot||{axis:'z',deg:0};b.rot.axis=e.target.value;if(b.rot.deg)rebuild();return;}
@@ -769,10 +811,19 @@ function drawCenter(ctx,L,id,center,color,alpha){
   for(const c of center){const a=toPx(L,...toLayout(L,id,c.x1,c.y1)),b=toPx(L,...toLayout(L,id,c.x2,c.y2));ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
   ctx.stroke();ctx.restore();
 }
+// Gewindelinien: schmale Volllinie (sichtbar), schmale Strichlinie (verdeckt); Gewindeende breit
+function drawThread(ctx,L,id,th,o,alpha){
+  const color=o.color;const pass=(filter,width,dash)=>{ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color||(dash?COL.hid:COL.vis);ctx.lineWidth=width;ctx.setLineDash(dash?[7,3.5]:[]);ctx.lineCap=dash?'butt':'round';ctx.beginPath();
+    for(const sg of th){if(!filter(sg))continue;const a=toPx(L,...toLayout(L,id,sg.x1,sg.y1)),b=toPx(L,...toLayout(L,id,sg.x2,sg.y2));ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();ctx.restore();};
+  if(o.hidden)pass(sg=>!sg.vis,1.1,true);
+  pass(sg=>sg.vis&&sg.thin,1.0,false);
+  pass(sg=>sg.vis&&sg.wide,2.2,false);
+}
 function drawView(ctx,L,id,o){
   const vw=L.vs[id==='V'?0:id==='D'?1:2];const color=o.color||COL.vis,alpha=o.alpha==null?1:o.alpha;
   if(o.hidden)drawSegs(ctx,L,id,vw.segs,false,o.color||COL.hid,alpha);
   if(o.center)drawCenter(ctx,L,id,vw.center,o.color||COL.center,alpha);
+  if(vw.thread&&vw.thread.length)drawThread(ctx,L,id,vw.thread,o,alpha);
   drawSegs(ctx,L,id,vw.segs,true,color,alpha);
 }
 function drawFrame(ctx,L,id,dashed){const b=L.boxes[id];const a=toPx(L,b[0],b[1]);ctx.save();ctx.strokeStyle=COL.frame;ctx.lineWidth=1;ctx.setLineDash(dashed?[4,4]:[]);ctx.strokeRect(a[0]-6,a[1]-6,b[2]*L.s+12,b[3]*L.s+12);ctx.restore();}
