@@ -177,6 +177,19 @@ input[type=file]{font:inherit;font-size:.9rem}
  <div class="leiste">
    <label class="k"><input type="radio" name="modus" value="skizze" checked> Ansichten skizzieren</label>
    <label class="k"><input type="radio" name="modus" value="zuordnen"> Ansichten zuordnen</label>
+   <label class="k"><input type="radio" name="modus" value="bemassen"> Bemaßen</label>
+ </div>
+ <div id="ueb-bemassen" style="display:none">
+  <p class="hinweis">Bemaße den Körper vollständig, so dass die Werkstatt ihn fertigen kann. Klicke zwei Punkte an (Ecken, Kreispunkte und Bohrungsmitten rasten ein), dann lege die Maßlinie mit einem dritten Klick ab: neben den Punkten wird das Maß senkrecht, darüber oder darunter waagerecht. Jedes Maß nur einmal, Maßlinien kreuzen sich nicht. Prüfe zum Schluss.</p>
+  <div class="leiste">
+    <button class="k" id="bmUndo">Letztes Maß löschen</button>
+    <button class="k rot" id="bmClear">Alle Maße löschen</button>
+    <button class="k voll" id="bmPruefen">Prüfen</button>
+    <button class="k" id="bmLoesung">Lösung einblenden</button>
+    <span class="klein" id="bmStatus"></span>
+  </div>
+  <canvas class="flaeche" id="bemassen"></canvas>
+  <div class="aufgabe" id="bmErgebnis" style="display:none"></div>
  </div>
  <div id="ueb-skizze">
   <p class="hinweis">Zeichne die fehlenden Ansichten mit Maus oder Finger in die Rahmen. Wähle vorher die Linienart. Prüfe zum Schluss mit „Lösung einblenden“.</p>
@@ -787,9 +800,9 @@ const TZ=window.TZ,K=TZ.K;
 const COL={vis:'#111',hid:'#333',center:'#35638A',proj:'#9fb3c4',grid:'#e4e4e4',label:'#6b6b6b',rot:'#B01A15',frame:'#c8c8c8',sketch:'#1f3b5c'};
 
 // ---- Layout nach Projektionsmethode 1 -------------------------------------
-function layoutFor(vs,cw,ch,margin){
+function layoutFor(vs,cw,ch,margin,gapMin){
   const V=vs[0],D=vs[1],S=vs[2];const xr=Math.max(V.xmax-V.xmin,1e-3),zr=Math.max(V.ymax-V.ymin,1e-3),yr=Math.max(D.ymax-D.ymin,1e-3);
-  const g=Math.max(10,0.14*Math.max(xr,zr,yr));const W=xr+g+yr,H=zr+g+yr;
+  const g=Math.max(gapMin||10,0.14*Math.max(xr,zr,yr));const W=xr+g+yr,H=zr+g+yr;
   const s=Math.min((cw-2*margin)/W,(ch-2*margin)/H);const ox=margin+((cw-2*margin)-W*s)/2,oy=margin+((ch-2*margin)-H*s)/2;
   return {s,ox,oy,g,W,H,vs,boxes:{V:[0,0,xr,zr],D:[0,zr+g,xr,yr],S:[xr+g,0,yr,zr]}};
 }
@@ -839,9 +852,9 @@ function drawProj(ctx,L){
   ctx.setLineDash([]);line([cx,cy],[cx+l,cy+l]);ctx.stroke();ctx.restore();
 }
 function drawAll(canvas,o){
-  const vs=TZ.getViews();const {ctx,w,h}=setupCanvas(canvas,0.72,640);ctx.clearRect(0,0,w,h);
+  const vs=TZ.getViews();const {ctx,w,h}=setupCanvas(canvas,o.ratio||0.72,o.maxH||640);ctx.clearRect(0,0,w,h);
   if(!vs){ctx.fillStyle=COL.label;ctx.font='14px sans-serif';ctx.fillText('Kein Körper. Baue zuerst einen Körper im Reiter „Bauen“.',16,30);return null;}
-  const L=layoutFor(vs,w,h,26);
+  const L=layoutFor(vs,w,h,o.margin||26,o.gapMin);
   if(o.grid)drawGrid(ctx,L,w,h);if(o.proj)drawProj(ctx,L);
   for(const id of ['V','D','S']){if(o.frames&&o.frames[id])drawFrame(ctx,L,id,true);if(o.show[id])drawView(ctx,L,id,o);if(o.labels)drawLabel(ctx,L,id);}
   return L;
@@ -891,13 +904,126 @@ function pruefen(){const vs=TZ.getViews();if(!vs)return;const sig=vs.map(K.viewS
     const ok=sig[+w]===sig[k.vi];k.fb.textContent=ok?'richtig':'nicht richtig';k.fb.className=ok?'ok':'nein';if(ok)richtig++;}
   $('zuErgebnis').textContent=richtig+' von 3 richtig'+(richtig===3?'. Sehr gut.':'. Vergleiche mit der 3D-Ansicht: Von wo schaut man?');}
 $('pruefen').addEventListener('click',pruefen);$('mischen').addEventListener('click',mischen);
-document.querySelectorAll('input[name=modus]').forEach(r=>r.addEventListener('change',()=>{const m=document.querySelector('input[name=modus]:checked').value;$('ueb-skizze').style.display=m==='skizze'?'':'none';$('ueb-zuordnen').style.display=m==='zuordnen'?'':'none';redrawUeben();}));
-function redrawUeben(){const m=document.querySelector('input[name=modus]:checked').value;if(m==='skizze')redrawSkizze();else mischen();}
+// ---- Üben: bemaßen ----------------------------------------------------------
+// Ein Maß: Ansicht, zwei Punkte (Ansichts-mm), Richtung h/v, Lage der Maßlinie, Wert, ⌀-Kennung
+let masse=[],bmPick=[],bmHover=null,bmLoesungAn=false,L_bm=null,bmSnap=null;
+const bmOpts=()=>({show:{V:true,D:true,S:true},hidden:true,center:true,proj:false,grid:false,labels:true,gapMin:36,margin:40});
+function viewOf(id){return TZ.getViews()[id==='V'?0:id==='D'?1:2];}
+function snapPoints(){const vs=TZ.getViews();const out={};for(const vw of vs){const id=vw.view.id;const map=new Map();const put=(x,y,art)=>{const k=Math.round(x*20)+','+Math.round(y*20);if(!map.has(k))map.set(k,{x,y,art});};
+    for(const s of vw.segs){put(s.x1,s.y1,'ecke');put(s.x2,s.y2,'ecke');}
+    for(const c of vw.center){put((c.x1+c.x2)/2,(c.y1+c.y2)/2,'mitte');}
+    out[id]=[...map.values()];}return out;}
+function bmViewAt(px,py){if(!L_bm)return null;const [lx,ly]=fromPx(L_bm,px,py);for(const id of ['V','D','S']){const b=L_bm.boxes[id];if(lx>=b[0]-30&&lx<=b[0]+b[2]+30&&ly>=b[1]-30&&ly<=b[1]+b[3]+30)return id;}return null;}
+function bmToView(id,px,py){const [lx,ly]=fromPx(L_bm,px,py);const b=L_bm.boxes[id];const vw=viewOf(id);return [vw.xmin+(lx-b[0]),vw.ymax-(ly-b[1])];}
+function bmSnapTo(id,X,Y){let best=null,bd=9/L_bm.s;for(const p of bmSnap[id]){const d=Math.hypot(p.x-X,p.y-Y);if(d<bd){bd=d;best=p;}}return best;}
+function massFrom(id,p1,p2,cx,cy){const inX=cx>=Math.min(p1.x,p2.x)&&cx<=Math.max(p1.x,p2.x),inY=cy>=Math.min(p1.y,p2.y)&&cy<=Math.max(p1.y,p2.y);
+  const dx=inX?0:Math.min(Math.abs(cx-p1.x),Math.abs(cx-p2.x)),dy=inY?0:Math.min(Math.abs(cy-p1.y),Math.abs(cy-p2.y));
+  const axis=dy>=dx?'h':'v';const val=axis==='h'?Math.abs(p2.x-p1.x):Math.abs(p2.y-p1.y);
+  // ⌀, wenn beide Punkte spiegelbildlich zu einer Bohrungsmitte liegen
+  let dia=false;for(const c of bmSnap[id]){if(c.art!=='mitte')continue;if(Math.abs((p1.x+p2.x)/2-c.x)<0.05&&Math.abs((p1.y+p2.y)/2-c.y)<0.05&&Math.hypot(p1.x-c.x,p1.y-c.y)>0.5){dia=true;break;}}
+  return {view:id,p1:{x:p1.x,y:p1.y},p2:{x:p2.x,y:p2.y},axis,pos:axis==='h'?cy:cx,val,dia};}
+function drawMass(ctx,L,m,color,alpha){
+  const vw=viewOf(m.view);const px=(X,Y)=>toPx(L,...toLayout(L,m.view,X,Y));const s=L.s;const ext=1.5;
+  const a=m.axis==='h';const lo=a?Math.min(m.p1.x,m.p2.x):Math.min(m.p1.y,m.p2.y),hi=a?Math.max(m.p1.x,m.p2.x):Math.max(m.p1.y,m.p2.y);
+  ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=0.9;ctx.setLineDash([]);ctx.lineCap='butt';ctx.beginPath();
+  // Maßhilfslinien: vom Punkt bis kurz hinter die Maßlinie
+  for(const p of [m.p1,m.p2]){const q0=a?px(p.x,p.y):px(p.x,p.y);const dir=a?Math.sign(m.pos-p.y)||1:Math.sign(m.pos-p.x)||1;const q1=a?px(p.x,m.pos+dir*ext):px(m.pos+dir*ext,p.y);ctx.moveTo(q0[0],q0[1]);ctx.lineTo(q1[0],q1[1]);}
+  const A=a?px(lo,m.pos):px(m.pos,lo),B=a?px(hi,m.pos):px(m.pos,hi);ctx.moveTo(A[0],A[1]);ctx.lineTo(B[0],B[1]);ctx.stroke();
+  // Pfeile
+  const al=Math.max(6,2.8*s),aw=al*0.32;const ang=Math.atan2(B[1]-A[1],B[0]-A[0]);
+  for(const [P,dir] of [[A,1],[B,-1]]){ctx.beginPath();ctx.moveTo(P[0],P[1]);ctx.lineTo(P[0]+dir*al*Math.cos(ang)-aw*Math.sin(ang),P[1]+dir*al*Math.sin(ang)+aw*Math.cos(ang));ctx.lineTo(P[0]+dir*al*Math.cos(ang)+aw*Math.sin(ang),P[1]+dir*al*Math.sin(ang)-aw*Math.cos(ang));ctx.closePath();ctx.fill();}
+  // Maßzahl über der Linie, senkrecht gedreht von rechts lesbar
+  const txt=(m.dia?'⌀':'')+String(Math.round(m.val*10)/10).replace('.',',');ctx.font='600 12px sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+  const M=[(A[0]+B[0])/2,(A[1]+B[1])/2];ctx.translate(M[0],M[1]);if(!a)ctx.rotate(-Math.PI/2);ctx.fillText(txt,0,-3);ctx.restore();
+}
+function redrawBemassen(){
+  const canvas=$('bemassen');L_bm=drawAll(canvas,bmOpts());if(!L_bm)return;const ctx=canvas.getContext('2d');bmSnap=snapPoints();
+  for(const m of masse)drawMass(ctx,L_bm,m,COL.sketch,1);
+  if(bmLoesungAn)for(const m of bmRequired().flatMap(r=>r.cands.slice(0,1)))drawMass(ctx,L_bm,m,COL.rot,0.75);
+  // Auswahl und Vorschau
+  ctx.save();ctx.fillStyle=COL.rot;for(const p of bmPick){const q=toPx(L_bm,...toLayout(L_bm,p.view,p.x,p.y));ctx.beginPath();ctx.arc(q[0],q[1],4,0,2*Math.PI);ctx.fill();}
+  if(bmHover){const q=toPx(L_bm,...toLayout(L_bm,bmHover.view,bmHover.x,bmHover.y));ctx.strokeStyle=COL.rot;ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(q[0],q[1],7,0,2*Math.PI);ctx.stroke();}
+  ctx.restore();
+  if(bmPick.length===2&&bmHover&&bmHover.frei){const m=massFrom(bmPick[0].view,bmPick[0],bmPick[1],bmHover.x,bmHover.y);drawMass(ctx,L_bm,m,COL.rot,0.6);}
+  $('bmStatus').textContent=bmPick.length===0?'Ersten Punkt anklicken':bmPick.length===1?'Zweiten Punkt anklicken':'Maßlinie ablegen';
+}
+const bmC=$('bemassen');
+bmC.addEventListener('pointermove',e=>{if(!L_bm)return;const r=bmC.getBoundingClientRect();const px=e.clientX-r.left,py=e.clientY-r.top;const id=bmPick.length?bmPick[0].view:bmViewAt(px,py);if(!id){bmHover=null;redrawBemassen();return;}
+  const [X,Y]=bmToView(id,px,py);if(bmPick.length<2){const sp=bmSnapTo(id,X,Y);bmHover=sp?{view:id,x:sp.x,y:sp.y,art:sp.art}:null;}else bmHover={view:id,x:X,y:Y,frei:true};redrawBemassen();});
+bmC.addEventListener('pointerleave',()=>{bmHover=null;redrawBemassen();});
+bmC.addEventListener('pointerdown',e=>{if(!L_bm)return;const r=bmC.getBoundingClientRect();const px=e.clientX-r.left,py=e.clientY-r.top;const id=bmPick.length?bmPick[0].view:bmViewAt(px,py);if(!id)return;const [X,Y]=bmToView(id,px,py);
+  if(bmPick.length<2){const sp=bmSnapTo(id,X,Y);if(!sp)return;if(bmPick.length===1&&Math.hypot(sp.x-bmPick[0].x,sp.y-bmPick[0].y)<0.05)return;bmPick.push({view:id,x:sp.x,y:sp.y});}
+  else{const m=massFrom(id,bmPick[0],bmPick[1],X,Y);if(m.val>0.05)masse.push(m);bmPick=[];$('bmErgebnis').style.display='none';}
+  redrawBemassen();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&bmPick.length){bmPick=[];redrawBemassen();}});
+$('bmUndo').addEventListener('click',()=>{if(bmPick.length)bmPick=[];else masse.pop();$('bmErgebnis').style.display='none';redrawBemassen();});
+$('bmClear').addEventListener('click',()=>{masse=[];bmPick=[];$('bmErgebnis').style.display='none';redrawBemassen();});
+$('bmLoesung').addEventListener('click',()=>{bmLoesungAn=!bmLoesungAn;$('bmLoesung').textContent=bmLoesungAn?'Lösung ausblenden':'Lösung einblenden';redrawBemassen();});
+// Welche Maße braucht der Fertiger? Abgeleitet aus der Bauliste: Gesamtmaße des Rohlings, je
+// Merkmal (Quader, Zylinder, Kegel, Kugel) seine Größen, die es nicht ganz durchdringen, und
+// seine Lage von einer Bezugskante; Prisma, Rotationskörper, STL und gedrehte Körper nur über die Gesamtmaße.
+const DIRVIEWS={x:[['V','h'],['D','h']],y:[['D','v'],['S','h']],z:[['V','v'],['S','v']]};
+const AXVEC={x:[1,0,0],y:[0,1,0],z:[0,0,1]};
+function bmRequired(){
+  const model=TZ.getModel();const bodies=TZ.state.bodies;const req=[];if(!model||!model.tris.length)return req;
+  const box=model.box;const mn=box.min,mx=box.max;const fmt1=x=>String(Math.round(x*10)/10).replace('.',',');
+  const pr=(vid,p)=>{const v=K.VIEWS[vid==='V'?0:vid==='D'?1:2];return {x:K.dot(p,v.r),y:K.dot(p,v.u)};};
+  const proj3=(d,val,p1,p2,name,side)=>{const cands=[];for(const [vid,axis] of DIRVIEWS[d]){const q1=pr(vid,p1),q2=pr(vid,p2);const vw=viewOf(vid);const pos=axis==='h'?(side==='oben'?vw.ymax+8:vw.ymin-8):(side==='links'?vw.xmin-8:vw.xmax+8);cands.push({view:vid,axis,val,p1:q1,p2:q2,pos,dia:false});}return {name,val,cands};};
+  const k=(d)=>d==='x'?0:d==='y'?1:2;
+  const feat=[];
+  bodies.forEach((b,i)=>{if(i===0)return;if(b.rot&&b.rot.deg)return;if(!['box','cyl','cone','sphere'].includes(b.type))return;
+    const c=b.pos;const name=b.name;
+    if(b.type==='cyl'||b.type==='cone'){const a=b.axis||'z';const perp=['x','y','z'].filter(d=>d!==a);const d=b.type==='cyl'?b.d:Math.max(b.d1,b.d2);
+      const ds=b.type==='cyl'?[[b.d,'⌀ '+fmt1(b.d)+' von '+name]]:[[b.d1,'⌀ '+fmt1(b.d1)+' unten von '+name],[b.d2,'⌀ '+fmt1(b.d2)+' oben von '+name]].filter(x=>x[0]>0.05);
+      for(const [dv,nm] of ds){const cands=[];const vid=a==='y'?'V':a==='z'?'D':'S';const rv=K.VIEWS[vid==='V'?0:vid==='D'?1:2];const q1=pr(vid,K.sub(c,K.mul(rv.r,dv/2))),q2=pr(vid,K.add(c,K.mul(rv.r,dv/2)));const vw=viewOf(vid);cands.push({view:vid,axis:'h',val:dv,p1:q1,p2:q2,pos:vw.ymax+8,dia:true});
+        for(const p of perp)for(const [vid2,axis] of DIRVIEWS[p]){if(vid2===vid)continue;const e=AXVEC[p];const q1b=pr(vid2,K.sub(c,K.mul(e,dv/2))),q2b=pr(vid2,K.add(c,K.mul(e,dv/2)));const vw2=viewOf(vid2);cands.push({view:vid2,axis,val:dv,p1:q1b,p2:q2b,pos:axis==='h'?vw2.ymax+8:vw2.xmax+8,dia:true});}
+        feat.push({name:nm,val:dv,cands});}
+      for(const p of perp){const kk=k(p);const alt=[c[kk]-mn[kk],mx[kk]-c[kk]].filter(v=>v>0.05);if(!alt.length)continue;const p1=c.slice();p1[kk]=mn[kk];const r=proj3(p,alt[0],p1,c,'Lage von '+name+': '+fmt1(alt[0])+' von der Kante ('+p+')','unten');r.alts=alt;feat.push(r);}
+      const ka=k(a);const lo=Math.max(c[ka]-b.h/2,mn[ka]),hi=Math.min(c[ka]+b.h/2,mx[ka]);const inside=hi-lo;
+      if(inside>0.05&&inside<mx[ka]-mn[ka]-0.05){const e=AXVEC[perp[0]];const p1=c.slice();p1[ka]=lo;const p2=c.slice();p2[ka]=hi;const r=proj3(a,inside,K.add(p1,K.mul(e,d/2)),K.add(p2,K.mul(e,d/2)),'Tiefe von '+name+': '+fmt1(inside),'rechts');feat.push(r);}
+    }else if(b.type==='box'){for(const d of ['x','y','z']){const kk=k(d);const l=b['l'+d];const lo=Math.max(c[kk]-l/2,mn[kk]),hi=Math.min(c[kk]+l/2,mx[kk]);const inside=hi-lo;if(inside<=0.05||inside>=mx[kk]-mn[kk]-0.05)continue;
+        const p1=c.slice();p1[kk]=lo;const p2=c.slice();p2[kk]=hi;const other=['x','y','z'].filter(o=>o!==d)[0];const ko=k(other);p1[ko]=p2[ko]=c[ko]+b['l'+other]/2;
+        feat.push(proj3(d,inside,p1,p2,'Größe von '+name+' in '+d+': '+fmt1(inside),'oben'));
+        const alt=[lo-mn[kk],mx[kk]-hi,c[kk]-mn[kk],mx[kk]-c[kk]].filter(v=>v>0.05);if(alt.length){const q1=c.slice();q1[kk]=mn[kk];const q2=c.slice();q2[kk]=lo;const r=proj3(d,alt[0],q1,q2,'Lage von '+name+': '+fmt1(alt[0])+' von der Kante ('+d+')','unten');r.alts=alt;feat.push(r);}}
+    }else if(b.type==='sphere'){const cands=[];for(const vid of ['V','D','S']){const rv=K.VIEWS[vid==='V'?0:vid==='D'?1:2];const vw=viewOf(vid);cands.push({view:vid,axis:'h',val:b.d,p1:pr(vid,K.sub(c,K.mul(rv.r,b.d/2))),p2:pr(vid,K.add(c,K.mul(rv.r,b.d/2))),pos:vw.ymax+8,dia:true});}feat.push({name:'S⌀ '+fmt1(b.d)+' von '+name,val:b.d,cands});
+      for(const d of ['x','y','z']){const kk=k(d);const alt=[c[kk]-mn[kk],mx[kk]-c[kk]].filter(v=>v>0.05);if(!alt.length)continue;const p1=c.slice();p1[kk]=mn[kk];const r=proj3(d,alt[0],p1,c,'Lage von '+name+': '+fmt1(alt[0])+' von der Kante ('+d+')','unten');r.alts=alt;feat.push(r);}}
+  });
+  req.push(...feat);
+  // Gesamtmaße zuletzt: sie liegen außen
+  const namen={x:'Länge',y:'Tiefe',z:'Höhe'};
+  for(const d of ['x','y','z']){const kk=k(d);const e=mx[kk]-mn[kk];if(e<0.05)continue;const p1=mn.slice(),p2=mn.slice();p2[kk]=mx[kk];
+    if(d==='y'){p1[2]=p2[2]=mn[2];p1[0]=p2[0]=mx[0];}else if(d==='z'){p1[0]=p2[0]=mx[0];}
+    req.push(proj3(d,e,p1,p2,namen[d]+' '+fmt1(e)+' ('+d+')',d==='z'?'rechts':'unten'));}
+  // Lösungsmaße gestaffelt ablegen, damit sie sich nicht überdecken
+  const stapel={};for(const r of req){const m=r.cands[0];const key=m.view+m.axis+(m.axis==='h'?(m.pos>viewOf(m.view).ymax?'o':'u'):(m.pos>viewOf(m.view).xmax?'r':'l'));const n=stapel[key]||0;stapel[key]=n+1;const sgn=(key.endsWith('o')||key.endsWith('r'))?1:-1;m.pos+=sgn*7*n;}
+  return req;
+}
+function bmPruefen(){
+  const req=bmRequired();const treffer=req.map(()=>[]);const unnoetig=[];
+  masse.forEach((m,i)=>{let hit=-1;req.forEach((r,j)=>{if(hit>=0)return;const vals=r.alts||[r.val];for(const c of r.cands){if(c.view!==m.view)continue;if(!(c.axis===m.axis||(c.dia&&m.dia)))continue;if(vals.some(v=>Math.abs(v-m.val)<0.06)){hit=j;return;}}});if(hit>=0)treffer[hit].push(i);else unnoetig.push(m);});
+  const fehlt=req.filter((r,j)=>!treffer[j].length),doppelt=req.filter((r,j)=>treffer[j].length>1);
+  let kreuz=0;for(let i=0;i<masse.length;i++)for(let j=i+1;j<masse.length;j++){const a=masse[i],b=masse[j];if(a.view!==b.view||a.axis===b.axis)continue;const h=a.axis==='h'?a:b,v=a.axis==='h'?b:a;
+    const hx0=Math.min(h.p1.x,h.p2.x),hx1=Math.max(h.p1.x,h.p2.x),vy0=Math.min(v.p1.y,v.p2.y),vy1=Math.max(v.p1.y,v.p2.y);if(v.pos>hx0+0.01&&v.pos<hx1-0.01&&h.pos>vy0+0.01&&h.pos<vy1-0.01)kreuz++;}
+  const f=x=>String(Math.round(x*10)/10).replace('.',',');const el=$('bmErgebnis');el.style.display='';
+  let html='<div class="l">Ergebnis</div><b>'+(req.length-fehlt.length)+' von '+req.length+' nötigen Maßen gesetzt.</b>';
+  if(fehlt.length)html+='<br><b>Es fehlt:</b> '+fehlt.map(r=>r.name).join(' · ');
+  if(doppelt.length)html+='<br><b>Doppelt:</b> '+doppelt.map(r=>r.name).join(' · ');
+  if(unnoetig.length)html+='<br><b>Nicht nötig oder falsch:</b> '+unnoetig.map(m=>(m.dia?'⌀':'')+f(m.val)+' ('+K.VIEWS[m.view==='V'?0:m.view==='D'?1:2].name+')').join(' · ');
+  if(kreuz)html+='<br><b>Maßlinien kreuzen sich:</b> '+kreuz+' Mal.';
+  if(!fehlt.length&&!doppelt.length&&!unnoetig.length&&!kreuz)html+='<br>Vollständig, ohne Doppelmaß und ohne Kreuzung. Die Werkstatt kann fertigen.';
+  const ohne=TZ.state.bodies.slice(1).filter(b=>!['box','cyl','cone','sphere'].includes(b.type)||(b.rot&&b.rot.deg));if(ohne.length)html+='<br><span class="klein">Nicht geprüft (nur Gesamtmaße): '+ohne.map(b=>b.name).join(', ')+'</span>';
+  el.innerHTML=html;
+}
+$('bmPruefen').addEventListener('click',bmPruefen);
+TZ.bm={required:bmRequired,get masse(){return masse;},set masse(l){masse=l;redrawBemassen();},pruefen:bmPruefen,redraw:redrawBemassen,px:(id,X,Y)=>L_bm?toPx(L_bm,...toLayout(L_bm,id,X,Y)):null};
+
+document.querySelectorAll('input[name=modus]').forEach(r=>r.addEventListener('change',()=>{const m=document.querySelector('input[name=modus]:checked').value;$('ueb-skizze').style.display=m==='skizze'?'':'none';$('ueb-zuordnen').style.display=m==='zuordnen'?'':'none';$('ueb-bemassen').style.display=m==='bemassen'?'':'none';redrawUeben();}));
+function redrawUeben(){const m=document.querySelector('input[name=modus]:checked').value;if(m==='skizze')redrawSkizze();else if(m==='zuordnen')mischen();else redrawBemassen();}
 
 // ---- Ereignisse: Reiterwechsel, Körperwechsel, Größe ------------------------
 window.addEventListener('tzlab-tab',e=>{if(e.detail==='zeichnung')redrawZeichnung();else if(e.detail==='ueben')redrawUeben();});
-window.addEventListener('tzlab-views',()=>{strokes=[];loesungAn=false;$('loesung').textContent='Lösung einblenden';if(TZ.getTab()==='zeichnung')redrawZeichnung();else if(TZ.getTab()==='ueben')redrawUeben();});
-window.addEventListener('resize',()=>{const t=TZ.getTab();if(t==='zeichnung')redrawZeichnung();else if(t==='ueben'&&document.querySelector('input[name=modus]:checked').value==='skizze')redrawSkizze();});
+window.addEventListener('tzlab-views',()=>{strokes=[];loesungAn=false;$('loesung').textContent='Lösung einblenden';masse=[];bmPick=[];bmLoesungAn=false;$('bmLoesung').textContent='Lösung einblenden';$('bmErgebnis').style.display='none';if(TZ.getTab()==='zeichnung')redrawZeichnung();else if(TZ.getTab()==='ueben')redrawUeben();});
+window.addEventListener('resize',()=>{const t=TZ.getTab();if(t==='zeichnung')redrawZeichnung();else if(t==='ueben'){const m=document.querySelector('input[name=modus]:checked').value;if(m==='skizze')redrawSkizze();else if(m==='bemassen')redrawBemassen();}});
 
 // ---- Datei ------------------------------------------------------------------
 function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
