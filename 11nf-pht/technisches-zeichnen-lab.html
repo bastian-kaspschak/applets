@@ -31,6 +31,9 @@ button.k.voll{background:var(--stahl);color:#fff;border-color:var(--stahl)}
 .karte{border:1px solid var(--grau);border-radius:6px;padding:8px 10px;margin:8px 0;background:#fcfcfc}
 .karte.sub{border-left:4px solid var(--rot)}
 .karte.add{border-left:4px solid var(--oliv)}
+.karte.hover{background:#fff7e6;border-color:#e2a53a}
+.karte.aktiv{background:#fff1d0;border-color:#d08a00;box-shadow:inset 0 0 0 1px #d08a00}
+canvas#gl3d{cursor:grab}
 .karte-kopf{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between}
 .karte-kopf strong{font-size:.95rem}
 .karte-kopf input.name{font:inherit;font-size:.95rem;font-weight:600;border:1px solid transparent;border-radius:4px;padding:2px 4px;width:11em;max-width:100%;background:transparent}
@@ -136,7 +139,7 @@ input[type=file]{font:inherit;font-size:.9rem}
      <button class="k" data-cam="iso">schräg</button>
      <label class="klein"><input type="checkbox" id="ortho"> ohne Perspektive</label>
    </div>
-   <div class="legende">Drehen: ziehen · Zoom: Rad oder zwei Finger · Achsen: <b style="color:#c33">x rot</b> nach rechts, <b style="color:#3a3">y grün</b> nach hinten, <b style="color:#36c">z blau</b> nach oben. Die Vorderansicht blickt von vorn, also aus Richtung −y.</div>
+   <div class="legende">Drehen: ziehen · Zoom: Rad oder zwei Finger · Achsen: <b style="color:#c33">x rot</b> nach rechts, <b style="color:#3a3">y grün</b> nach hinten, <b style="color:#36c">z blau</b> nach oben. Die Vorderansicht blickt von vorn, also aus Richtung −y. Zeigen oder Klicken auf einen Körper hebt ihn und sein Feld in der Bauliste hervor, und umgekehrt.</div>
    <h2>Kennzahlen</h2>
    <div class="kennzahlen">
      <div class="kennzahl"><div class="l">Volumen V</div><div class="w" id="kzV">–</div></div>
@@ -281,13 +284,13 @@ class Plane{
         if(ti!==1)bv.push(vi);
         if((ti|tj)===3){const t=(this.w-dot(this.n,vi))/dot(this.n,sub(vj,vi));const v=lerp(vi,vj,t);fv.push(v);bv.push(v);}
       }
-      if(fv.length>=3)f.push(new Polygon(fv,poly.plane));
-      if(bv.length>=3)b.push(new Polygon(bv,poly.plane));
+      if(fv.length>=3)f.push(new Polygon(fv,poly.plane,poly.src));
+      if(bv.length>=3)b.push(new Polygon(bv,poly.plane,poly.src));
     }
   }
 }
 class Polygon{
-  constructor(v,plane){this.v=v;if(plane){this.plane=plane.clone();}else{const n=newell(v);this.plane=new Plane(n,dot(n,v[0]));}}
+  constructor(v,plane,src){this.v=v;if(src!==undefined)this.src=src;if(plane){this.plane=plane.clone();}else{const n=newell(v);this.plane=new Plane(n,dot(n,v[0]));}}
   flip(){this.v=this.v.slice().reverse();this.plane.flip();}
 }
 class Node{
@@ -298,7 +301,7 @@ class Node{
   allPolygons(){let p=this.polygons.slice();if(this.front)p=p.concat(this.front.allPolygons());if(this.back)p=p.concat(this.back.allPolygons());return p;}
   build(polys){if(!polys.length)return;if(!this.plane)this.plane=polys[0].plane.clone();const f=[],b=[];for(const p of polys)this.plane.splitPolygon(p,this.polygons,this.polygons,f,b);if(f.length){if(!this.front)this.front=new Node();this.front.build(f);}if(b.length){if(!this.back)this.back=new Node();this.back.build(b);}}
 }
-const clonePolys=ps=>ps.map(p=>new Polygon(p.v.slice(),p.plane));
+const clonePolys=ps=>ps.map(p=>new Polygon(p.v.slice(),p.plane,p.src));
 function csgUnion(pa,pb){const a=new Node(clonePolys(pa)),b=new Node(clonePolys(pb));a.clipTo(b);b.clipTo(a);b.invert();b.clipTo(a);b.invert();a.build(b.allPolygons());return a.allPolygons();}
 function csgSubtract(pa,pb){const a=new Node(clonePolys(pa)),b=new Node(clonePolys(pb));a.invert();a.clipTo(b);b.clipTo(a);b.invert();b.clipTo(a);b.invert();a.build(b.allPolygons());a.invert();return a.allPolygons();}
 
@@ -381,7 +384,7 @@ function rotatePoint(p,c,axis,deg){if(!deg)return p;const a=deg*Math.PI/180,s=Ma
 function rotatePolys(polys,c,axis,deg){if(!deg)return polys;return polys.map(p=>new Polygon(p.v.map(v=>rotatePoint(v,c,axis,deg))));}
 
 // ---- Dreiecke, Kennzahlen ---------------------------------------------------
-function triangles(polys){const t=[];for(const p of polys){const v=p.v;for(let i=1;i<v.length-1;i++){const a=v[0],b=v[i],c=v[i+1];if(len(cross(sub(b,a),sub(c,a)))>1e-9)t.push([a,b,c]);}}return t;}
+function triangles(polys){const out=[];for(const p of polys){const v=p.v;for(let i=1;i<v.length-1;i++){const a=v[0],b=v[i],c=v[i+1];if(len(cross(sub(b,a),sub(c,a)))>1e-9){const t=[a,b,c];if(p.src!==undefined)t.src=p.src;out.push(t);}}}return out;}
 function volume(tris){let s=0;for(const t of tris)s+=dot(t[0],cross(t[1],t[2]));return s/6;}
 function area(tris){let s=0;for(const t of tris)s+=len(cross(sub(t[1],t[0]),sub(t[2],t[0])));return s/2;}
 function bbox(polys){const mn=[Infinity,Infinity,Infinity],mx=[-Infinity,-Infinity,-Infinity];for(const p of polys)for(const v of p.v)for(let k=0;k<3;k++){if(v[k]<mn[k])mn[k]=v[k];if(v[k]>mx[k])mx[k]=v[k];}
@@ -588,7 +591,8 @@ function clipThread(th,tris){
 }
 function evaluate(bodies){
   let polys=null;const axes=[],threads=[];
-  for(const b of bodies){const p=bodyPolys(b);if(!p.length)continue;const first=polys===null;
+  for(let bi=0;bi<bodies.length;bi++){const b=bodies[bi];const p=bodyPolys(b);if(!p.length)continue;for(const q of p)q.src=bi; // Herkunft: Index in der Bauliste
+    const first=polys===null;
     if(first){if(b.op==='sub')continue;polys=p;}
     else polys=b.op==='sub'?csgSubtract(polys,p):csgUnion(polys,p);
     axes.push(...bodyAxes(b));const th=bodyThread(b,first);if(th)threads.push(th);}
@@ -1709,7 +1713,7 @@ function rebuild(skipSnapshot){
   clearTimeout(rebuildTimer);$('meldung').textContent='';
   try{model=K.evaluate(state.bodies);}catch(err){$('meldung').textContent='Der Körper ließ sich nicht berechnen: '+err.message;model=K.evaluate([]);}
   viewsDirty=true;views=null;
-  updateKennzahlen();gl3d.setModel(model);
+  updateKennzahlen();gl3d.setModel(model);if(typeof applyHighlight==='function')applyHighlight();
   save();if(!skipSnapshot)snapshot();
   if(activeTab==='zeichnung'||activeTab==='ueben')window.dispatchEvent(new CustomEvent('tzlab-views'));
 }
@@ -1734,23 +1738,25 @@ const M4={
   mul(a,b){const m=new Float32Array(16);for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=a[k*4+j]*b[i*4+k];m[i*4+j]=s;}return m;}
 };
 const gl3d=(function(){
-  const canvas=$('gl3d');let gl=null,prog=null,loc={},bufPos=null,bufNrm=null,bufEdge=null,nTri=0,nEdge=0,bufAx=null;
+  const canvas=$('gl3d');let gl=null,prog=null,loc={},bufPos=null,bufNrm=null,bufEdge=null,nTri=0,nEdge=0,bufAx=null,bufSrc=null,hlIndex=-1;
+  const api={setModel,resize,draw,setHighlight,onHover:null,onClick:null};
   const cam={az:0.6,el:0.5,dist:300,target:[0,0,0],ortho:false,diag:100};
   function init(){
     gl=canvas.getContext('webgl',{antialias:true});if(!gl){canvas.style.display='none';const p=document.createElement('p');p.className='meldung';p.textContent='Die 3D-Ansicht braucht WebGL. Zeichnung und Übungen funktionieren trotzdem.';canvas.parentNode.insertBefore(p,canvas);return;}
-    const vs='attribute vec3 aPos;attribute vec3 aNrm;uniform mat4 uMVP;varying vec3 vN;void main(){vN=aNrm;gl_Position=uMVP*vec4(aPos,1.0);}';
-    const fs='precision mediump float;uniform vec3 uColor;uniform vec3 uLight;uniform float uFlat;varying vec3 vN;void main(){float d=max(dot(normalize(vN),normalize(uLight)),0.0);float sh=mix(0.40+0.60*d,1.0,uFlat);gl_FragColor=vec4(uColor*sh,1.0);}';
+    const vs='attribute vec3 aPos;attribute vec3 aNrm;attribute float aSrc;uniform mat4 uMVP;varying vec3 vN;varying float vS;void main(){vN=aNrm;vS=aSrc;gl_Position=uMVP*vec4(aPos,1.0);}';
+    const fs='precision mediump float;uniform vec3 uColor;uniform vec3 uHiColor;uniform float uHi;uniform float uPick;uniform vec3 uLight;uniform float uFlat;varying vec3 vN;varying float vS;void main(){if(uPick>0.5){gl_FragColor=vec4((vS+1.0)/255.0,0.0,0.0,1.0);return;}float d=max(dot(normalize(vN),normalize(uLight)),0.0);float sh=mix(0.40+0.60*d,1.0,uFlat);vec3 col=(abs(vS-uHi)<0.5)?uHiColor:uColor;gl_FragColor=vec4(col*sh,1.0);}';
     const sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;};
     prog=gl.createProgram();gl.attachShader(prog,sh(gl.VERTEX_SHADER,vs));gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(prog);gl.useProgram(prog);
-    loc={aPos:gl.getAttribLocation(prog,'aPos'),aNrm:gl.getAttribLocation(prog,'aNrm'),uMVP:gl.getUniformLocation(prog,'uMVP'),uColor:gl.getUniformLocation(prog,'uColor'),uLight:gl.getUniformLocation(prog,'uLight'),uFlat:gl.getUniformLocation(prog,'uFlat')};
-    bufPos=gl.createBuffer();bufNrm=gl.createBuffer();bufEdge=gl.createBuffer();bufAx=gl.createBuffer();
+    loc={aPos:gl.getAttribLocation(prog,'aPos'),aNrm:gl.getAttribLocation(prog,'aNrm'),aSrc:gl.getAttribLocation(prog,'aSrc'),uMVP:gl.getUniformLocation(prog,'uMVP'),uColor:gl.getUniformLocation(prog,'uColor'),uHiColor:gl.getUniformLocation(prog,'uHiColor'),uHi:gl.getUniformLocation(prog,'uHi'),uPick:gl.getUniformLocation(prog,'uPick'),uLight:gl.getUniformLocation(prog,'uLight'),uFlat:gl.getUniformLocation(prog,'uFlat')};
+    bufPos=gl.createBuffer();bufNrm=gl.createBuffer();bufEdge=gl.createBuffer();bufAx=gl.createBuffer();bufSrc=gl.createBuffer();
     gl.enable(gl.DEPTH_TEST);gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);gl.clearColor(1,1,1,1);
   }
   function setModel(m){
     if(!gl)return;
-    const tris=m.tris;nTri=tris.length;const pos=new Float32Array(nTri*9),nrm=new Float32Array(nTri*9);let o=0;
-    for(const t of tris){const n=K.norm(K.cross(K.sub(t[1],t[0]),K.sub(t[2],t[0])));for(const p of t){pos[o]=p[0];pos[o+1]=p[1];pos[o+2]=p[2];nrm[o]=n[0];nrm[o+1]=n[1];nrm[o+2]=n[2];o+=3;}}
+    const tris=m.tris;nTri=tris.length;const pos=new Float32Array(nTri*9),nrm=new Float32Array(nTri*9),srcA=new Float32Array(nTri*3);let o=0,k=0;
+    for(const t of tris){const n=K.norm(K.cross(K.sub(t[1],t[0]),K.sub(t[2],t[0])));const s=t.src!==undefined?t.src:-1;srcA[k++]=s;srcA[k++]=s;srcA[k++]=s;for(const p of t){pos[o]=p[0];pos[o+1]=p[1];pos[o+2]=p[2];nrm[o]=n[0];nrm[o+1]=n[1];nrm[o+2]=n[2];o+=3;}}
     gl.bindBuffer(gl.ARRAY_BUFFER,bufPos);gl.bufferData(gl.ARRAY_BUFFER,pos,gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER,bufSrc);gl.bufferData(gl.ARRAY_BUFFER,srcA,gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER,bufNrm);gl.bufferData(gl.ARRAY_BUFFER,nrm,gl.STATIC_DRAW);
     const edges=m.polys.length?K.extractEdges(m.polys,m.box).filter(e=>e.crease):[];nEdge=edges.length;const ed=new Float32Array(nEdge*6);o=0;
     for(const e of edges){ed[o++]=e.a[0];ed[o++]=e.a[1];ed[o++]=e.a[2];ed[o++]=e.b[0];ed[o++]=e.b[1];ed[o++]=e.b[2];}
@@ -1762,35 +1768,57 @@ const gl3d=(function(){
   }
   function resize(){const w=canvas.clientWidth||600;const h=Math.min(Math.round(w*0.72),540);const dpr=Math.min(window.devicePixelRatio||1,2);canvas.style.height=h+'px';canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);draw();}
   function eye(){return K.add(cam.target,K.mul([Math.cos(cam.el)*Math.sin(cam.az),-Math.cos(cam.el)*Math.cos(cam.az),Math.sin(cam.el)],cam.dist));}
-  function draw(){
-    if(!gl)return;gl.viewport(0,0,canvas.width,canvas.height);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);if(!nTri&&!nEdge)return;
-    const a=canvas.width/canvas.height;const e=eye();const up=Math.abs(cam.el)>1.45?[0,1,0]:[0,0,1];
+  function setupFrame(){const a=canvas.width/canvas.height;const e=eye();const up=Math.abs(cam.el)>1.45?[0,1,0]:[0,0,1];
     const view=M4.lookAt(e,cam.target,up);
     const proj=cam.ortho?M4.ortho(-cam.dist*0.32*a,cam.dist*0.32*a,-cam.dist*0.32,cam.dist*0.32,-cam.diag*4,cam.diag*4+cam.dist):M4.perspective(0.6,a,cam.dist*0.02,cam.dist*8);
     const mvp=M4.mul(proj,view);gl.uniformMatrix4fv(loc.uMVP,false,mvp);
     const ld=K.norm(K.add(K.norm(K.sub(e,cam.target)),[0.25,-0.15,0.55]));gl.uniform3fv(loc.uLight,ld);
     gl.bindBuffer(gl.ARRAY_BUFFER,bufPos);gl.enableVertexAttribArray(loc.aPos);gl.vertexAttribPointer(loc.aPos,3,gl.FLOAT,false,0,0);
     gl.bindBuffer(gl.ARRAY_BUFFER,bufNrm);gl.enableVertexAttribArray(loc.aNrm);gl.vertexAttribPointer(loc.aNrm,3,gl.FLOAT,false,0,0);
+    gl.bindBuffer(gl.ARRAY_BUFFER,bufSrc);gl.enableVertexAttribArray(loc.aSrc);gl.vertexAttribPointer(loc.aSrc,1,gl.FLOAT,false,0,0);}
+  function setHighlight(i){hlIndex=(i==null||i<0)?-1:i;draw();}
+  // Farb-Picking: Koerperindex unter dem Zeiger (Pixel in Canvas-Koordinaten)
+  function pick(px,py){if(!gl||!nTri)return -1;gl.viewport(0,0,canvas.width,canvas.height);gl.clearColor(0,0,0,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);setupFrame();
+    gl.uniform1f(loc.uPick,1);gl.uniform1f(loc.uFlat,0);gl.drawArrays(gl.TRIANGLES,0,nTri*3);gl.uniform1f(loc.uPick,0);
+    const out=new Uint8Array(4);gl.readPixels(Math.max(0,Math.min(canvas.width-1,Math.round(px))),Math.max(0,Math.min(canvas.height-1,canvas.height-1-Math.round(py))),1,1,gl.RGBA,gl.UNSIGNED_BYTE,out);gl.clearColor(1,1,1,1);draw();return out[0]-1;}
+  function draw(){
+    if(!gl)return;gl.viewport(0,0,canvas.width,canvas.height);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);if(!nTri&&!nEdge)return;
+    setupFrame();gl.uniform1f(loc.uPick,0);gl.uniform1f(loc.uHi,hlIndex);gl.uniform3f(loc.uHiColor,0.95,0.66,0.24);
     gl.uniform1f(loc.uFlat,0);gl.uniform3f(loc.uColor,0.84,0.86,0.88);gl.drawArrays(gl.TRIANGLES,0,nTri*3);
-    gl.disableVertexAttribArray(loc.aNrm);gl.vertexAttrib3f(loc.aNrm,0,0,1);gl.uniform1f(loc.uFlat,1);
+    gl.disableVertexAttribArray(loc.aNrm);gl.vertexAttrib3f(loc.aNrm,0,0,1);gl.disableVertexAttribArray(loc.aSrc);gl.vertexAttrib1f(loc.aSrc,-5);gl.uniform1f(loc.uFlat,1);
     gl.bindBuffer(gl.ARRAY_BUFFER,bufEdge);gl.vertexAttribPointer(loc.aPos,3,gl.FLOAT,false,0,0);gl.uniform3f(loc.uColor,0.12,0.12,0.12);gl.drawArrays(gl.LINES,0,nEdge*2);
     gl.bindBuffer(gl.ARRAY_BUFFER,bufAx);gl.vertexAttribPointer(loc.aPos,3,gl.FLOAT,false,0,0);
     gl.uniform3f(loc.uColor,0.8,0.2,0.2);gl.drawArrays(gl.LINES,0,2);gl.uniform3f(loc.uColor,0.2,0.6,0.2);gl.drawArrays(gl.LINES,2,2);gl.uniform3f(loc.uColor,0.2,0.35,0.8);gl.drawArrays(gl.LINES,4,2);
   }
   // Zeiger: drehen, zoomen
-  const pts=new Map();let last=null,pinch=0;
-  canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pts.set(e.pointerId,[e.clientX,e.clientY]);last=[e.clientX,e.clientY];if(pts.size===2){const a=[...pts.values()];pinch=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);}});
-  canvas.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;pts.set(e.pointerId,[e.clientX,e.clientY]);
+  const pts=new Map();let last=null,pinch=0,downAt=null,moved=0,hoverReq=null,hoverPos=null,lastHover=-1;
+  const canvasXY=e=>{const r=canvas.getBoundingClientRect();const sx=canvas.width/Math.max(1,r.width),sy=canvas.height/Math.max(1,r.height);return [(e.clientX-r.left)*sx,(e.clientY-r.top)*sy];};
+  const hoverAt=e=>{hoverPos=canvasXY(e);if(hoverReq)return;hoverReq=requestAnimationFrame(()=>{hoverReq=null;const id=pick(hoverPos[0],hoverPos[1]);canvas.style.cursor=id>=0?'pointer':'';if(id!==lastHover){lastHover=id;if(api.onHover)api.onHover(id);}});};
+  canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pts.set(e.pointerId,[e.clientX,e.clientY]);last=[e.clientX,e.clientY];downAt=[e.clientX,e.clientY];moved=0;if(pts.size===2){const a=[...pts.values()];pinch=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);}});
+  canvas.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId)){if(pts.size===0&&e.pointerType!=='touch')hoverAt(e);return;}pts.set(e.pointerId,[e.clientX,e.clientY]);if(downAt)moved=Math.max(moved,Math.hypot(e.clientX-downAt[0],e.clientY-downAt[1]));
     if(pts.size===1){cam.az+=(e.clientX-last[0])*0.01;cam.el=Math.max(-1.5,Math.min(1.5,cam.el+(e.clientY-last[1])*0.01));last=[e.clientX,e.clientY];draw();}
     else if(pts.size===2){const a=[...pts.values()];const d=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1]);if(pinch>0){cam.dist*=pinch/d;}pinch=d;draw();}});
-  const up=e=>{pts.delete(e.pointerId);};canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);
+  const up=e=>{const wasSingle=pts.size===1;pts.delete(e.pointerId);if(e.type==='pointerup'&&wasSingle&&moved<4&&downAt){const q=canvasXY(e);const id=pick(q[0],q[1]);if(api.onClick)api.onClick(id);}downAt=null;};canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);
+  canvas.addEventListener('pointerleave',()=>{if(lastHover!==-1){lastHover=-1;canvas.style.cursor='';if(api.onHover)api.onHover(-1);}});
   canvas.addEventListener('wheel',e=>{e.preventDefault();cam.dist*=Math.pow(1.1,e.deltaY/100);draw();},{passive:false});
   document.querySelectorAll('button[data-cam]').forEach(b=>b.addEventListener('click',()=>{const v=b.dataset.cam;if(v==='vorn'){cam.az=0;cam.el=0;}else if(v==='oben'){cam.az=0;cam.el=1.5;}else if(v==='links'){cam.az=-Math.PI/2;cam.el=0;}else{cam.az=0.6;cam.el=0.5;}draw();}));
   $('ortho').addEventListener('change',e=>{cam.ortho=e.target.checked;draw();});
   window.addEventListener('resize',()=>{if(activeTab==='bauen')resize();});
   init();
-  return {setModel,resize,draw};
+  return api;
 })();
+// ---- Hervorhebung: Koerper in der 3D-Ansicht <-> Karte in der Bauliste ----------
+const hl={hoverId:null,selId:null};
+function hlIndex(){const id=hl.hoverId!=null?hl.hoverId:hl.selId;if(id==null)return -1;return state.bodies.findIndex(b=>b.id===id);}
+function applyHighlight(){document.querySelectorAll('#bauliste .karte').forEach(k=>{const id=Number(k.dataset.id);k.classList.toggle('hover',hl.hoverId===id);k.classList.toggle('aktiv',hl.selId===id);});gl3d.setHighlight(hlIndex());}
+function setHover(id){if(hl.hoverId===id)return;hl.hoverId=id;applyHighlight();}
+function setSel(id,scroll){if(hl.selId!==id){hl.selId=id;applyHighlight();}if(scroll&&id!=null){const k=document.querySelector('#bauliste .karte[data-id="'+id+'"]');if(k)k.scrollIntoView({block:'nearest',behavior:'smooth'});}}
+const idAt=i=>(i>=0&&state.bodies[i])?state.bodies[i].id:null;
+gl3d.onHover=i=>setHover(idAt(i));gl3d.onClick=i=>setSel(idAt(i),true);
+$('bauliste').addEventListener('mouseover',e=>{const k=e.target.closest('.karte');setHover(k?Number(k.dataset.id):null);});
+$('bauliste').addEventListener('mouseleave',()=>setHover(null));
+$('bauliste').addEventListener('click',e=>{if(e.target.closest('button'))return;const k=e.target.closest('.karte');if(k)setSel(Number(k.dataset.id),false);});
+$('bauliste').addEventListener('focusin',e=>{const k=e.target.closest('.karte');if(k)setSel(Number(k.dataset.id),false);});
 
 // ---- Start ------------------------------------------------------------------
 if(!restore())loadBodies(PRESETS.platte);
