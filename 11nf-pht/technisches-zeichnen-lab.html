@@ -33,6 +33,8 @@ button.k.voll{background:var(--stahl);color:#fff;border-color:var(--stahl)}
 .karte.add{border-left:4px solid var(--oliv)}
 .karte-kopf{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between}
 .karte-kopf strong{font-size:.95rem}
+.karte-kopf input.name{font:inherit;font-size:.95rem;font-weight:600;border:1px solid transparent;border-radius:4px;padding:2px 4px;width:11em;max-width:100%;background:transparent}
+.karte-kopf input.name:hover,.karte-kopf input.name:focus{border-color:var(--grau);background:#fff}
 .karte-kopf select{font:inherit;font-size:.85rem;padding:3px 5px;border:1px solid var(--grau);border-radius:4px}
 .karte-kopf .kn button{font:inherit;font-size:.8rem;padding:2px 7px;border:1px solid var(--grau);background:#fff;border-radius:4px;cursor:pointer}
 .felder{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:6px}
@@ -81,7 +83,11 @@ input[type=file]{font:inherit;font-size:.9rem}
  <div class="zweispaltig">
   <div>
    <h2>Bauliste</h2>
-   <p class="hinweis">Baue einen Körper aus Grundkörpern. Der erste ist der Rohling. Jeder weitere wird <b>hinzugefügt</b> oder <b>ausgeschnitten</b>, in der Reihenfolge der Liste. Jeder Körper lässt sich um eine Achse drehen.</p>
+   <div class="leiste">
+     <button class="k" id="histBack" title="Rückgängig (Strg+Z)">◀ Rückgängig</button>
+     <button class="k" id="histFwd" title="Wiederholen (Strg+Y)">Wiederholen ▶</button>
+   </div>
+   <p class="hinweis">Baue einen Körper aus Grundkörpern. Der erste ist der Rohling. Jeder weitere wird <b>hinzugefügt</b> oder <b>ausgeschnitten</b>, in der Reihenfolge der Liste. Jeder Körper lässt sich um eine Achse drehen und umbenennen: auf den Namen klicken.</p>
    <div class="leiste">
      <span class="klein">Körper:</span>
      <button class="k" data-neu="box">+ Quader</button>
@@ -100,8 +106,6 @@ input[type=file]{font:inherit;font-size:.9rem}
      <button class="k" data-neu="rohr">+ Rohr</button>
    </div>
    <div class="leiste">
-     <button class="k" id="histBack" title="Rückgängig (Strg+Z)">◀ Rückgängig</button>
-     <button class="k" id="histFwd" title="Wiederholen (Strg+Y)">Wiederholen ▶</button>
      <label class="klein">Beispiel:</label>
      <select id="preset">
        <option value="">bitte wählen</option>
@@ -211,11 +215,16 @@ input[type=file]{font:inherit;font-size:.9rem}
 </section>
 
 <section class="tab" id="tab-datei">
- <h2>STL</h2>
- <p class="hinweis">Exportiere den Körper als STL-Datei (für Slicer und CAD-Programme). Importiere eine STL-Datei, zum Beispiel aus dem CAD-Programm, und leite daraus die Zeichnung ab. Maßeinheit ist Millimeter.</p>
- <div class="leiste"><button class="k voll" id="stlExport">STL exportieren</button>
+ <h2>CAD: FreeCAD und OpenSCAD</h2>
+ <p class="hinweis">Die Bauliste als <b>OpenSCAD-CSG</b>: Grundkörper mit Maßen und Booleschen Verknüpfungen, kein Netz. <b>FreeCAD</b> liest die Datei über <i>Datei → Importieren</i> (Dateityp „OpenSCAD CSG“) ohne Zusatzsoftware und macht daraus einen Part-Körper mit echten Zylindern und Kugeln; die OpenSCAD-Arbeitsbank von FreeCAD schreibt mit <i>Export CSG</i> denselben Typ zurück, den das Lab wieder lädt. OpenSCAD öffnet die Datei direkt. Gewinde stehen nur als Kommentar in der Datei.</p>
+ <div class="leiste"><button class="k voll" id="csgExport">CSG exportieren (.csg)</button>
+   <label class="k">CSG oder SCAD importieren <input type="file" id="csgImport" accept=".csg,.scad" style="display:none"></label></div>
+ <h2>Netze: STL und OBJ</h2>
+ <p class="hinweis">Für Slicer, Netzprogramme und zum Anschauen: STL (binär) und Wavefront OBJ. Importierte Netze werden Körper in der Bauliste, lassen sich verschieben, drehen und mit Grundkörpern verschneiden, aber nicht mehr in ihren Maßen ändern. Maßeinheit ist Millimeter.</p>
+ <div class="leiste"><button class="k voll" id="stlExport">STL exportieren</button><button class="k voll" id="objExport">OBJ exportieren</button>
    <label class="k">STL importieren <input type="file" id="stlImport" accept=".stl" style="display:none"></label>
-   <label class="klein"><input type="checkbox" id="stlErsetzen" checked> Bauliste dabei ersetzen</label></div>
+   <label class="k">OBJ importieren <input type="file" id="objImport" accept=".obj" style="display:none"></label>
+   <label class="klein"><input type="checkbox" id="stlErsetzen" checked> Bauliste beim Import ersetzen</label></div>
  <h2>Bauliste als Datei</h2>
  <p class="hinweis">Die Bauliste enthält die Körper mit ihren Maßen und lässt sich später weiterbearbeiten. Sie wird außerdem automatisch im Browser gespeichert.</p>
  <div class="leiste"><button class="k" id="jsonExport">Bauliste speichern</button>
@@ -569,6 +578,148 @@ function viewSignature(vw){const r=x=>Math.round(x*4);const parts=vw.segs.concat
 return {EPS,sub,add,mul,dot,cross,len,norm,lerp,Plane,Polygon,Node,csgUnion,csgSubtract,primBox,primCylinder,primSphere,primCone,primPrism,primRevolve,earClip,cleanProfile,rotatePoint,gewindeMasse,GEWINDE,triangles,volume,area,bbox,extractEdges,VIEWS,rasterDepth,computeView,computeViews,stlWrite,stlRead,polysFromTris,evaluate,viewSignature,ensureOutward};
 })();
 </script>
+<script id="cadio">
+// =============================================================================
+//  CAD-Austausch ohne DOM: OpenSCAD-CSG (liest FreeCAD ueber Datei > Importieren,
+//  schreibt die OpenSCAD-Werkbank), Wavefront OBJ. Baut auf K auf.
+//  CSG-Export schreibt die Bauliste als Baum aus union()/difference() mit
+//  multmatrix() und Grundkoerpern; der Import liest diese Teilmenge zurueck und
+//  faellt bei allem anderen (Skalierung, Spiegelung, fremde Drehungen) auf ein
+//  Netz (polyhedron) zurueck.
+// =============================================================================
+const CADIO=(function(){
+const {sub,add,mul,dot,cross,len,norm}=K;
+const f6=x=>{const r=Math.round(x*1e6)/1e6;return (Object.is(r,-0)?0:r).toString();};
+// ---- Matrizen 4x4 als Zeilen -------------------------------------------------
+const I4=()=>[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]];
+function mmul(A,B){const C=[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=A[i][k]*B[k][j];C[i][j]=s;}return C;}
+function mapply(M,p){return [M[0][0]*p[0]+M[0][1]*p[1]+M[0][2]*p[2]+M[0][3],M[1][0]*p[0]+M[1][1]*p[1]+M[1][2]*p[2]+M[1][3],M[2][0]*p[0]+M[2][1]*p[1]+M[2][2]*p[2]+M[2][3]];}
+function rot3(axis,deg){const a=deg*Math.PI/180,c=Math.cos(a),s=Math.sin(a);if(axis==='x')return [[1,0,0],[0,c,-s],[0,s,c]];if(axis==='y')return [[c,0,s],[0,1,0],[-s,0,c]];return [[c,-s,0],[s,c,0],[0,0,1]];}
+const RAX={z:[[1,0,0],[0,1,0],[0,0,1]],x:[[0,0,1],[1,0,0],[0,1,0]],y:[[0,1,0],[0,0,1],[1,0,0]]};   // Zylinder, Kegel, Rotationskoerper (zyklisch)
+const PAX={z:[[1,0,0],[0,1,0],[0,0,1]],x:[[0,0,1],[1,0,0],[0,1,0]],y:[[1,0,0],[0,0,1],[0,1,0]]};   // Prisma-Profilebene
+function m3mul(A,B){const C=[[0,0,0],[0,0,0],[0,0,0]];for(let i=0;i<3;i++)for(let j=0;j<3;j++){let s=0;for(let k=0;k<3;k++)s+=A[i][k]*B[k][j];C[i][j]=s;}return C;}
+const m3T=A=>[[A[0][0],A[1][0],A[2][0]],[A[0][1],A[1][1],A[2][1]],[A[0][2],A[1][2],A[2][2]]];
+function m4(R,t){return [[R[0][0],R[0][1],R[0][2],t[0]],[R[1][0],R[1][1],R[1][2],t[1]],[R[2][0],R[2][1],R[2][2],t[2]],[0,0,0,1]];}
+function bodyMatrix(b,frame){const R=b.rot&&b.rot.deg?rot3(b.rot.axis||'z',b.rot.deg):[[1,0,0],[0,1,0],[0,0,1]];return m4(m3mul(R,frame),b.pos);}
+// ---- CSG schreiben ---------------------------------------------------------
+function csgShape(b){
+  const n=b.n||64;
+  if(b.type==='box')return `cube(size=[${f6(b.lx)}, ${f6(b.ly)}, ${f6(b.lz)}], center=true);`;
+  if(b.type==='cyl'){const d=(b.gewinde&&b.op==='sub')?K.gewindeMasse(b.d).dk:b.d;return `cylinder(h=${f6(b.h)}, r1=${f6(d/2)}, r2=${f6(d/2)}, center=true, $fn=${n});`;}
+  if(b.type==='cone')return `cylinder(h=${f6(b.h)}, r1=${f6(b.d1/2)}, r2=${f6(b.d2/2)}, center=true, $fn=64);`;
+  if(b.type==='sphere')return `sphere(r=${f6(b.d/2)}, $fn=32);`;
+  if(b.type==='prism'){const P=K.cleanProfile(b.pts||[]);return `linear_extrude(height=${f6(b.h)}, center=true, convexity=4) polygon(points=[${P.map(p=>'['+f6(p[0])+', '+f6(p[1])+']').join(', ')}]);`;}
+  if(b.type==='revolve'){const P=K.cleanProfile(b.prof||[]).map(p=>[Math.max(0,p[0]),p[1]]);return `rotate_extrude($fn=64) polygon(points=[${P.map(p=>'['+f6(p[0])+', '+f6(p[1])+']').join(', ')}]);`;}
+  if(b.type==='stl'){const pts=[],idx=new Map(),faces=[];const key=p=>p.map(x=>Math.round(x*1e5)).join(',');
+    for(const t of b.tris){const f=[];for(const p of t){const k=key(p);let i=idx.get(k);if(i==null){i=pts.length;idx.set(k,i);pts.push(p);}f.push(i);}faces.push(f);}
+    return `polyhedron(points=[${pts.map(p=>'['+p.map(f6).join(', ')+']').join(', ')}], faces=[${faces.map(f=>'['+f.join(', ')+']').join(', ')}], convexity=10);`;}
+  return '';
+}
+function csgPrim(b,ind){const frame=b.type==='prism'?PAX[b.axis||'z']:(b.type==='cyl'||b.type==='cone'||b.type==='revolve')?RAX[b.axis||'z']:RAX.z;const M=bodyMatrix(b,frame);
+  const rows=M.slice(0,3).map(r=>'['+r.map(f6).join(', ')+']').join(', ')+', [0, 0, 0, 1]';
+  const g=b.gewinde?` // Gewinde M${f6(b.d)}${b.op==='sub'?', als Kernloch gebohrt':''}`:'';
+  return `${ind}// name: ${b.name||''}${g}\n${ind}multmatrix([${rows}]) {\n${ind}  ${csgShape(b)}\n${ind}}\n`;}
+function csgWrite(bodies){
+  let tree=null;for(const b of bodies){const has=b.type==='stl'?(b.tris&&b.tris.length):true;if(!has)continue;
+    if(tree===null){if(b.op==='sub')continue;tree={prim:b};}else tree={op:b.op==='sub'?'difference':'union',a:tree,b:{prim:b}};}
+  const emit=(t,ind)=>t.prim?csgPrim(t.prim,ind):`${ind}${t.op}() {\n${emit(t.a,ind+'  ')}${emit(t.b,ind+'  ')}${ind}}\n`;
+  return '// Technisches-Zeichnen-Lab, Einheit mm. OpenSCAD-CSG: in FreeCAD ueber Datei > Importieren (OpenSCAD CSG *.csg),\n// in OpenSCAD direkt als .scad. Zylinder mit $fn Ecken, Gewinde nur als Kommentar.\n'+(tree?emit(tree,''):'');
+}
+// ---- CSG lesen ---------------------------------------------------------------
+function tokenize(src){const toks=[];let i=0;const n=src.length;
+  while(i<n){const ch=src[i];
+    if(/\s/.test(ch)){i++;continue;}
+    if(ch==='/'&&src[i+1]==='/'){let j=src.indexOf('\n',i);if(j<0)j=n;const m=/^name:\s*(.*)$/.exec(src.slice(i+2,j).trim());if(m)toks.push({t:'name',v:m[1].replace(/\s*\/\/.*$/,'').trim()});i=j;continue;}
+    if(ch==='/'&&src[i+1]==='*'){const j=src.indexOf('*/',i+2);i=j<0?n:j+2;continue;}
+    if(/[A-Za-z_$]/.test(ch)){let j=i;while(j<n&&/[A-Za-z0-9_$]/.test(src[j]))j++;toks.push({t:'id',v:src.slice(i,j)});i=j;continue;}
+    const m=/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?/.exec(src.slice(i,i+40));if(m&&/[0-9.\-+]/.test(ch)&&m[0].length){toks.push({t:'num',v:parseFloat(m[0])});i+=m[0].length;continue;}
+    if(ch==='"'){let j=i+1;while(j<n&&src[j]!=='"'){if(src[j]==='\\')j++;j++;}toks.push({t:'str',v:src.slice(i+1,j)});i=j+1;continue;}
+    if('(){}[],;='.includes(ch)){toks.push({t:'p',v:ch});i++;continue;}
+    i++;}
+  return toks;}
+function parse(src){const T=tokenize(src);let p=0;const peek=()=>T[p],eat=(v)=>{const t=T[p];if(v!=null&&(!t||t.v!==v))throw new Error('erwartet '+v+' bei Token '+p);p++;return t;};
+  function value(){const t=peek();if(!t)throw new Error('unerwartetes Ende');if(t.t==='num'){p++;return t.v;}if(t.t==='str'){p++;return t.v;}if(t.t==='id'){p++;return t.v==='true'?true:t.v==='false'?false:t.v==='undef'?null:t.v;}
+    if(t.v==='['){p++;const a=[];while(peek()&&peek().v!==']'){a.push(value());if(peek()&&peek().v===',')p++;}eat(']');return a;}throw new Error('unerwartet: '+t.v);}
+  function args(){const pos=[],named={};eat('(');while(peek()&&peek().v!==')'){const t=peek();if(t.t==='id'&&T[p+1]&&T[p+1].v==='='){p+=2;named[t.v]=value();}else pos.push(value());if(peek()&&peek().v===',')p++;}eat(')');return {pos,named};}
+  function statement(pending){const t=peek();if(!t)return null;if(t.t==='name'){p++;return statement(t.v);}
+    if(t.t==='p'&&t.v===';'){p++;return null;}
+    if(t.t!=='id')throw new Error('unerwartet: '+t.v);p++;const node={name:t.v,args:{pos:[],named:{}},children:[],label:pending};
+    if(peek()&&peek().v==='(')node.args=args();
+    if(peek()&&peek().v===';'){p++;return node;}
+    if(peek()&&peek().v==='{'){p++;while(peek()&&peek().v!=='}'){const c=statement();if(c)node.children.push(c);}eat('}');return node;}
+    const c=statement();if(c)node.children.push(c);return node;}
+  const nodes=[];while(p<T.length){const s=statement();if(s)nodes.push(s);}return nodes;}
+function singleAxisRot(R){const near=(a,b)=>Math.abs(a-b)<1e-5;const isId=R.every((r,i)=>r.every((x,j)=>near(x,i===j?1:0)));if(isId)return {axis:'z',deg:0};
+  const cand=[['x',Math.atan2(R[2][1],R[1][1])],['y',Math.atan2(R[0][2],R[0][0])],['z',Math.atan2(R[1][0],R[0][0])]];
+  for(const [ax,th] of cand){const S=rot3(ax,th*180/Math.PI);if(S.every((r,i)=>r.every((x,j)=>near(x,R[i][j]))))return {axis:ax,deg:Math.round(th*180/Math.PI*1000)/1000};}return null;}
+function orthonormal(R){const near=(a,b)=>Math.abs(a-b)<1e-5;const RtR=m3mul(m3T(R),R);const ok=RtR.every((r,i)=>r.every((x,j)=>near(x,i===j?1:0)));const det=R[0][0]*(R[1][1]*R[2][2]-R[1][2]*R[2][1])-R[0][1]*(R[1][0]*R[2][2]-R[1][2]*R[2][0])+R[0][2]*(R[1][0]*R[2][1]-R[1][1]*R[2][0]);return ok&&near(det,1);}
+function csgRead(src){
+  const nodes=parse(src);const out=[],warn=[];let zaehler=0;
+  const num=(a,k,i,d)=>{if(a.named[k]!=null)return a.named[k];if(i!=null&&a.pos[i]!=null)return a.pos[i];return d;};
+  const R3=M=>[[M[0][0],M[0][1],M[0][2]],[M[1][0],M[1][1],M[1][2]],[M[2][0],M[2][1],M[2][2]]];
+  function meshBody(polys,M,label,mode){const tris=K.triangles(polys).map(t=>t.map(p=>mapply(M,p)));if(!tris.length)return;out.push({type:'stl',op:mode,pos:[0,0,0],tris,name:label||('Netz '+(++zaehler))});}
+  function param(base,M,frames,cLoc,label,mode,mesh){const R=R3(M);const treffer=[];const symm=base.type==='cyl'||base.type==='cone'||base.type==='revolve';
+    for(const [axis,F] of frames){const Rb=m3mul(R,m3T(F));if(!orthonormal(Rb))continue;let rot=singleAxisRot(Rb);if(!rot)continue;
+      if(symm&&rot.axis===axis)rot={axis,deg:0};   // Drehung um die eigene Achse ist bei runden Körpern ohne Wirkung
+      treffer.push({axis,rot});}
+    // Achse ohne Restdrehung bevorzugen
+    const best=treffer.find(t=>!t.rot.deg)||treffer[0];
+    if(best){const b=Object.assign({},base,{op:mode,pos:mapply(M,cLoc),axis:best.axis});if(best.rot.deg)b.rot=best.rot;if(label)b.name=label;out.push(b);return;}
+    warn.push((label||base.type)+': Drehung oder Verzerrung nicht als Grundkörper darstellbar, als Netz übernommen');meshBody(mesh(),M,label,mode);}
+  function polyPoints(node){if(!node)return null;if(node.name==='polygon'){const pts=node.args.named.points||node.args.pos[0];const paths=node.args.named.paths;if(!Array.isArray(pts))return null;if(Array.isArray(paths)&&Array.isArray(paths[0]))return paths[0].map(i=>pts[i]);return pts;}
+    if(node.name==='square'){let s=node.args.named.size!=null?node.args.named.size:(node.args.pos[0]!=null?node.args.pos[0]:1);if(!Array.isArray(s))s=[s,s];const c=node.args.named.center===true;const o=c?[-s[0]/2,-s[1]/2]:[0,0];return [[o[0],o[1]],[o[0]+s[0],o[1]],[o[0]+s[0],o[1]+s[1]],[o[0],o[1]+s[1]]];}
+    if(node.name==='circle'){const r=node.args.named.r!=null?node.args.named.r:(node.args.named.d!=null?node.args.named.d/2:(node.args.pos[0]!=null?node.args.pos[0]:1));const n=Math.max(3,Math.min(128,Math.round(node.args.named.$fn||64)));const pts=[];for(let i=0;i<n;i++)pts.push([r*Math.cos(i/n*2*Math.PI),r*Math.sin(i/n*2*Math.PI)]);return pts;}
+    return null;}
+  function leaf(node,M,mode){const a=node.args,label=node.label;
+    if(node.name==='cube'){let s=num(a,'size',0,1);if(!Array.isArray(s))s=[s,s,s];const c=a.named.center===true;const cLoc=c?[0,0,0]:[s[0]/2,s[1]/2,s[2]/2];
+      param({type:'box',lx:s[0],ly:s[1],lz:s[2]},M,[['z',RAX.z]],cLoc,label,mode,()=>K.primBox(cLoc,s));return;}
+    if(node.name==='cylinder'){const h=num(a,'h',0,1);let r1=a.named.r1,r2=a.named.r2;const r=a.named.r!=null?a.named.r:(a.named.d!=null?a.named.d/2:(a.pos[1]!=null?a.pos[1]:null));if(a.named.d1!=null)r1=a.named.d1/2;if(a.named.d2!=null)r2=a.named.d2/2;if(r1==null)r1=r!=null?r:1;if(r2==null)r2=r!=null?r:1;
+      const c=a.named.center===true;const cLoc=[0,0,c?0:h/2];const fn=a.named.$fn?Math.round(a.named.$fn):64;const frames=[['z',RAX.z],['x',RAX.x],['y',RAX.y]];
+      if(Math.abs(r1-r2)<1e-9)param({type:'cyl',d:2*r1,h,n:Math.max(3,Math.min(128,fn))},M,frames,cLoc,label,mode,()=>K.primCylinder(cLoc,2*r1,h,'z',Math.max(3,Math.min(128,fn))));
+      else param({type:'cone',d1:2*r1,d2:2*r2,h},M,frames,cLoc,label,mode,()=>K.primCone(cLoc,2*r1,2*r2,h,'z'));return;}
+    if(node.name==='sphere'){const r=a.named.r!=null?a.named.r:(a.named.d!=null?a.named.d/2:(a.pos[0]!=null?a.pos[0]:1));const R=R3(M);
+      if(orthonormal(R)){const b={type:'sphere',op:mode,pos:mapply(M,[0,0,0]),d:2*r};if(label)b.name=label;out.push(b);}else{warn.push((label||'Kugel')+': verzerrt, als Netz übernommen');meshBody(K.primSphere([0,0,0],2*r),M,label,mode);}return;}
+    if(node.name==='linear_extrude'){const h=num(a,'height',0,a.named.h!=null?a.named.h:1);const c=a.named.center===true;const pts=polyPoints(node.children[0]);if(!pts){warn.push('linear_extrude ohne polygon/square/circle übersprungen');return;}
+      if(a.named.twist||a.named.scale!=null){warn.push((label||'Prisma')+': twist/scale nicht unterstützt, ignoriert');}
+      const cLoc=[0,0,c?0:h/2];param({type:'prism',h,pts:pts.map(p=>[p[0],p[1]])},M,[['z',PAX.z],['x',PAX.x],['y',PAX.y]],cLoc,label,mode,()=>K.primPrism(cLoc,pts,h,'z'));return;}
+    if(node.name==='rotate_extrude'){const pts=polyPoints(node.children[0]);if(!pts){warn.push('rotate_extrude ohne polygon übersprungen');return;}if(a.named.angle!=null&&Math.abs(a.named.angle-360)>1e-6)warn.push((label||'Rotationskörper')+': Teilwinkel nicht unterstützt, als 360° gelesen');
+      param({type:'revolve',prof:pts.map(p=>[Math.max(0,p[0]),p[1]])},M,[['z',RAX.z],['x',RAX.x],['y',RAX.y]],[0,0,0],label,mode,()=>K.primRevolve([0,0,0],pts,'z',64));return;}
+    if(node.name==='polyhedron'){const pts=a.named.points||a.pos[0];const faces=a.named.faces||a.named.triangles||a.pos[1];if(!Array.isArray(pts)||!Array.isArray(faces)){warn.push('polyhedron unvollständig');return;}
+      const tris=[];for(const f of faces){for(let i=1;i<f.length-1;i++){const t=[pts[f[0]],pts[f[i]],pts[f[i+1]]];if(t.every(p=>Array.isArray(p)&&p.length===3))tris.push(t.map(p=>mapply(M,p)));}}
+      // OpenSCAD-Polyeder sind von aussen im Uhrzeigersinn: umdrehen
+      const flipped=tris.map(t=>[t[0],t[2],t[1]]);const polys=K.ensureOutward(K.polysFromTris(flipped));if(polys.length)out.push({type:'stl',op:mode,pos:[0,0,0],tris:K.triangles(polys),name:label||('Netz '+(++zaehler))});return;}
+    warn.push('unbekannt: '+node.name+'()');}
+  function walk(node,M,mode){const a=node.args;
+    if(node.label)for(const c of node.children)if(!c.label)c.label=node.label;   // Name vom Transformknoten an den Grundkörper weiterreichen
+    switch(node.name){
+      case 'union':case 'group':case 'render':case 'color':case 'offset':case 'minkowski':case 'hull':
+        if(node.name==='hull'||node.name==='minkowski'||node.name==='offset')warn.push(node.name+'() nicht unterstützt, Kinder einzeln übernommen');
+        node.children.forEach(c=>walk(c,M,mode));break;
+      case 'difference':if(mode==='sub'&&node.children.length>1)warn.push('difference() innerhalb eines Ausschnitts vereinfacht');node.children.forEach((c,i)=>walk(c,M,i===0?mode:(mode==='add'?'sub':'add')));break;
+      case 'intersection':warn.push('intersection() nicht unterstützt, nur das erste Kind übernommen');if(node.children[0])walk(node.children[0],M,mode);break;
+      case 'multmatrix':{const m=a.pos[0]||a.named.m;if(!Array.isArray(m)||m.length<3){warn.push('multmatrix unlesbar');return;}const N=[m[0].slice(0,4),m[1].slice(0,4),m[2].slice(0,4),[0,0,0,1]];node.children.forEach(c=>walk(c,mmul(M,N),mode));break;}
+      case 'translate':{let v=a.pos[0]||a.named.v||[0,0,0];if(!Array.isArray(v))v=[0,0,0];while(v.length<3)v.push(0);node.children.forEach(c=>walk(c,mmul(M,m4([[1,0,0],[0,1,0],[0,0,1]],v)),mode));break;}
+      case 'rotate':{let v=a.pos[0]!=null?a.pos[0]:(a.named.a!=null?a.named.a:0);let R;if(Array.isArray(v)){while(v.length<3)v.push(0);R=m3mul(rot3('z',v[2]),m3mul(rot3('y',v[1]),rot3('x',v[0])));}else{const ax=a.named.v||a.pos[1];if(Array.isArray(ax)){const u=norm(ax),th=v*Math.PI/180,c=Math.cos(th),s=Math.sin(th),t=1-c;R=[[t*u[0]*u[0]+c,t*u[0]*u[1]-s*u[2],t*u[0]*u[2]+s*u[1]],[t*u[0]*u[1]+s*u[2],t*u[1]*u[1]+c,t*u[1]*u[2]-s*u[0]],[t*u[0]*u[2]-s*u[1],t*u[1]*u[2]+s*u[0],t*u[2]*u[2]+c]];}else R=rot3('z',v);}
+        node.children.forEach(c=>walk(c,mmul(M,m4(R,[0,0,0])),mode));break;}
+      case 'scale':{let v=a.pos[0]||a.named.v||1;if(!Array.isArray(v))v=[v,v,v];node.children.forEach(c=>walk(c,mmul(M,m4([[v[0],0,0],[0,v[1],0],[0,0,v[2]]],[0,0,0])),mode));break;}
+      case 'mirror':{const nv=norm(a.pos[0]||a.named.v||[1,0,0]);const R=[[1-2*nv[0]*nv[0],-2*nv[0]*nv[1],-2*nv[0]*nv[2]],[-2*nv[1]*nv[0],1-2*nv[1]*nv[1],-2*nv[1]*nv[2]],[-2*nv[2]*nv[0],-2*nv[2]*nv[1],1-2*nv[2]*nv[2]]];node.children.forEach(c=>walk(c,mmul(M,m4(R,[0,0,0])),mode));break;}
+      case 'projection':case 'import':case 'surface':case 'text':warn.push(node.name+'() nicht unterstützt, übersprungen');break;
+      default:leaf(node,M,mode);}
+  }
+  nodes.forEach(n=>walk(n,I4(),'add'));
+  while(out.length&&out[0].op==='sub'){warn.push('führender Ausschnitt ohne Rohling verworfen');out.shift();}
+  return {bodies:out,warnings:Array.from(new Set(warn))};
+}
+// ---- OBJ ---------------------------------------------------------------------
+function objWrite(tris){const pts=[],idx=new Map();const lines=['# Technisches-Zeichnen-Lab, Einheit mm'];const key=p=>p.map(x=>Math.round(x*1e5)).join(',');const faces=[];
+  for(const t of tris){const f=[];for(const p of t){const k=key(p);let i=idx.get(k);if(i==null){i=pts.length;idx.set(k,i);pts.push(p);}f.push(i+1);}faces.push(f);}
+  for(const p of pts)lines.push('v '+p.map(f6).join(' '));for(const f of faces)lines.push('f '+f.join(' '));return lines.join('\n')+'\n';}
+function objRead(text){const v=[],tris=[];for(const raw of text.split(/\r?\n/)){const line=raw.trim();if(line.startsWith('v ')){const a=line.slice(2).trim().split(/\s+/).map(Number);if(a.length>=3)v.push([a[0],a[1],a[2]]);}
+    else if(line.startsWith('f ')){const ids=line.slice(2).trim().split(/\s+/).map(s=>{const i=parseInt(s.split('/')[0],10);return i<0?v.length+i:i-1;}).filter(i=>i>=0&&i<v.length);for(let i=1;i<ids.length-1;i++)tris.push([v[ids[0]],v[ids[i]],v[ids[i+1]]]);}}
+  return tris;}
+return {csgWrite,csgRead,objWrite,objRead,parse,tokenize};
+})();
+</script>
 <script>
 // =============================================================================
 //  Oberfläche, Teil 1: Zustand, Bauliste, Verlauf (Rückgängig), Auswertung,
@@ -644,7 +795,8 @@ function renderListe(){
       felder+=`<label class="breit">Punkte (${ebene(b.type,b.axis||'z')}) relativ zur Position, je Punkt „${b.type==='revolve'?'r z':'a b'}“, getrennt durch ; <textarea data-f="${b.type==='prism'?'pts':'prof'}" rows="2">${pointsText(b.type==='prism'?b.pts:b.prof)}</textarea></label>`;}
     else felder+=`<span class="klein">${b.tris.length} Dreiecke</span>`;
     felder+=`<span class="trenner"></span><label>Drehung um ${achseSel('rotAxis',b.rot&&b.rot.axis)}</label>`+num('rotDeg','Winkel in °',b.rot?b.rot.deg:0);
-    k.innerHTML=`<div class="karte-kopf"><strong>${b.name}</strong>${opSel}<span class="kn"><button data-a="up" title="nach oben">▲</button><button data-a="down" title="nach unten">▼</button><button data-a="dup" title="kopieren">⧉</button><button data-a="del" title="löschen">✕</button></span></div><div class="felder">${felder}</div>`;
+    const nameEsc=String(b.name).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    k.innerHTML=`<div class="karte-kopf"><input class="name" data-f="name" value="${nameEsc}" title="Name ändern">${opSel}<span class="kn"><button data-a="up" title="nach oben">▲</button><button data-a="down" title="nach unten">▼</button><button data-a="dup" title="kopieren">⧉</button><button data-a="del" title="löschen">✕</button></span></div><div class="felder">${felder}</div>`;
     el.appendChild(k);
   });
   if(!state.bodies.length)el.innerHTML='<p class="klein">Noch kein Körper. Füge einen Grundkörper hinzu oder lade ein Beispiel.</p>';
@@ -652,6 +804,7 @@ function renderListe(){
 let rebuildTimer=null;
 function scheduleRebuild(){clearTimeout(rebuildTimer);rebuildTimer=setTimeout(()=>rebuild(),300);}
 $('bauliste').addEventListener('input',e=>{const k=e.target.closest('.karte');if(!k)return;const b=state.bodies.find(x=>x.id==k.dataset.id);const f=e.target.dataset.f;if(!b||!f)return;
+  if(f==='name'){b.name=e.target.value.trim()||TYPNAME[b.type]+' '+b.id;return;}
   if(e.target.tagName==='TEXTAREA'){const pts=parsePoints(e.target.value);if(pts.length>=3){b[f]=pts;scheduleRebuild();}return;}
   if(e.target.type==='checkbox'){b[f]=e.target.checked;renderListe();rebuild();return;}
   if(e.target.tagName==='SELECT'){
@@ -665,6 +818,7 @@ $('bauliste').addEventListener('input',e=>{const k=e.target.closest('.karte');if
   else if(f==='d1'||f==='d2')b[f]=Math.max(0,v);
   else b[f]=Math.max(0.1,v);
   scheduleRebuild();});
+$('bauliste').addEventListener('change',e=>{if(e.target.dataset.f==='name'){save();snapshot();}});
 $('bauliste').addEventListener('click',e=>{const btn=e.target.closest('button[data-a]');if(!btn)return;const k=btn.closest('.karte');const i=state.bodies.findIndex(x=>x.id==k.dataset.id);if(i<0)return;const a=btn.dataset.a;
   if(a==='del')state.bodies.splice(i,1);
   else if(a==='up'&&i>0){[state.bodies[i-1],state.bodies[i]]=[state.bodies[i],state.bodies[i-1]];}
@@ -1032,6 +1186,11 @@ $('stlImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)ret
   const b={type:'stl',op:'add',pos:[0,0,0],tris,name:'STL: '+f.name};
   if($('stlErsetzen').checked)TZ.loadBodies([b]);else TZ.addBody(b);
   TZ.renderListe();TZ.rebuild();$('dateiMeldung').textContent=f.name+': '+tris.length+' Dreiecke geladen.';}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsArrayBuffer(f);});
+function importBodies(list,name){if(!list.length)throw new Error('keine Körper gefunden');if($('stlErsetzen').checked)TZ.loadBodies(list);else for(const b of list)TZ.addBody(b);TZ.renderListe();TZ.rebuild();}
+$('csgExport').addEventListener('click',()=>{if(!TZ.state.bodies.length){$('dateiMeldung').textContent='Keine Bauliste zum Exportieren.';return;}download(new Blob([CADIO.csgWrite(TZ.state.bodies)],{type:'text/plain'}),'koerper.csg');$('dateiMeldung').textContent='CSG geschrieben. In FreeCAD: Datei → Importieren, Dateityp OpenSCAD CSG.';});
+$('csgImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const r=CADIO.csgRead(rd.result);importBodies(r.bodies,f.name);$('dateiMeldung').textContent=f.name+': '+r.bodies.length+' Körper geladen.'+(r.warnings.length?' Hinweise: '+r.warnings.join(' · '):'');}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsText(f);});
+$('objExport').addEventListener('click',()=>{const m=TZ.getModel();if(!m||!m.tris.length){$('dateiMeldung').textContent='Kein Körper zum Exportieren.';return;}download(new Blob([CADIO.objWrite(m.tris)],{type:'text/plain'}),'koerper.obj');$('dateiMeldung').textContent='OBJ mit '+m.tris.length+' Dreiecken geschrieben.';});
+$('objImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const tris=CADIO.objRead(rd.result);importBodies([{type:'stl',op:'add',pos:[0,0,0],tris,name:'OBJ: '+f.name}],f.name);$('dateiMeldung').textContent=f.name+': '+tris.length+' Dreiecke geladen.';}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsText(f);});
 $('jsonExport').addEventListener('click',()=>{download(new Blob([JSON.stringify({format:'tzlab-bauliste',bodies:TZ.state.bodies,rho:TZ.state.rho})],{type:'application/json'}),'bauliste.json');});
 $('jsonImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const s=JSON.parse(rd.result);if(!s||!Array.isArray(s.bodies))throw new Error('keine Bauliste');TZ.loadBodies(s.bodies);TZ.renderListe();TZ.rebuild();$('dateiMeldung').textContent=f.name+' geladen.';}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsText(f);});
 $('alleLoeschen').addEventListener('click',()=>{TZ.loadBodies([]);TZ.renderListe();TZ.rebuild();$('dateiMeldung').textContent='Bauliste geleert.';});
