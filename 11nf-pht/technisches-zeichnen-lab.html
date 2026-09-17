@@ -39,6 +39,9 @@ button.k.voll{background:var(--stahl);color:#fff;border-color:var(--stahl)}
 .felder label{font-size:.8rem;color:var(--label);display:flex;flex-direction:column;gap:2px}
 .felder input,.felder select{font:inherit;font-size:.9rem;width:5.2em;padding:3px 5px;border:1px solid var(--grau);border-radius:4px}
 .felder select{width:auto}
+.felder textarea{font:inherit;font-size:.85rem;font-family:ui-monospace,Consolas,monospace;width:100%;min-height:3.2em;padding:3px 5px;border:1px solid var(--grau);border-radius:4px;resize:vertical}
+.felder label.breit{flex:1 1 100%}
+.felder .trenner{flex:1 1 100%;height:0;border-top:1px dashed var(--grau);margin:2px 0}
 canvas.flaeche{width:100%;display:block;border:1px solid var(--grau);border-radius:6px;background:#fff;touch-action:none}
 .kennzahlen{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:10px 0}
 .kennzahl{border:1px solid var(--grau);border-radius:6px;padding:6px 10px;background:var(--kopfblau)}
@@ -78,21 +81,37 @@ input[type=file]{font:inherit;font-size:.9rem}
  <div class="zweispaltig">
   <div>
    <h2>Bauliste</h2>
-   <p class="hinweis">Baue einen Körper aus Quadern, Zylindern und Kugeln. Der erste Körper ist der Rohling. Jeder weitere wird <b>hinzugefügt</b> oder <b>ausgeschnitten</b>, in der Reihenfolge der Liste.</p>
+   <p class="hinweis">Baue einen Körper aus Grundkörpern. Der erste ist der Rohling. Jeder weitere wird <b>hinzugefügt</b> oder <b>ausgeschnitten</b>, in der Reihenfolge der Liste. Jeder Körper lässt sich um eine Achse drehen.</p>
    <div class="leiste">
+     <span class="klein">Körper:</span>
      <button class="k" data-neu="box">+ Quader</button>
      <button class="k" data-neu="cyl">+ Zylinder</button>
+     <button class="k" data-neu="cone">+ Kegelstumpf</button>
      <button class="k" data-neu="sphere">+ Kugel</button>
-     <button class="k" data-neu="bohrung">+ Bohrung</button>
-     <button class="k" data-neu="nut">+ Nut</button>
+     <button class="k" data-neu="prism">+ Vieleck-Prisma</button>
+     <button class="k" data-neu="revolve">+ Rotationskörper</button>
    </div>
    <div class="leiste">
-     <label class="klein">Beispiel laden:</label>
+     <span class="klein">Fertig zusammengesetzt:</span>
+     <button class="k" data-neu="bohrung">+ Bohrung</button>
+     <button class="k" data-neu="senkbohrung">+ Senkbohrung</button>
+     <button class="k" data-neu="nut">+ Nut</button>
+     <button class="k" data-neu="langloch">+ Langloch</button>
+     <button class="k" data-neu="rohr">+ Rohr</button>
+   </div>
+   <div class="leiste">
+     <button class="k" id="histBack" title="Rückgängig (Strg+Z)">◀ Rückgängig</button>
+     <button class="k" id="histFwd" title="Wiederholen (Strg+Y)">Wiederholen ▶</button>
+     <label class="klein">Beispiel:</label>
      <select id="preset">
        <option value="">bitte wählen</option>
        <option value="platte">Platte mit Bohrung</option>
+       <option value="senkbohrung">Platte mit Senkbohrung</option>
        <option value="nut">Klotz mit Nut</option>
+       <option value="schwalbenschwanz">Klotz mit Schwalbenschwanznut</option>
        <option value="welle">Welle mit Bund</option>
+       <option value="welle2">Abgesetzte Welle (Rotationskörper)</option>
+       <option value="sechskant">Sechskantschraube</option>
        <option value="sackloch">Klotz mit Sackloch</option>
        <option value="zugprobe">Flachzugprobe</option>
        <option value="kugel">Kugel mit Bohrung</option>
@@ -273,6 +292,61 @@ function primSphere(c,d,slices,stacks){
   return ensureOutward(polys);
 }
 function ensureOutward(polys){if(volume(triangles(polys))<0){for(const p of polys)p.flip();}return polys;}
+// Kegelstumpf: d1 unten, d2 oben; 0 = Spitze
+function primCone(c,d1,d2,h,axis,N){
+  N=N||64;const r1=d1/2,r2=d2/2,map=axisMap(axis);const apexB=r1<1e-6,apexT=r2<1e-6;if(apexB&&apexT)return [];
+  const pt=(i,r,z)=>{const a=i/N*2*Math.PI;return add(map([r*Math.cos(a),r*Math.sin(a),z]),c);};
+  const polys=[],top=[],bot=[];
+  for(let i=0;i<N;i++){const v=[];
+    if(apexB)v.push(pt(0,0,-h/2));else{v.push(pt(i,r1,-h/2));v.push(pt(i+1,r1,-h/2));}
+    if(apexT)v.push(pt(0,0,h/2));else{v.push(pt(i+1,r2,h/2));v.push(pt(i,r2,h/2));}
+    polys.push(new Polygon(v));if(!apexT)top.push(pt(i,r2,h/2));if(!apexB)bot.push(pt(i,r1,-h/2));}
+  if(top.length)polys.push(new Polygon(top));if(bot.length)polys.push(new Polygon(bot.reverse()));
+  return polys;
+}
+// Profilebene je Achse: Extrusion entlang z: Profil (x,y); entlang x: Profil (y,z); entlang y: Profil (x,z)
+function profilMap(axis){return axis==='x'?(p=>[p[2],p[0],p[1]]):axis==='y'?(p=>[p[0],p[2],p[1]]):(p=>p);}
+// Ohr-Abschneiden: einfaches Vieleck (auch nicht konvex, gegen den Uhrzeigersinn) -> Dreiecke als Indizes
+function earClip(pts){
+  const idx=pts.map((p,i)=>i);const tris=[];const a2=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  const inTri=(p,a,b,c)=>a2(a,b,p)>=-1e-9&&a2(b,c,p)>=-1e-9&&a2(c,a,p)>=-1e-9;let guard=0;
+  while(idx.length>3&&guard++<5000){let cut=false;
+    for(let i=0;i<idx.length;i++){const ia=idx[(i+idx.length-1)%idx.length],ib=idx[i],ic=idx[(i+1)%idx.length];const a=pts[ia],b=pts[ib],c=pts[ic];
+      if(a2(a,b,c)<=1e-9)continue;let ok=true;
+      for(const j of idx){if(j===ia||j===ib||j===ic)continue;if(inTri(pts[j],a,b,c)){ok=false;break;}}
+      if(!ok)continue;tris.push([ia,ib,ic]);idx.splice(i,1);cut=true;break;}
+    if(!cut)break;}
+  if(idx.length===3)tris.push([idx[0],idx[1],idx[2]]);return tris;
+}
+function cleanProfile(pts){const out=[];for(const p of pts){if(!p||p.length<2||!isFinite(p[0])||!isFinite(p[1]))continue;const q=out[out.length-1];if(q&&Math.abs(q[0]-p[0])<1e-9&&Math.abs(q[1]-p[1])<1e-9)continue;out.push([p[0],p[1]]);}
+  if(out.length>1){const f=out[0],l=out[out.length-1];if(Math.abs(f[0]-l[0])<1e-9&&Math.abs(f[1]-l[1])<1e-9)out.pop();}return out;}
+// Prisma: Vieleck (Profilkoordinaten relativ zur Position) um die Länge h entlang der Achse gezogen
+function primPrism(c,pts,h,axis,grow){
+  const P0=cleanProfile(pts||[]);if(P0.length<3)return [];
+  let area=0;for(let i=0;i<P0.length;i++){const p=P0[i],q=P0[(i+1)%P0.length];area+=p[0]*q[1]-q[0]*p[1];}
+  let P=area<0?P0.slice().reverse():P0;
+  if(grow){let cu=0,cv=0;for(const p of P){cu+=p[0];cv+=p[1];}cu/=P.length;cv/=P.length;P=P.map(p=>[cu+(p[0]-cu)*(1+grow),cv+(p[1]-cv)*(1+grow)]);}
+  const map=profilMap(axis);const pt=(p,w)=>add(map([p[0],p[1],w]),c);const polys=[];const n=P.length;
+  for(let i=0;i<n;i++){const p=P[i],q=P[(i+1)%n];polys.push(new Polygon([pt(p,-h/2),pt(q,-h/2),pt(q,h/2),pt(p,h/2)]));}
+  for(const t of earClip(P)){polys.push(new Polygon([pt(P[t[0]],h/2),pt(P[t[1]],h/2),pt(P[t[2]],h/2)]));polys.push(new Polygon([pt(P[t[2]],-h/2),pt(P[t[1]],-h/2),pt(P[t[0]],-h/2)]));}
+  return ensureOutward(polys);
+}
+// Rotationskörper: geschlossenes Profil (r, z) um die Achse gedreht; Punkte mit r = 0 liegen auf der Achse
+function primRevolve(c,prof,axis,N,grow){
+  N=N||64;const P=cleanProfile(prof||[]).map(p=>[Math.max(0,p[0]),p[1]]);if(P.length<3)return [];
+  let Q=P;if(grow){let cz=0;for(const p of P)cz+=p[1];cz/=P.length;Q=P.map(p=>[p[0]*(1+grow),cz+(p[1]-cz)*(1+grow)]);}
+  const map=axisMap(axis);const pt=(i,r,z)=>{const a=i/N*2*Math.PI;return add(map([r*Math.cos(a),r*Math.sin(a),z]),c);};const polys=[];const n=Q.length;
+  for(let k=0;k<n;k++){const p=Q[k],q=Q[(k+1)%n];const r1=p[0],r2=q[0];if(r1<1e-6&&r2<1e-6)continue;
+    for(let i=0;i<N;i++){const v=[];
+      if(r1<1e-6)v.push(pt(0,0,p[1]));else{v.push(pt(i,r1,p[1]));v.push(pt(i+1,r1,p[1]));}
+      if(r2<1e-6)v.push(pt(0,0,q[1]));else{v.push(pt(i+1,r2,q[1]));v.push(pt(i,r2,q[1]));}
+      polys.push(new Polygon(v));}}
+  return ensureOutward(polys);
+}
+// Drehung um eine Achse durch den Punkt c (Winkel in Grad)
+function rotatePoint(p,c,axis,deg){if(!deg)return p;const a=deg*Math.PI/180,s=Math.sin(a),co=Math.cos(a);const d=sub(p,c);let r;
+  if(axis==='x')r=[d[0],d[1]*co-d[2]*s,d[1]*s+d[2]*co];else if(axis==='y')r=[d[0]*co+d[2]*s,d[1],-d[0]*s+d[2]*co];else r=[d[0]*co-d[1]*s,d[0]*s+d[1]*co,d[2]];return add(r,c);}
+function rotatePolys(polys,c,axis,deg){if(!deg)return polys;return polys.map(p=>new Polygon(p.v.map(v=>rotatePoint(v,c,axis,deg))));}
 
 // ---- Dreiecke, Kennzahlen ---------------------------------------------------
 function triangles(polys){const t=[];for(const p of polys){const v=p.v;for(let i=1;i<v.length-1;i++){const a=v[0],b=v[i],c=v[i+1];if(len(cross(sub(b,a),sub(c,a)))>1e-9)t.push([a,b,c]);}}return t;}
@@ -406,17 +480,27 @@ function polysFromTris(tris,offset){const off=offset||[0,0,0];const polys=[];for
 
 // ---- Szene auswerten --------------------------------------------------------
 function bodyPolys(b){
-  const pad=b.op==='sub'?0.002:0; // Schneidkörper minimal größer: keine deckungsgleichen Flächen
-  if(b.type==='box')return primBox(b.pos,[b.lx+pad,b.ly+pad,b.lz+pad]);
-  if(b.type==='cyl')return primCylinder(b.pos,b.d+pad,b.h+pad,b.axis||'z');
-  if(b.type==='sphere')return primSphere(b.pos,b.d+pad);
-  if(b.type==='stl')return ensureOutward(polysFromTris(b.tris,b.pos));
-  return [];
+  const sub_=b.op==='sub';const pad=sub_?0.002:0; // Schneidkörper minimal größer: keine deckungsgleichen Flächen
+  let polys=[];
+  if(b.type==='box')polys=primBox(b.pos,[b.lx+pad,b.ly+pad,b.lz+pad]);
+  else if(b.type==='cyl')polys=primCylinder(b.pos,b.d+pad,b.h+pad,b.axis||'z',b.n||64);
+  else if(b.type==='cone')polys=primCone(b.pos,b.d1+pad,b.d2+(b.d2>0?pad:0),b.h+pad,b.axis||'z');
+  else if(b.type==='sphere')polys=primSphere(b.pos,b.d+pad);
+  else if(b.type==='prism')polys=primPrism(b.pos,b.pts,b.h+pad,b.axis||'z',sub_?0.001:0);
+  else if(b.type==='revolve')polys=primRevolve(b.pos,b.prof,b.axis||'z',64,sub_?0.001:0);
+  else if(b.type==='stl')polys=ensureOutward(polysFromTris(b.tris,b.pos));
+  if(b.rot&&b.rot.deg)polys=rotatePolys(polys,b.pos,b.rot.axis||'z',b.rot.deg);
+  return polys;
 }
 function bodyAxes(b){
-  if(b.type==='cyl'){const map=axisMap(b.axis||'z');const p0=add(map([0,0,-b.h/2]),b.pos),p1=add(map([0,0,b.h/2]),b.pos);return [{c:b.pos.slice(),p0,p1,d:b.d}];}
-  if(b.type==='sphere')return [{c:b.pos.slice(),d:b.d}];
-  return [];
+  let ax=[];
+  if(b.type==='cyl'&&(b.n||64)>=16){const map=axisMap(b.axis||'z');ax=[{c:b.pos.slice(),p0:add(map([0,0,-b.h/2]),b.pos),p1:add(map([0,0,b.h/2]),b.pos),d:b.d}];}
+  else if(b.type==='cone'){const map=axisMap(b.axis||'z');ax=[{c:b.pos.slice(),p0:add(map([0,0,-b.h/2]),b.pos),p1:add(map([0,0,b.h/2]),b.pos),d:Math.max(b.d1,b.d2)}];}
+  else if(b.type==='revolve'){const P=cleanProfile(b.prof||[]);if(P.length>=3){const zs=P.map(p=>p[1]),rs=P.map(p=>Math.max(0,p[0]));const map=axisMap(b.axis||'z');const z0=Math.min(...zs),z1=Math.max(...zs);
+    ax=[{c:add(map([0,0,(z0+z1)/2]),b.pos),p0:add(map([0,0,z0]),b.pos),p1:add(map([0,0,z1]),b.pos),d:2*Math.max(...rs)}];}}
+  else if(b.type==='sphere')ax=[{c:b.pos.slice(),d:b.d}];
+  if(b.rot&&b.rot.deg)ax=ax.map(a=>({c:rotatePoint(a.c,b.pos,b.rot.axis||'z',b.rot.deg),p0:a.p0&&rotatePoint(a.p0,b.pos,b.rot.axis||'z',b.rot.deg),p1:a.p1&&rotatePoint(a.p1,b.pos,b.rot.axis||'z',b.rot.deg),d:a.d}));
+  return ax;
 }
 function evaluate(bodies){
   let polys=null;const axes=[];
@@ -431,12 +515,13 @@ function computeViews(model,res){const edges=extractEdges(model.polys,model.box)
 function viewSignature(vw){const r=x=>Math.round(x*4);const parts=vw.segs.map(s=>{const a=[r(s.x1-vw.xmin),r(s.y1-vw.ymin)],b=[r(s.x2-vw.xmin),r(s.y2-vw.ymin)];const k=(a[0]<b[0]||(a[0]===b[0]&&a[1]<=b[1]))?a.concat(b):b.concat(a);return k.join(',')+(s.vis?'v':'h');});
   return Array.from(new Set(parts)).sort().join(';')+'|'+r(vw.xmax-vw.xmin)+'x'+r(vw.ymax-vw.ymin);}
 
-return {EPS,sub,add,mul,dot,cross,len,norm,lerp,Plane,Polygon,Node,csgUnion,csgSubtract,primBox,primCylinder,primSphere,triangles,volume,area,bbox,extractEdges,VIEWS,rasterDepth,computeView,computeViews,stlWrite,stlRead,polysFromTris,evaluate,viewSignature,ensureOutward};
+return {EPS,sub,add,mul,dot,cross,len,norm,lerp,Plane,Polygon,Node,csgUnion,csgSubtract,primBox,primCylinder,primSphere,primCone,primPrism,primRevolve,earClip,cleanProfile,rotatePoint,triangles,volume,area,bbox,extractEdges,VIEWS,rasterDepth,computeView,computeViews,stlWrite,stlRead,polysFromTris,evaluate,viewSignature,ensureOutward};
 })();
 </script>
 <script>
 // =============================================================================
-//  Oberfläche, Teil 1: Zustand, Bauliste, Auswertung, 3D-Ansicht (WebGL)
+//  Oberfläche, Teil 1: Zustand, Bauliste, Verlauf (Rückgängig), Auswertung,
+//  3D-Ansicht (WebGL)
 // =============================================================================
 (function(){
 'use strict';
@@ -449,67 +534,119 @@ let views=null;      // drei Ansichten, träge berechnet
 let viewsDirty=true;
 const PRESETS={
   platte:[{type:'box',op:'add',pos:[0,0,0],lx:100,ly:60,lz:10},{type:'cyl',op:'sub',pos:[0,0,0],d:20,h:10,axis:'z'}],
+  senkbohrung:[{type:'box',op:'add',pos:[0,0,0],lx:100,ly:60,lz:10},{type:'cyl',op:'sub',pos:[0,0,0],d:8,h:10,axis:'z'},{type:'cone',op:'sub',pos:[0,0,3],d1:8,d2:16,h:4,axis:'z'}],
   nut:[{type:'box',op:'add',pos:[0,0,0],lx:80,ly:40,lz:30},{type:'box',op:'sub',pos:[0,0,10],lx:12,ly:42,lz:10}],
+  schwalbenschwanz:[{type:'box',op:'add',pos:[0,0,0],lx:80,ly:40,lz:30},{type:'prism',op:'sub',pos:[0,0,0],h:42,axis:'y',pts:[[-15,5],[15,5],[10,16],[-10,16]]}],
   welle:[{type:'cyl',op:'add',pos:[0,0,0],d:20,h:100,axis:'x'},{type:'cyl',op:'add',pos:[-20,0,0],d:40,h:15,axis:'x'},{type:'cyl',op:'sub',pos:[45,0,0],d:8,h:20,axis:'x'}],
+  welle2:[{type:'revolve',op:'add',pos:[0,0,0],axis:'x',prof:[[0,-40],[8,-40],[8,0],[12,0],[12,40],[0,40]]}],
+  sechskant:[{type:'cyl',op:'add',pos:[0,0,4],d:17.3,h:8,axis:'z',n:6},{type:'cyl',op:'add',pos:[0,0,-20],d:10,h:40,axis:'z'}],
   sackloch:[{type:'box',op:'add',pos:[0,0,0],lx:60,ly:40,lz:20},{type:'cyl',op:'sub',pos:[0,0,4],d:16,h:12,axis:'z'}],
   // Flachzugprobe steht hochkant (Dicke in y): die Vorderansicht zeigt dann die Kontur wie auf dem Zwischenstand
   zugprobe:[{type:'box',op:'add',pos:[0,0,0],lx:200,ly:3,lz:25},{type:'cyl',op:'sub',pos:[-40,0,32.5],d:50,h:3,axis:'y'},{type:'cyl',op:'sub',pos:[-40,0,-32.5],d:50,h:3,axis:'y'},{type:'cyl',op:'sub',pos:[40,0,32.5],d:50,h:3,axis:'y'},{type:'cyl',op:'sub',pos:[40,0,-32.5],d:50,h:3,axis:'y'}],
   kugel:[{type:'sphere',op:'add',pos:[0,0,0],d:40},{type:'cyl',op:'sub',pos:[0,0,0],d:10,h:44,axis:'z'}]
 };
-const TYPNAME={box:'Quader',cyl:'Zylinder',sphere:'Kugel',stl:'STL-Körper'};
+const TYPNAME={box:'Quader',cyl:'Zylinder',cone:'Kegelstumpf',sphere:'Kugel',prism:'Prisma',revolve:'Rotationskörper',stl:'STL-Körper'};
+const VORLAGEN={
+  prism:{dreieck:{name:'Dreieck',pts:[[0,0],[30,0],[15,20]]},trapez:{name:'Trapez',pts:[[-15,0],[15,0],[10,12],[-10,12]]},schwalbe:{name:'Schwalbenschwanz (unten breiter)',pts:[[-15,0],[15,0],[10,10],[-10,10]]},tprofil:{name:'T-Profil',pts:[[-15,0],[15,0],[15,4],[4,4],[4,20],[-4,20],[-4,4],[-15,4]]},sechseck:{name:'Sechseck',pts:[0,1,2,3,4,5].map(i=>[+(10*Math.cos(i*Math.PI/3)).toFixed(3),+(10*Math.sin(i*Math.PI/3)).toFixed(3)])}},
+  revolve:{welle:{name:'Abgesetzte Welle',pts:[[0,-40],[8,-40],[8,0],[12,0],[12,40],[0,40]]},buchse:{name:'Buchse (hohl)',pts:[[6,-15],[10,-15],[10,15],[6,15]]},spitze:{name:'Zylinder mit Kegelspitze',pts:[[0,-20],[10,-20],[10,5],[0,20]]},kugelkopf:{name:'Bolzen mit Bund',pts:[[0,-30],[5,-30],[5,0],[9,0],[9,6],[0,6]]}}
+};
 
 function addBody(b){b.id=nextId++;if(!b.name)b.name=TYPNAME[b.type]+' '+b.id;b.pos=b.pos||[0,0,0];state.bodies.push(b);return b;}
 function loadBodies(list){state.bodies=[];nextId=1;for(const b of list)addBody(JSON.parse(JSON.stringify(b)));}
 
+// ---- Verlauf: Rückgängig und Wiederholen -----------------------------------
+const history=[];let hIndex=-1;
+const cloneBodies=bs=>bs.map(b=>{const c=Object.assign({},b);c.pos=b.pos.slice();if(b.pts)c.pts=b.pts.map(p=>p.slice());if(b.prof)c.prof=b.prof.map(p=>p.slice());if(b.rot)c.rot=Object.assign({},b.rot);return c;});
+const sigOf=bs=>JSON.stringify(bs.map(b=>Object.assign({},b,{tris:b.tris?b.tris.length:0})));
+function snapshot(){const s=sigOf(state.bodies);if(hIndex>=0&&history[hIndex].sig===s)return;history.splice(hIndex+1);history.push({sig:s,bodies:cloneBodies(state.bodies),nextId});if(history.length>40)history.shift();hIndex=history.length-1;updateHist();}
+function restoreHist(i){if(i<0||i>=history.length)return;hIndex=i;state.bodies=cloneBodies(history[i].bodies);nextId=history[i].nextId;renderListe();rebuild(true);updateHist();}
+function updateHist(){$('histBack').disabled=hIndex<=0;$('histFwd').disabled=hIndex>=history.length-1;}
+$('histBack').addEventListener('click',()=>restoreHist(hIndex-1));
+$('histFwd').addEventListener('click',()=>restoreHist(hIndex+1));
+document.addEventListener('keydown',e=>{const t=e.target.tagName;if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT')return;if(e.ctrlKey&&!e.shiftKey&&e.key.toLowerCase()==='z'){e.preventDefault();restoreHist(hIndex-1);}else if(e.ctrlKey&&(e.key.toLowerCase()==='y'||(e.shiftKey&&e.key.toLowerCase()==='z'))){e.preventDefault();restoreHist(hIndex+1);}});
+
+// ---- Punkte lesen und schreiben ---------------------------------------------
+// je Punkt „x y“, Punkte durch ; oder Zeilenumbruch getrennt, Dezimalkomma erlaubt
+function parsePoints(text){const pts=[];for(const part of String(text).split(/[;\n]+/)){const tok=part.trim().split(/\s+/).filter(Boolean);if(tok.length!==2)continue;const a=parseFloat(tok[0].replace(',','.')),b=parseFloat(tok[1].replace(',','.'));if(isFinite(a)&&isFinite(b))pts.push([a,b]);}return pts;}
+const pointsText=pts=>(pts||[]).map(p=>p.map(x=>String(+x.toFixed(3)).replace('.',',')).join(' ')).join('; ');
+const ebene=(type,axis)=>type==='revolve'?'r z':(axis==='x'?'y z':axis==='y'?'x z':'x y');
+
 // ---- Bauliste ---------------------------------------------------------------
+function achseSel(f,val){return `<select data-f="${f}"><option value="x"${val==='x'?' selected':''}>x</option><option value="y"${val==='y'?' selected':''}>y</option><option value="z"${(val||'z')==='z'?' selected':''}>z</option></select>`;}
 function renderListe(){
   const el=$('bauliste');el.innerHTML='';
   state.bodies.forEach((b,i)=>{
     const k=document.createElement('div');k.className='karte '+(i===0?'add':b.op);k.dataset.id=b.id;
     const opSel=i===0?'<span class="klein">Rohling</span>':`<select data-f="op"><option value="add"${b.op==='add'?' selected':''}>hinzufügen</option><option value="sub"${b.op==='sub'?' selected':''}>ausschneiden</option></select>`;
-    let felder=`<label>x <input type="number" step="1" data-f="pos0" value="${b.pos[0]}"></label><label>y <input type="number" step="1" data-f="pos1" value="${b.pos[1]}"></label><label>z <input type="number" step="1" data-f="pos2" value="${b.pos[2]}"></label>`;
-    if(b.type==='box')felder+=`<label>Länge x <input type="number" step="1" min="0.1" data-f="lx" value="${b.lx}"></label><label>Tiefe y <input type="number" step="1" min="0.1" data-f="ly" value="${b.ly}"></label><label>Höhe z <input type="number" step="1" min="0.1" data-f="lz" value="${b.lz}"></label>`;
-    else if(b.type==='cyl')felder+=`<label>⌀ <input type="number" step="1" min="0.1" data-f="d" value="${b.d}"></label><label>Höhe <input type="number" step="1" min="0.1" data-f="h" value="${b.h}"></label><label>Achse <select data-f="axis"><option value="x"${b.axis==='x'?' selected':''}>x</option><option value="y"${b.axis==='y'?' selected':''}>y</option><option value="z"${(b.axis||'z')==='z'?' selected':''}>z</option></select></label>`;
-    else if(b.type==='sphere')felder+=`<label>⌀ <input type="number" step="1" min="0.1" data-f="d" value="${b.d}"></label>`;
+    const num=(f,label,v,min)=>`<label>${label} <input type="number" step="1"${min!=null?' min="'+min+'"':''} data-f="${f}" value="${v}"></label>`;
+    let felder=num('pos0','x',b.pos[0])+num('pos1','y',b.pos[1])+num('pos2','z',b.pos[2]);
+    if(b.type==='box')felder+=num('lx','Länge x',b.lx,0.1)+num('ly','Tiefe y',b.ly,0.1)+num('lz','Höhe z',b.lz,0.1);
+    else if(b.type==='cyl')felder+=num('d','⌀',b.d,0.1)+num('h','Höhe',b.h,0.1)+`<label>Achse ${achseSel('axis',b.axis)}</label>`+num('n','Ecken (64 = rund)',b.n||64,3);
+    else if(b.type==='cone')felder+=num('d1','⌀ unten',b.d1,0)+num('d2','⌀ oben',b.d2,0)+num('h','Höhe',b.h,0.1)+`<label>Achse ${achseSel('axis',b.axis)}</label>`;
+    else if(b.type==='sphere')felder+=num('d','⌀',b.d,0.1);
+    else if(b.type==='prism'||b.type==='revolve'){const V=VORLAGEN[b.type];
+      felder+=(b.type==='prism'?num('h','Länge',b.h,0.1):'')+`<label>Achse ${achseSel('axis',b.axis)}</label>`;
+      felder+=`<label>Vorlage <select data-f="vorlage"><option value="">…</option>${Object.keys(V).map(key=>`<option value="${key}">${V[key].name}</option>`).join('')}</select></label>`;
+      felder+=`<label class="breit">Punkte (${ebene(b.type,b.axis||'z')}) relativ zur Position, je Punkt „${b.type==='revolve'?'r z':'a b'}“, getrennt durch ; <textarea data-f="${b.type==='prism'?'pts':'prof'}" rows="2">${pointsText(b.type==='prism'?b.pts:b.prof)}</textarea></label>`;}
     else felder+=`<span class="klein">${b.tris.length} Dreiecke</span>`;
+    felder+=`<span class="trenner"></span><label>Drehung um ${achseSel('rotAxis',b.rot&&b.rot.axis)}</label>`+num('rotDeg','Winkel in °',b.rot?b.rot.deg:0);
     k.innerHTML=`<div class="karte-kopf"><strong>${b.name}</strong>${opSel}<span class="kn"><button data-a="up" title="nach oben">▲</button><button data-a="down" title="nach unten">▼</button><button data-a="dup" title="kopieren">⧉</button><button data-a="del" title="löschen">✕</button></span></div><div class="felder">${felder}</div>`;
     el.appendChild(k);
   });
-  if(!state.bodies.length)el.innerHTML='<p class="klein">Noch kein Körper. Füge einen Quader, Zylinder oder eine Kugel hinzu oder lade ein Beispiel.</p>';
+  if(!state.bodies.length)el.innerHTML='<p class="klein">Noch kein Körper. Füge einen Grundkörper hinzu oder lade ein Beispiel.</p>';
 }
 let rebuildTimer=null;
-function scheduleRebuild(){clearTimeout(rebuildTimer);rebuildTimer=setTimeout(rebuild,250);}
+function scheduleRebuild(){clearTimeout(rebuildTimer);rebuildTimer=setTimeout(()=>rebuild(),300);}
 $('bauliste').addEventListener('input',e=>{const k=e.target.closest('.karte');if(!k)return;const b=state.bodies.find(x=>x.id==k.dataset.id);const f=e.target.dataset.f;if(!b||!f)return;
-  if(e.target.tagName==='SELECT'){b[f]=e.target.value;rebuild();return;}
+  if(e.target.tagName==='TEXTAREA'){const pts=parsePoints(e.target.value);if(pts.length>=3){b[f]=pts;scheduleRebuild();}return;}
+  if(e.target.tagName==='SELECT'){
+    if(f==='vorlage'){const v=VORLAGEN[b.type][e.target.value];if(!v)return;if(b.type==='prism')b.pts=v.pts.map(p=>p.slice());else b.prof=v.pts.map(p=>p.slice());k.querySelector('textarea').value=pointsText(v.pts);e.target.value='';rebuild();return;}
+    if(f==='rotAxis'){b.rot=b.rot||{axis:'z',deg:0};b.rot.axis=e.target.value;if(b.rot.deg)rebuild();return;}
+    b[f]=e.target.value;rebuild();return;}
   const v=parseFloat(e.target.value);if(!isFinite(v))return;
-  if(f.startsWith('pos'))b.pos[+f[3]]=v;else b[f]=Math.max(0.1,v);scheduleRebuild();});
+  if(f.startsWith('pos'))b.pos[+f[3]]=v;
+  else if(f==='rotDeg'){b.rot=b.rot||{axis:'z',deg:0};b.rot.deg=v;}
+  else if(f==='n')b.n=Math.max(3,Math.min(128,Math.round(v)));
+  else if(f==='d1'||f==='d2')b[f]=Math.max(0,v);
+  else b[f]=Math.max(0.1,v);
+  scheduleRebuild();});
 $('bauliste').addEventListener('click',e=>{const btn=e.target.closest('button[data-a]');if(!btn)return;const k=btn.closest('.karte');const i=state.bodies.findIndex(x=>x.id==k.dataset.id);if(i<0)return;const a=btn.dataset.a;
   if(a==='del')state.bodies.splice(i,1);
   else if(a==='up'&&i>0){[state.bodies[i-1],state.bodies[i]]=[state.bodies[i],state.bodies[i-1]];}
   else if(a==='down'&&i<state.bodies.length-1){[state.bodies[i+1],state.bodies[i]]=[state.bodies[i],state.bodies[i+1]];}
-  else if(a==='dup'){const c=JSON.parse(JSON.stringify(state.bodies[i]));delete c.id;c.name='';c.pos[0]+=10;state.bodies.splice(i+1,0,addBody(c));state.bodies.pop();}
+  else if(a==='dup'){const c=cloneBodies([state.bodies[i]])[0];delete c.id;c.name='';c.pos[0]+=10;const nb=addBody(c);state.bodies.pop();state.bodies.splice(i+1,0,nb);}
   if(state.bodies.length&&state.bodies[0].op==='sub')state.bodies[0].op='add';
   renderListe();rebuild();});
+function rohling(){if(state.bodies.length)return;addBody({type:'box',op:'add',pos:[0,0,0],lx:60,ly:40,lz:10});}
 document.querySelectorAll('button[data-neu]').forEach(btn=>btn.addEventListener('click',()=>{
-  const t=btn.dataset.neu;const box=model&&model.box.diag>0?model.box:null;const first=!state.bodies.length;
-  let b;
-  if(t==='box')b={type:'box',op:'add',pos:[0,0,0],lx:60,ly:40,lz:20};
-  else if(t==='cyl')b={type:'cyl',op:'add',pos:[0,0,0],d:20,h:40,axis:'z'};
-  else if(t==='sphere')b={type:'sphere',op:'add',pos:[0,0,0],d:30};
-  else if(t==='bohrung'){const h=box?box.size[2]+1:20;b={type:'cyl',op:first?'add':'sub',pos:box?box.center.slice():[0,0,0],d:10,h:Math.round(h*10)/10,axis:'z'};}
-  else{const sz=box?box.size:[60,40,20];const c=box?box.center:[0,0,0];const lz=Math.max(1,Math.round(sz[2]/2));b={type:'box',op:first?'add':'sub',pos:[c[0],c[1],box?box.max[2]-lz/2:0],lx:Math.max(1,Math.round(sz[0]/6)),ly:Math.round(sz[1]+2),lz};}
-  if(!first&&(t==='box'||t==='cyl'||t==='sphere')){b.pos=[Math.round(box?box.max[0]:0),0,0];}
-  addBody(b);renderListe();rebuild();}));
+  const t=btn.dataset.neu;const first=!state.bodies.length;const box=model&&model.box.diag>0?model.box:null;
+  const c=box?box.center.slice():[0,0,0],sz=box?box.size:[60,40,10],top=box?box.max[2]:5;
+  const neben=()=>[Math.round(box?box.max[0]+20:0),0,0];
+  if(t==='box')addBody({type:'box',op:'add',pos:first?[0,0,0]:neben(),lx:60,ly:40,lz:20});
+  else if(t==='cyl')addBody({type:'cyl',op:'add',pos:first?[0,0,0]:neben(),d:20,h:40,axis:'z',n:64});
+  else if(t==='cone')addBody({type:'cone',op:'add',pos:first?[0,0,0]:neben(),d1:30,d2:10,h:30,axis:'z'});
+  else if(t==='sphere')addBody({type:'sphere',op:'add',pos:first?[0,0,0]:neben(),d:30});
+  else if(t==='prism')addBody({type:'prism',op:'add',pos:first?[0,0,0]:neben(),h:40,axis:'z',pts:VORLAGEN.prism.trapez.pts.map(p=>p.slice())});
+  else if(t==='revolve')addBody({type:'revolve',op:'add',pos:first?[0,0,0]:neben(),axis:'z',prof:VORLAGEN.revolve.welle.pts.map(p=>p.slice())});
+  else if(t==='bohrung'){rohling();const m=model&&!first?box:null;addBody({type:'cyl',op:'sub',pos:m?m.center.slice():[0,0,0],d:10,h:Math.round(((m?m.size[2]:10)+1)*10)/10,axis:'z'});}
+  else if(t==='senkbohrung'){rohling();const m=!first?box:null;const cc=m?m.center.slice():[0,0,0],hh=m?m.size[2]:10,tp=m?m.max[2]:5;
+    addBody({type:'cyl',op:'sub',pos:cc,d:8,h:Math.round((hh+1)*10)/10,axis:'z'});addBody({type:'cone',op:'sub',pos:[cc[0],cc[1],+(tp-2).toFixed(3)],d1:8,d2:16,h:4,axis:'z'});}
+  else if(t==='nut'){rohling();const m=!first?box:null;const s=m?m.size:sz,ce=m?m.center:c,tp=m?m.max[2]:5;const lz=Math.max(1,Math.round(s[2]/2));
+    addBody({type:'box',op:'sub',pos:[ce[0],ce[1],+(tp-lz/2).toFixed(3)],lx:Math.max(1,Math.round(s[0]/6)),ly:Math.round(s[1]+2),lz});}
+  else if(t==='langloch'){rohling();const m=!first?box:null;const ce=m?m.center.slice():[0,0,0],hh=Math.round(((m?m.size[2]:10)+1)*10)/10;
+    addBody({type:'box',op:'sub',pos:ce,lx:20,ly:8,lz:hh});addBody({type:'cyl',op:'sub',pos:[ce[0]-10,ce[1],ce[2]],d:8,h:hh,axis:'z'});addBody({type:'cyl',op:'sub',pos:[ce[0]+10,ce[1],ce[2]],d:8,h:hh,axis:'z'});}
+  else if(t==='rohr'){const p=first?[0,0,0]:neben();addBody({type:'cyl',op:'add',pos:p,d:30,h:40,axis:'z'});addBody({type:'cyl',op:'sub',pos:p.slice(),d:20,h:42,axis:'z'});}
+  renderListe();rebuild();}));
 $('preset').addEventListener('change',e=>{const p=PRESETS[e.target.value];if(!p)return;loadBodies(p);renderListe();rebuild();e.target.value='';});
 $('werkstoff').addEventListener('change',e=>{state.rho=parseFloat(e.target.value);updateKennzahlen();});
 
 // ---- Auswertung -------------------------------------------------------------
-function rebuild(){
+function rebuild(skipSnapshot){
   clearTimeout(rebuildTimer);$('meldung').textContent='';
   try{model=K.evaluate(state.bodies);}catch(err){$('meldung').textContent='Der Körper ließ sich nicht berechnen: '+err.message;model=K.evaluate([]);}
   viewsDirty=true;views=null;
   updateKennzahlen();gl3d.setModel(model);
-  save();
+  save();if(!skipSnapshot)snapshot();
   if(activeTab==='zeichnung'||activeTab==='ueben')window.dispatchEvent(new CustomEvent('tzlab-views'));
 }
 function updateKennzahlen(){if(!model)return;const V=model.volume/1000,A=model.area/100;$('kzV').textContent=fmt(V,2)+' cm³';$('kzA').textContent=fmt(A,1)+' cm²';$('kzM').textContent=fmt(V*state.rho,1)+' g';}
@@ -594,7 +731,7 @@ const gl3d=(function(){
 // ---- Start ------------------------------------------------------------------
 if(!restore())loadBodies(PRESETS.platte);
 renderListe();rebuild();
-window.TZ={state,K,getViews,getModel:()=>model,rebuild,renderListe,loadBodies,addBody,fmt,save,getTab:()=>activeTab};
+window.TZ={state,K,getViews,getModel:()=>model,rebuild,renderListe,loadBodies,addBody,fmt,save,getTab:()=>activeTab,snapshot};
 })();
 </script>
 <script>
