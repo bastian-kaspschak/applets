@@ -220,9 +220,13 @@ input[type=file]{font:inherit;font-size:.9rem}
  <p class="hinweis">Die drei Ansichten als Zeichnung auf <b>A4 quer</b> mit Rahmen und Schriftfeld, wie das Vorlagenblatt aus dem Praktikum: Linien 0,5 mm und 0,25 mm, Maßstab 1:1, wenn das Werkstück auf das Blatt passt, sonst verkleinert oder vergrößert (steht im Schriftfeld). Maße, die im Übungsmodus „Bemaßen“ gesetzt sind, kommen mit aufs Blatt; verdeckte Kanten und Mittellinien nach den Häkchen im Reiter Zeichnung.</p>
  <div class="leiste"><input type="text" id="pdfName" placeholder="Name für das Schriftfeld" maxlength="40" style="width:16em">
    <button class="k voll" id="pdfExport2">Zeichnung als PDF speichern</button></div>
- <h2>CAD: FreeCAD und OpenSCAD</h2>
- <p class="hinweis">Die Bauliste als <b>OpenSCAD-CSG</b>: Grundkörper mit Maßen und Booleschen Verknüpfungen, kein Netz. <b>FreeCAD</b> liest die Datei über <i>Datei → Importieren</i> (Dateityp „OpenSCAD CSG“) ohne Zusatzsoftware und macht daraus einen Part-Körper mit echten Zylindern und Kugeln; die OpenSCAD-Arbeitsbank von FreeCAD schreibt mit <i>Export CSG</i> denselben Typ zurück, den das Lab wieder lädt. OpenSCAD öffnet die Datei direkt. Gewinde stehen nur als Kommentar in der Datei.</p>
- <div class="leiste"><button class="k voll" id="csgExport">CSG exportieren (.csg)</button>
+ <h2>CAD: FreeCAD, STEP und OpenSCAD</h2>
+ <p class="hinweis"><b>FCStd</b> ist das FreeCAD-Format. Beim Export werden Quader, Zylinder, Kegelstumpf, Kugel, Vieleck-Prisma und Rotationskörper zu bearbeitbaren FreeCAD-Objekten (Skizze mit Extrusion oder Rotation, Schnitt und Vereinigung); die mitgelieferten Formen sind facettiert, nach <i>Strg+R</i> (Neu berechnen) rechnet FreeCAD die Grundkörper exakt. Beim Import werden Part-Grundkörper, Boolesche Verknüpfungen, Extrusion und Rotation von Skizzen sowie PartDesign-Aufpolsterung, Tasche und Bohrung zur Bauliste; alles andere (Rundung, Fase, Loft, …) kommt als Netz aus der gespeicherten Form. <b>STEP</b> lesen fast alle CAD-Programme: der Export ist facettiert (Rundungen als 64 ebene Flächen, ebene Teile exakt), der Import erzeugt einen Netzkörper aus Ebenen, Zylindern, Kegeln, Kugeln, Tori, Rotations-, Extrusions- und B-Spline-Flächen. <b>OpenSCAD-CSG</b> enthält die Bauliste als Text; FreeCAD liest es über <i>Datei → Importieren</i> und schreibt es aus der OpenSCAD-Arbeitsbank.</p>
+ <div class="leiste"><button class="k voll" id="fcstdExport">FCStd exportieren</button>
+   <label class="k">FCStd importieren <input type="file" id="fcstdImport" accept=".FCStd,.fcstd" style="display:none"></label>
+   <button class="k voll" id="stepExport">STEP exportieren</button>
+   <label class="k">STEP importieren <input type="file" id="stepImport" accept=".step,.stp,.STEP,.STP" style="display:none"></label></div>
+ <div class="leiste"><button class="k" id="csgExport">CSG exportieren (.csg)</button>
    <label class="k">CSG oder SCAD importieren <input type="file" id="csgImport" accept=".csg,.scad" style="display:none"></label></div>
  <h2>Netze: STL und OBJ</h2>
  <p class="hinweis">Für Slicer, Netzprogramme und zum Anschauen: STL (binär) und Wavefront OBJ. Importierte Netze werden Körper in der Bauliste, lassen sich verschieben, drehen und mit Grundkörpern verschneiden, aber nicht mehr in ihren Maßen ändern. Maßeinheit ist Millimeter.</p>
@@ -804,6 +808,773 @@ function zeichnungPdf(vs,opts,meta,dims){
 return {csgWrite,csgRead,objWrite,objRead,parse,tokenize,pdfWrite,zeichnungPdf};
 })();
 </script>
+<script id="cadx">
+// CAD-Austausch: STEP und FreeCAD FCStd ohne Bibliothek (siehe Teile 1 bis 5)
+const CADX=(function(){
+// ============================================================================
+// CADX: STEP und FCStd (FreeCAD) lesen und schreiben, ohne Bibliothek.
+// Teil 1: Hilfen (Vektoren, Quaternion, Matrizen, ZIP mit Inflate, XML)
+// ============================================================================
+const {sub,add,mul,dot,cross,len,norm,lerp}=K;
+const vadd=(a,b)=>a.map((x,i)=>x+b[i]),vsub=(a,b)=>a.map((x,i)=>x-b[i]),vmul=(a,s)=>a.map(x=>x*s),vlen=a=>Math.sqrt(a.reduce((s,x)=>s+x*x,0));
+const TAU=2*Math.PI;
+// Quaternion [x,y,z,w]
+function qFromAxis(axis,deg){const a=deg*Math.PI/180,u=norm(axis),s=Math.sin(a/2);return [u[0]*s,u[1]*s,u[2]*s,Math.cos(a/2)];}
+function qMul(a,b){return [a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],a[3]*b[1]-a[0]*b[2]+a[1]*b[3]+a[2]*b[0],a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3],a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2]];}
+function qMat(q){const [x,y,z,w]=q;return [[1-2*(y*y+z*z),2*(x*y-z*w),2*(x*z+y*w)],[2*(x*y+z*w),1-2*(x*x+z*z),2*(y*z-x*w)],[2*(x*z-y*w),2*(y*z+x*w),1-2*(x*x+y*y)]];}
+function qRot(q,p){const M=qMat(q);return [M[0][0]*p[0]+M[0][1]*p[1]+M[0][2]*p[2],M[1][0]*p[0]+M[1][1]*p[1]+M[1][2]*p[2],M[2][0]*p[0]+M[2][1]*p[1]+M[2][2]*p[2]];}
+function qAxisDeg(q){const w=Math.max(-1,Math.min(1,q[3]));const a=2*Math.acos(w);const s=Math.sqrt(Math.max(0,1-w*w));return {axis:s<1e-9?[0,0,1]:[q[0]/s,q[1]/s,q[2]/s],deg:a*180/Math.PI};}
+// Matrix 3x4 als [[r,r,r,t],[...],[...]]
+const M_ID=[[1,0,0,0],[0,1,0,0],[0,0,1,0]];
+function mApply(M,p){return [M[0][0]*p[0]+M[0][1]*p[1]+M[0][2]*p[2]+M[0][3],M[1][0]*p[0]+M[1][1]*p[1]+M[1][2]*p[2]+M[1][3],M[2][0]*p[0]+M[2][1]*p[1]+M[2][2]*p[2]+M[2][3]];}
+function mApplyDir(M,d){return [M[0][0]*d[0]+M[0][1]*d[1]+M[0][2]*d[2],M[1][0]*d[0]+M[1][1]*d[1]+M[1][2]*d[2],M[2][0]*d[0]+M[2][1]*d[1]+M[2][2]*d[2]];}
+function mMul(A,B){const R=[[0,0,0,0],[0,0,0,0],[0,0,0,0]];for(let i=0;i<3;i++){for(let j=0;j<3;j++)R[i][j]=A[i][0]*B[0][j]+A[i][1]*B[1][j]+A[i][2]*B[2][j];R[i][3]=A[i][0]*B[0][3]+A[i][1]*B[1][3]+A[i][2]*B[2][3]+A[i][3];}return R;}
+function mInv(A){const a=A[0][0],b=A[0][1],c=A[0][2],d=A[1][0],e=A[1][1],f=A[1][2],g=A[2][0],h=A[2][1],i=A[2][2];const det=a*(e*i-f*h)-b*(d*i-f*g)+c*(d*h-e*g);if(Math.abs(det)<1e-18)return M_ID;const I=[[(e*i-f*h)/det,(c*h-b*i)/det,(b*f-c*e)/det,0],[(f*g-d*i)/det,(a*i-c*g)/det,(c*d-a*f)/det,0],[(d*h-e*g)/det,(b*g-a*h)/det,(a*e-b*d)/det,0]];const t=mApplyDir(I,[A[0][3],A[1][3],A[2][3]]);I[0][3]=-t[0];I[1][3]=-t[1];I[2][3]=-t[2];return I;}
+function mIsIdentity(M){for(let i=0;i<3;i++)for(let j=0;j<4;j++)if(Math.abs(M[i][j]-M_ID[i][j])>1e-12)return false;return true;}
+function mFromPlacement(pos,q){const R=qMat(q);return [[R[0][0],R[0][1],R[0][2],pos[0]],[R[1][0],R[1][1],R[1][2],pos[1]],[R[2][0],R[2][1],R[2][2],pos[2]]];}
+// ---- CRC32 und ZIP -----------------------------------------------------------
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+function crc32(bytes){let c=0xFFFFFFFF;for(let i=0;i<bytes.length;i++)c=CRC_T[(c^bytes[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+const te=new TextEncoder(),td=new TextDecoder('utf-8');
+// Inflate (RFC 1951): unkomprimiert, feste und dynamische Huffman-Codes
+function inflate(src){
+  let pos=0,bit=0;const out=[];
+  const bits=n=>{let v=0;for(let i=0;i<n;i++){if(pos>=src.length)throw new Error('Inflate: Daten zu kurz');v|=((src[pos]>>bit)&1)<<i;bit++;if(bit===8){bit=0;pos++;}}return v;};
+  const build=lengths=>{const maxL=Math.max(...lengths,0);const cnt=new Array(maxL+1).fill(0);for(const l of lengths)if(l)cnt[l]++;const next=new Array(maxL+2).fill(0);let code=0;for(let l=1;l<=maxL;l++){code=(code+cnt[l-1])<<1;next[l]=code;}const map=new Map();for(let s=0;s<lengths.length;s++){const l=lengths[s];if(l){map.set(l*65536+next[l],s);next[l]++;}}return {map,maxL};};
+  const decode=h=>{let code=0;for(let l=1;l<=h.maxL;l++){code=(code<<1)|bits(1);const s=h.map.get(l*65536+code);if(s!==undefined)return s;}throw new Error('Inflate: ungültiger Code');};
+  const LB=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0],LL=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+  const DB=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13],DD=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+  let fin=0;
+  while(!fin){fin=bits(1);const type=bits(2);
+    if(type===0){if(bit){bit=0;pos++;}const n=src[pos]|(src[pos+1]<<8);pos+=4;for(let i=0;i<n;i++)out.push(src[pos++]);continue;}
+    let lit,dist;
+    if(type===1){const l=new Array(288).fill(8);for(let i=144;i<256;i++)l[i]=9;for(let i=256;i<280;i++)l[i]=7;lit=build(l);dist=build(new Array(30).fill(5));}
+    else if(type===2){const hlit=bits(5)+257,hdist=bits(5)+1,hclen=bits(4)+4;const ord=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];const cl=new Array(19).fill(0);for(let i=0;i<hclen;i++)cl[ord[i]]=bits(3);const ch=build(cl);const lens=[];while(lens.length<hlit+hdist){const s=decode(ch);if(s<16)lens.push(s);else if(s===16){const p=lens[lens.length-1];const r=bits(2)+3;for(let i=0;i<r;i++)lens.push(p);}else if(s===17){const r=bits(3)+3;for(let i=0;i<r;i++)lens.push(0);}else{const r=bits(7)+11;for(let i=0;i<r;i++)lens.push(0);}}lit=build(lens.slice(0,hlit));dist=build(lens.slice(hlit));}
+    else throw new Error('Inflate: Blocktyp 3');
+    for(;;){const s=decode(lit);if(s<256)out.push(s);else if(s===256)break;else{const li=s-257;const L=LL[li]+bits(LB[li]);const di=decode(dist);const D=DD[di]+bits(DB[di]);const start=out.length-D;for(let i=0;i<L;i++)out.push(out[start+i]);}}
+  }
+  return Uint8Array.from(out);
+}
+function zipRead(bytes){
+  const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);
+  let e=u8.length-22;while(e>=0&&dv.getUint32(e,true)!==0x06054b50)e--;if(e<0)throw new Error('kein ZIP-Archiv');
+  const n=dv.getUint16(e+10,true);let p=dv.getUint32(e+16,true);const files={};
+  for(let i=0;i<n;i++){if(dv.getUint32(p,true)!==0x02014b50)throw new Error('ZIP-Verzeichnis defekt');const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),nlen=dv.getUint16(p+28,true),xlen=dv.getUint16(p+30,true),clen=dv.getUint16(p+32,true),off=dv.getUint32(p+42,true);const name=td.decode(u8.subarray(p+46,p+46+nlen));
+    const lx=dv.getUint16(off+28,true),ln=dv.getUint16(off+26,true);const start=off+30+ln+lx;const data=u8.subarray(start,start+csize);
+    files[name]=method===0?data:method===8?inflate(data):(()=>{throw new Error('ZIP-Methode '+method+' nicht unterstützt');})();
+    p+=46+nlen+xlen+clen;}
+  return files;
+}
+function zipWrite(entries){ // entries: [{name, data:Uint8Array|string}] unkomprimiert
+  const parts=[],central=[];let off=0;
+  for(const en of entries){const data=typeof en.data==='string'?te.encode(en.data):en.data;const name=te.encode(en.name);const crc=crc32(data);
+    const lh=new Uint8Array(30+name.length);const d=new DataView(lh.buffer);d.setUint32(0,0x04034b50,true);d.setUint16(4,20,true);d.setUint16(6,0,true);d.setUint16(8,0,true);d.setUint16(10,0,true);d.setUint16(12,0x21,true);d.setUint32(14,crc,true);d.setUint32(18,data.length,true);d.setUint32(22,data.length,true);d.setUint16(26,name.length,true);d.setUint16(28,0,true);lh.set(name,30);
+    const ch=new Uint8Array(46+name.length);const c=new DataView(ch.buffer);c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0,true);c.setUint16(10,0,true);c.setUint16(12,0,true);c.setUint16(14,0x21,true);c.setUint32(16,crc,true);c.setUint32(20,data.length,true);c.setUint32(24,data.length,true);c.setUint16(28,name.length,true);c.setUint16(30,0,true);c.setUint16(32,0,true);c.setUint16(34,0,true);c.setUint16(36,0,true);c.setUint32(38,0,true);c.setUint32(42,off,true);ch.set(name,46);
+    parts.push(lh,data);central.push(ch);off+=lh.length+data.length;}
+  const cdSize=central.reduce((s,c)=>s+c.length,0);const eocd=new Uint8Array(22);const e=new DataView(eocd.buffer);e.setUint32(0,0x06054b50,true);e.setUint16(8,entries.length,true);e.setUint16(10,entries.length,true);e.setUint32(12,cdSize,true);e.setUint32(16,off,true);
+  const total=off+cdSize+22;const out=new Uint8Array(total);let q=0;for(const p of parts){out.set(p,q);q+=p.length;}for(const c of central){out.set(c,q);q+=c.length;}out.set(eocd,q);return out;
+}
+// ---- XML (klein): Elemente, Attribute, Kinder; Text wird ignoriert ----------------
+function xmlUnescape(s){return s.replace(/&(quot|amp|lt|gt|apos|#x?[0-9a-fA-F]+);/g,(m,e)=>e==='quot'?'"':e==='amp'?'&':e==='lt'?'<':e==='gt'?'>':e==='apos'?"'":String.fromCodePoint(e[1]==='x'?parseInt(e.slice(2),16):parseInt(e.slice(1),10)));}
+function xmlEscape(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function xmlParse(text){
+  const root={name:'#root',attrs:{},children:[]};const stack=[root];let i=0;const n=text.length;
+  while(i<n){const lt=text.indexOf('<',i);if(lt<0)break;
+    if(text.startsWith('<!--',lt)){i=text.indexOf('-->',lt)+3;if(i<3)break;continue;}
+    if(text.startsWith('<?',lt)){i=text.indexOf('?>',lt)+2;if(i<2)break;continue;}
+    if(text.startsWith('<![CDATA[',lt)){i=text.indexOf(']]>',lt)+3;if(i<3)break;continue;}
+    if(text.startsWith('<!',lt)){i=text.indexOf('>',lt)+1;continue;}
+    if(text[lt+1]==='/'){const gt=text.indexOf('>',lt);if(stack.length>1)stack.pop();i=gt+1;continue;}
+    // Start-Tag: bis zum > außerhalb von Anführungszeichen
+    let j=lt+1,q=null;while(j<n){const c=text[j];if(q){if(c===q)q=null;}else if(c==='"'||c==="'")q=c;else if(c==='>')break;j++;}
+    const inner=text.slice(lt+1,j);const selfClose=inner.endsWith('/');const body=selfClose?inner.slice(0,-1):inner;
+    const m=/^([^\s\/>]+)/.exec(body);const el={name:m?m[1]:'',attrs:{},children:[]};
+    const re=/([^\s=]+)\s*=\s*("([^"]*)"|'([^']*)')/g;let a;const rest=body.slice(m?m[1].length:0);while((a=re.exec(rest)))el.attrs[a[1]]=xmlUnescape(a[3]!==undefined?a[3]:a[4]);
+    stack[stack.length-1].children.push(el);if(!selfClose)stack.push(el);i=j+1;}
+  return root;
+}
+const xChild=(el,name)=>el.children.find(c=>c.name===name);
+const xChildren=(el,name)=>el.children.filter(c=>c.name===name);
+function xFind(el,name){for(const c of el.children){if(c.name===name)return c;const r=xFind(c,name);if(r)return r;}return null;}
+// ============================================================================
+// Teil 2: Geometrie: B-Splines, Kurven, Flächen (mit Umkehrung), Vernetzung
+// getrimmter Flächen im Parameterraum (Streifenzerlegung, konform)
+// ============================================================================
+function flatKnots(knots,mults){const f=[];for(let i=0;i<knots.length;i++)for(let m=0;m<(mults[i]||1);m++)f.push(knots[i]);return f;}
+function deBoor(deg,flat,P,t){
+  const n=P.length;let k;if(t>=flat[n])k=n-1;else{k=deg;while(k<n-1&&flat[k+1]<=t)k++;}
+  const d=[];for(let j=0;j<=deg;j++)d.push(P[k-deg+j].slice());
+  for(let r=1;r<=deg;r++)for(let j=deg;j>=r;j--){const i=k-deg+j;const den=flat[i+deg-r+1]-flat[i];const a=den===0?0:(t-flat[i])/den;const x=d[j],y=d[j-1];for(let c=0;c<x.length;c++)x[c]=(1-a)*y[c]+a*x[c];}
+  const q=d[deg];const w=q[q.length-1];return q.slice(0,-1).map(x=>x/w);
+}
+// B-Spline-Kurve (2D oder 3D). poles: Punkte, weights: Array oder null, knots+mults, periodic
+function mkBspline(deg,poles,weights,knots,mults,periodic){
+  let P=poles.map((p,i)=>{const w=weights?weights[i]:1;return p.map(x=>x*w).concat([w]);});
+  let flat=flatKnots(knots,mults);
+  if(periodic){const n=P.length;const U=flat.slice(0,n);const T=knots[knots.length-1]-knots[0];const K=U.map(u=>u-T).concat(U,U.map(u=>u+T));const Q=[];for(let j=0;j<3*n-deg-1;j++)Q.push(P[j%n]);P=Q;flat=K;}
+  const t0=flat[deg],t1=flat[P.length];const T=periodic?knots[knots.length-1]-knots[0]:0;const u0=knots[0];
+  return {type:'bspline',deg,t0:periodic?u0:t0,t1:periodic?u0+T:t1,periodic,nspans:knots.length-1,
+    eval(t){if(periodic){t=u0+((t-u0)%T+T)%T;}t=Math.max(t0,Math.min(t1,t));return deBoor(deg,flat,P,t);}};
+}
+function mkBezier(poles,weights){const deg=poles.length-1;return mkBspline(deg,poles,weights,[0,1],[deg+1,deg+1],false);}
+// ---- Kurven ---------------------------------------------------------------------
+function curveEval(c,t){
+  switch(c.type){
+    case 'line':return vadd(c.p,vmul(c.d,t));
+    case 'circle':return vadd(vadd(c.c,vmul(c.x,c.r*Math.cos(t))),vmul(c.y,c.r*Math.sin(t)));
+    case 'ellipse':return vadd(vadd(c.c,vmul(c.x,c.ra*Math.cos(t))),vmul(c.y,c.rb*Math.sin(t)));
+    case 'bspline':return c.eval(t);
+    case 'trimmed':return curveEval(c.base,t);
+    case 'poly':{const n=c.pts.length;const i=Math.max(0,Math.min(n-2,Math.floor(t)));return c.pts[i].map((x,k)=>x+(c.pts[i+1][k]-x)*(t-i));}
+    case 'parabola':return vadd(vadd(c.c,vmul(c.x,t*t/(4*c.f))),vmul(c.y,t));
+    case 'hyperbola':return vadd(vadd(c.c,vmul(c.x,c.a*Math.cosh(t))),vmul(c.y,c.b*Math.sinh(t)));
+    case 'offset':{const h=1e-4;const p=curveEval(c.base,t),q=curveEval(c.base,t+h);const tg=vsub(q,p);if(p.length===2){const l=vlen(tg)||1;return [p[0]-tg[1]/l*c.off,p[1]+tg[0]/l*c.off];}const nn=norm(cross(tg,c.dir||[0,0,1]));return vadd(p,vmul(nn,c.off));}
+  }
+  throw new Error('Kurventyp '+c.type);
+}
+function curveDomain(c){if(c.type==='bspline')return [c.t0,c.t1];if(c.type==='trimmed')return [c.t0,c.t1];if(c.type==='circle'||c.type==='ellipse')return [0,TAU];if(c.type==='poly')return [0,c.pts.length-1];if(c.type==='offset')return curveDomain(c.base);return [-1e9,1e9];}
+function curveIsLine(c){return c.type==='line'||(c.type==='trimmed'&&curveIsLine(c.base));}
+// Zahl der Stützpunkte für einen Parameterbereich
+function curveSamples(c,t0,t1){const L=Math.abs(t1-t0);
+  switch(c.type){case 'line':return 1;case 'circle':case 'ellipse':return Math.max(8,Math.ceil(64*L/TAU));case 'bspline':return Math.max(16,Math.ceil(8*c.nspans*L/Math.max(1e-12,c.t1-c.t0)));case 'trimmed':return curveSamples(c.base,t0,t1);case 'poly':return Math.max(1,Math.ceil(L));default:return 32;}}
+function samplePoints(c,t0,t1,nOverride){const n=nOverride||curveSamples(c,t0,t1);const out=[];for(let i=0;i<=n;i++)out.push({t:t0+(t1-t0)*i/n,p:curveEval(c,t0+(t1-t0)*i/n)});if(c.type==='poly'){/* Knickpunkte exakt */const pts=[];const a=Math.min(t0,t1),b=Math.max(t0,t1);for(let i=Math.ceil(a);i<=Math.floor(b);i++)pts.push(i);const ts=[t0].concat(t0<t1?pts:pts.reverse(),[t1]).filter((x,i,arr)=>i===0||Math.abs(x-arr[i-1])>1e-12);return ts.map(t=>({t,p:curveEval(c,t)}));}return out;}
+// Parameter zum nächstgelegenen Kurvenpunkt (Linie, Kreis exakt; sonst Suche)
+function curveInverse(c,p,dom){
+  if(c.type==='line'){const d=c.d;const dd=dot3(d,d)||1;return dot3(vsub(p,c.p),d)/dd;}
+  if(c.type==='circle'||c.type==='ellipse'){const w=vsub(p,c.c);const a=dot3(w,c.x),b=dot3(w,c.y);return Math.atan2(c.type==='ellipse'?b/c.rb:b,c.type==='ellipse'?a/c.ra:a);}
+  if(c.type==='trimmed')return curveInverse(c.base,p,[c.t0,c.t1]);
+  const [a,b]=dom||curveDomain(c);const N=96;let best=a,bd=Infinity;for(let i=0;i<=N;i++){const t=a+(b-a)*i/N;const d=vlen(vsub(curveEval(c,t),p));if(d<bd){bd=d;best=t;}}
+  let lo=Math.max(a,best-(b-a)/N),hi=Math.min(b,best+(b-a)/N);for(let it=0;it<30;it++){const m1=lo+(hi-lo)*0.382,m2=lo+(hi-lo)*0.618;if(vlen(vsub(curveEval(c,m1),p))<vlen(vsub(curveEval(c,m2),p)))hi=m2;else lo=m1;}
+  return (lo+hi)/2;
+}
+const dot3=(a,b)=>{let s=0;for(let i=0;i<a.length;i++)s+=a[i]*b[i];return s;};
+// ---- Flächen ---------------------------------------------------------------------
+// Rahmen aus Ursprung P, Achse Z, Richtung X (wird orthogonalisiert)
+function frame(P,Z,X,Y){Z=norm(Z);let x=X?vsub(X,vmul(Z,dot(X,Z))):null;if(!x||len(x)<1e-9){x=Math.abs(Z[0])<0.9?[1,0,0]:[0,1,0];x=vsub(x,vmul(Z,dot(x,Z)));}x=norm(x);let y=cross(Z,x);if(Y&&dot(Y,y)<0)y=vmul(y,-1); // OCCT-Rahmen dürfen linkshändig sein
+  return {P,Z,X:x,Y:y};}
+const N64=TAU/64;
+function surfPlane(P,Z,X,Yd){const f=frame(P,Z,X,Yd);return {type:'plane',...f,eval:(u,v)=>vadd(vadd(f.P,vmul(f.X,u)),vmul(f.Y,v)),inv:p=>{const w=vsub(p,f.P);return [dot(w,f.X),dot(w,f.Y)];},du:Infinity,dv:Infinity,perU:0,perV:0};}
+function surfCylinder(P,Z,X,r,Yd){const f=frame(P,Z,X,Yd);return {type:'cylinder',...f,r,eval:(u,v)=>vadd(vadd(vadd(f.P,vmul(f.X,r*Math.cos(u))),vmul(f.Y,r*Math.sin(u))),vmul(f.Z,v)),inv:p=>{const w=vsub(p,f.P);return [Math.atan2(dot(w,f.Y),dot(w,f.X)),dot(w,f.Z)];},du:N64,dv:Infinity,perU:TAU,perV:0};}
+function surfCone(P,Z,X,r,ang,Yd){const f=frame(P,Z,X,Yd);const s=Math.sin(ang),c=Math.cos(ang);return {type:'cone',...f,r,ang,eval:(u,v)=>{const rr=r+v*s;return vadd(vadd(vadd(f.P,vmul(f.X,rr*Math.cos(u))),vmul(f.Y,rr*Math.sin(u))),vmul(f.Z,v*c));},
+  inv:p=>{const w=vsub(p,f.P);const a=dot(w,f.X),b=dot(w,f.Y),z=dot(w,f.Z);const v=Math.abs(c)>1e-6?z/c:(Math.hypot(a,b)-r)/s;const rr=r+v*s;return [Math.abs(rr)<1e-9?NaN:Math.atan2(b,a),v];},du:N64,dv:Infinity,perU:TAU,perV:0};}
+function surfSphere(P,Z,X,r,Yd){const f=frame(P,Z,X,Yd);return {type:'sphere',...f,r,eval:(u,v)=>vadd(vadd(vadd(f.P,vmul(f.X,r*Math.cos(v)*Math.cos(u))),vmul(f.Y,r*Math.cos(v)*Math.sin(u))),vmul(f.Z,r*Math.sin(v))),
+  inv:p=>{const w=vsub(p,f.P);const a=dot(w,f.X),b=dot(w,f.Y),z=dot(w,f.Z);const h=Math.hypot(a,b);return [h<1e-7*r?NaN:Math.atan2(b,a),Math.atan2(z,h)];},du:N64,dv:N64,perU:TAU,perV:0};}
+function surfTorus(P,Z,X,R,r,Yd){const f=frame(P,Z,X,Yd);return {type:'torus',...f,R,r,eval:(u,v)=>{const rr=R+r*Math.cos(v);return vadd(vadd(vadd(f.P,vmul(f.X,rr*Math.cos(u))),vmul(f.Y,rr*Math.sin(u))),vmul(f.Z,r*Math.sin(v)));},
+  inv:p=>{const w=vsub(p,f.P);const a=dot(w,f.X),b=dot(w,f.Y),z=dot(w,f.Z);const h=Math.hypot(a,b);return [h<1e-9?NaN:Math.atan2(b,a),Math.atan2(z,h-R)];},du:N64,dv:N64,perU:TAU,perV:TAU};}
+function curveStep(c){if(curveIsLine(c))return Infinity;if(c.type==='circle'||c.type==='ellipse')return N64;const [a,b]=curveDomain(c);return (b-a)/Math.max(24,8*(c.nspans||3));}
+function surfExtrusion(C,D){const d=norm(D);const dd=dot(D,D)||1;const closed=(C.type==='circle'||C.type==='ellipse');return {type:'extrusion',C,D,eval:(u,v)=>vadd(curveEval(C,u),vmul(D,v)),
+  inv:p=>{let u;if(C.type==='line'||C.type==='circle'||C.type==='ellipse'){const q=vsub(p,vmul(D,dot(vsub(p,curveEval(C,curveDomain(C)[0])),D)/dd));u=curveInverse(C,q);}else{const [a,b]=curveDomain(C);let best=a,bd=Infinity;for(let i=0;i<=96;i++){const t=a+(b-a)*i/96;const w=vsub(p,curveEval(C,t));const dist=len(vsub(w,vmul(d,dot(w,d))));if(dist<bd){bd=dist;best=t;}}let lo=Math.max(a,best-(b-a)/96),hi=Math.min(b,best+(b-a)/96);const g=t=>{const w=vsub(p,curveEval(C,t));return len(vsub(w,vmul(d,dot(w,d))));};for(let it=0;it<30;it++){const m1=lo+(hi-lo)*0.382,m2=lo+(hi-lo)*0.618;if(g(m1)<g(m2))hi=m2;else lo=m1;}u=(lo+hi)/2;}
+    return [u,dot(vsub(p,curveEval(C,u)),D)/dd];},du:curveStep(C),dv:Infinity,perU:closed?TAU:0,perV:0};}
+function surfRevolution(P,D,C){const Z=norm(D);const [a,b]=curveDomain(C);const fin=(a>-1e8&&b<1e8);let X0=null;for(let i=0;i<=16&&!X0;i++){const t=fin?a+(b-a)*i/16:i;const q=curveEval(C,t);const w=vsub(q,P);const rad=vsub(w,vmul(Z,dot(w,Z)));if(len(rad)>1e-7)X0=norm(rad);}if(!X0)X0=frame(P,Z,null).X;const Y0=cross(Z,X0);
+  const rot=(q,u)=>{const w=vsub(q,P);const z=dot(w,Z),x=dot(w,X0),y=dot(w,Y0);const cu=Math.cos(u),su=Math.sin(u);return vadd(vadd(vadd(P,vmul(X0,x*cu-y*su)),vmul(Y0,x*su+y*cu)),vmul(Z,z));};
+  const inv=p=>{const w=vsub(p,P);const x=dot(w,X0),y=dot(w,Y0);if(Math.hypot(x,y)<1e-9)return [NaN,curveInverse(C,p)];const u1=Math.atan2(y,x);let best=null;for(const u of [u1,u1+Math.PI]){const pb=rot(p,-u);const v=curveInverse(C,pb);const d=len(vsub(curveEval(C,v),pb));if(!best||d<best.d)best={u,v,d};}return [best.u,best.v];};
+  return {type:'revolution',P,Z,C,eval:(u,v)=>rot(curveEval(C,v),u),inv,du:N64,dv:curveStep(C),perU:TAU,perV:(C.type==='circle'||C.type==='ellipse')?TAU:0};}
+// de Boor ohne Division (homogen), für Tensorflächen
+function deBoorH(deg,flat,P,t){const n=P.length;let k;if(t>=flat[n])k=n-1;else{k=deg;while(k<n-1&&flat[k+1]<=t)k++;}
+  const d=[];for(let j=0;j<=deg;j++)d.push(P[k-deg+j].slice());
+  for(let r=1;r<=deg;r++)for(let j=deg;j>=r;j--){const i=k-deg+j;const den=flat[i+deg-r+1]-flat[i];const a=den===0?0:(t-flat[i])/den;const x=d[j],y=d[j-1];for(let c=0;c<x.length;c++)x[c]=(1-a)*y[c]+a*x[c];}return d[deg];}
+// periodische Richtung entrollen: liefert {P (homogene Pole), flat, t0, t1, wrap(t)}
+function unrollDir(deg,P,knots,mults,periodic){let flat=flatKnots(knots,mults);let Q=P;const u0=knots[0],T=knots[knots.length-1]-u0;
+  if(periodic){const n=P.length;const U=flat.slice(0,n);const Kx=U.map(u=>u-T).concat(U,U.map(u=>u+T));Q=[];for(let j=0;j<3*n-deg-1;j++)Q.push(P[j%n]);flat=Kx;}
+  const a=flat[deg],b=flat[Q.length];return {P:Q,flat,t0:periodic?u0:a,t1:periodic?u0+T:b,wrap:t=>{if(periodic)t=u0+((t-u0)%T+T)%T;return Math.max(a,Math.min(b,t));}};}
+function surfBspline(udeg,vdeg,poles,weights,uknots,umults,vknots,vmults,uper,vper){ // poles[i][j]
+  const nu=poles.length,nv=poles[0].length;
+  const H=poles.map((row,i)=>row.map((p,j)=>{const w=weights?weights[i][j]:1;return p.map(x=>x*w).concat([w]);}));
+  // v-Richtung je Zeile, u-Richtung über die Zeilen; periodische Richtungen entrollen
+  const rowsV=H.map(row=>unrollDir(vdeg,row,vknots,vmults,!!vper));
+  const colU=unrollDir(udeg,H.map(r=>r[0]),uknots,umults,!!uper); // nur für Knoten/Bereich
+  const ev=(u,v)=>{const vv=rowsV[0].wrap(v);const Q=rowsV.map(r=>deBoorH(vdeg,r.flat,r.P,vv));const cu=unrollDir(udeg,Q,uknots,umults,!!uper);const q=deBoorH(udeg,cu.flat,cu.P,cu.wrap(u));const w=q[q.length-1];return q.slice(0,-1).map(x=>x/w);};
+  const u0=colU.t0,u1=colU.t1,v0=rowsV[0].t0,v1=rowsV[0].t1;
+  const inv=(p,guess)=>{let best,bd;if(guess&&isFinite(guess[0])&&isFinite(guess[1])){best=[guess[0],guess[1]];bd=len(vsub(ev(best[0],best[1]),p));}else{best=[u0,v0];bd=Infinity;const G=16;for(let i=0;i<=G;i++)for(let j=0;j<=G;j++){const u=u0+(u1-u0)*i/G,v=v0+(v1-v0)*j/G;const d=len(vsub(ev(u,v),p));if(d<bd){bd=d;best=[u,v];}}}
+    let hu=(u1-u0)/16,hv=(v1-v0)/16;for(let it=0;it<60;it++){let imp=false;for(const [du,dv] of [[hu,0],[-hu,0],[0,hv],[0,-hv]]){const u=uper?best[0]+du:Math.max(u0,Math.min(u1,best[0]+du)),v=vper?best[1]+dv:Math.max(v0,Math.min(v1,best[1]+dv));const d=len(vsub(ev(u,v),p));if(d<bd-1e-15){bd=d;best=[u,v];imp=true;}}if(!imp){hu/=2;hv/=2;if(hu<1e-10*(u1-u0)&&hv<1e-10*(v1-v0))break;}}
+    return best;};
+  return {type:'bspline',eval:ev,inv,du:(u1-u0)/Math.max(24,6*(uknots.length-1)),dv:(v1-v0)/Math.max(24,6*(vknots.length-1)),perU:uper?u1-u0:0,perV:vper?v1-v0:0,u0,u1,v0,v1};
+}
+function surfOffset(S,off){const ev=(u,v)=>{const h=1e-4;const p=S.eval(u,v),pu=S.eval(u+h,v),pv=S.eval(u,v+h);const n=norm(cross(vsub(pu,p),vsub(pv,p)));return vadd(p,vmul(n,off));};return Object.assign({},S,{type:'offset',eval:ev});}
+// Fläche mit Matrix transformieren
+function surfTransform(S,M){if(mIsIdentity(M))return S;const Mi=mInv(M);return Object.assign({},S,{eval:(u,v)=>mApply(M,S.eval(u,v)),inv:p=>S.inv(mApply(Mi,p))});}
+function curveTransform(c,M){if(mIsIdentity(M))return c;return {type:'xf',base:c,M,eval:t=>mApply(M,curveEval(c,t))};}
+// curveEval-Erweiterung für transformierte Kurven
+const _curveEval=curveEval;
+curveEval=function(c,t){if(c.type==='xf')return c.eval(t);return _curveEval(c,t);};
+// ---- uv-Schleifen: Periodizität entrollen, undefinierte u (Pole) auffüllen -------------
+function unwrapLoop(loop,perU,perV){
+  const n=loop.length;
+  const fix=key=>{const per=key==='u'?perU:perV;if(!per)return;
+    // 1. definierte Werte fortlaufend auf den nächsten Zweig legen
+    let prev=null;for(const q of loop){const x=q[key];if(!isFinite(x))continue;if(prev!==null){q[key]=x+Math.round((prev-x)/per)*per;}prev=q[key];}
+    const def=loop.map((q,i)=>i).filter(i=>isFinite(loop[i][key]));if(def.length<2)return;
+    // 2. undefinierte Stellen (Pole, Achse) sind freie Gelenke: dort darf der Rest um ganze Perioden
+    //    verschoben werden. Wähle die Verschiebung mit kleinstem Bereich, bei der die Schleife schließt.
+    const joints=[];for(let i=0;i<n;i++){if(!isFinite(loop[i][key])&&(i===0||isFinite(loop[i-1][key])))joints.push(i);}
+    const J=Math.min(joints.length,6);const base=loop.map(q=>q[key]);
+    // Läufe gleicher Kanten-Kennung (Nahtkanten in STEP-Schleifen)
+    const runs=[];for(let i=0;i<n;i++){const e=loop[i].e;if(e===undefined)continue;const r=runs[runs.length-1];if(r&&r.e===e&&r.oi===loop[i].oi&&r.end===i-1)r.end=i;else runs.push({e,oi:loop[i].oi,start:i,end:i});}
+    const seams=[];for(let a=0;a<runs.length;a++)for(let b=a+1;b<runs.length;b++)if(runs[a].e===runs[b].e&&runs[a].end-runs[a].start>0)seams.push([runs[a],runs[b]]);
+    const meanU=(u,r)=>{let s=0,c=0;for(let i=r.start;i<=r.end;i++){if(isFinite(u[i])){s+=u[i];c++;}}return c?s/c:NaN;};
+    const closesAtPole=!isFinite(loop[0][key])||!isFinite(loop[n-1][key]);
+    let best=null;
+    const total=Math.pow(3,J);for(let c=0;c<total;c++){let m=c;const sh=[];for(let j=0;j<J;j++){sh.push((m%3)-1);m=Math.floor(m/3);}
+      const u=base.slice();for(let j=0;j<J;j++){if(!sh[j])continue;for(let i=joints[j];i<n;i++)if(isFinite(u[i]))u[i]+=sh[j]*per;}
+      const d=def.map(i=>u[i]);const a=d[0],b=d[d.length-1];let ok=closesAtPole||Math.abs(b-a)<per/2+1e-9;
+      if(!ok)continue;let mn=Infinity,mx=-Infinity;for(const x of d){if(x<mn)mn=x;if(x>mx)mx=x;}const ext=mx-mn;
+      // Nahtkanten (gleiche Kante zweimal) müssen genau eine Periode auseinander liegen
+      let seamOk=true;for(const [ra,rb] of seams){const ma=meanU(u,ra),mb=meanU(u,rb);if(isFinite(ma)&&isFinite(mb)&&Math.abs(Math.abs(ma-mb)-per)>per/4)seamOk=false;}
+      const score=(seamOk?0:1e6)+ext;if(!best||score<best.score-1e-9)best={score,ext,u};}
+    if(!best){ // ohne Gelenke: an einem großen Sprung den anderen Zweig nehmen, bis die Schleife schließt
+      const u=base.slice();for(let it=0;it<8;it++){const a=u[def[0]],b=u[def[def.length-1]];const k=Math.round((b-a)/per);if(k===0)break;let bd=-1,bj=0;for(let m=1;m<def.length;m++){const dlt=(u[def[m]]-u[def[m-1]])*Math.sign(k);if(dlt>per/3&&dlt>bd){bd=dlt;bj=m;}}if(bd<0)break;for(let m=bj;m<def.length;m++)u[def[m]]-=Math.sign(k)*per;}
+      best={u};}
+    for(let i=0;i<n;i++)loop[i][key]=best.u[i];};
+  fix('u');fix('v');
+  for(const key of ['u','v']){for(let i=0;i<n;i++){if(isFinite(loop[i][key]))continue;let a=null,b=null;for(let s=1;s<n;s++){const q=loop[(i-s+n)%n];if(isFinite(q[key])){a=q[key];break;}}for(let s=1;s<n;s++){const q=loop[(i+s)%n];if(isFinite(q[key])){b=q[key];break;}}
+    if(a===null&&b===null)loop[i][key]=0;else if(a===null)loop[i][key]=b;else if(b===null)loop[i][key]=a;else{let j=i,cnt=0;while(!isFinite(loop[j%n][key])&&cnt<n){cnt++;j++;}const total=cnt+1;let m=0;for(let s=i;s<i+cnt;s++){m++;loop[s%n][key]=a+(b-a)*m/total;}}}}
+  return loop;
+}
+// ---- Vernetzung im Parameterraum ------------------------------------------------------
+// loops: Arrays von {u,v,p}; S: Fläche (eval); du/dv Verfeinerungsschritte; flip: Dreiecke umdrehen
+function tessellate(loops,S,du,dv,flip){
+  const segs=[],verts=[];
+  for(const L of loops){const n=L.length;if(n<3)continue;for(let i=0;i<n;i++){const a=L[i],b=L[(i+1)%n];if(Math.abs(a.u-b.u)<1e-13&&Math.abs(a.v-b.v)<1e-13)continue;segs.push({a,b});}for(const q of L)verts.push(q);}
+  if(!segs.length)return [];
+  const us=verts.map(q=>q.u);const umin=Math.min(...us),umax=Math.max(...us);if(!(umax>umin))return [];
+  if(isFinite(du)&&du>0){for(let k=Math.ceil(umin/du);k<=Math.floor(umax/du);k++)us.push(k*du);}
+  us.sort((a,b)=>a-b);const U=[];const tol=1e-9*Math.max(1,umax-umin);for(const u of us){if(!U.length||u-U[U.length-1]>tol)U.push(u);}
+  const idx=u=>{let lo=0,hi=U.length-1;while(lo<hi){const m=(lo+hi)>>1;if(U[m]<u)lo=m+1;else hi=m;}if(lo>0&&u-U[lo-1]<U[lo]-u)lo--;return lo;};
+  for(const q of verts){q.k=idx(q.u);}
+  const nU=U.length;const lines=[];const vert=[];for(let k=0;k<nU;k++){lines.push([]);vert.push([]);}
+  for(const q of verts)lines[q.k].push({v:q.v,p:q.p});
+  const cross_=(s,k)=>{const a=s.a,b=s.b;if(a.k===k)return {v:a.v,p:a.p};if(b.k===k)return {v:b.v,p:b.p};const t=(U[k]-U[a.k])/(U[b.k]-U[a.k]);return {v:a.v+(b.v-a.v)*t,p:lerp(a.p,b.p,t)};};
+  for(const s of segs){const ka=s.a.k,kb=s.b.k;if(ka===kb){vert[ka].push(s);continue;}const lo=Math.min(ka,kb),hi=Math.max(ka,kb);for(let k=lo+1;k<hi;k++)lines[k].push(cross_(s,k));}
+  for(const L of lines)L.sort((a,b)=>a.v-b.v);
+  const vertPoint=(k,c)=>{for(const s of vert[k]){const v0=Math.min(s.a.v,s.b.v),v1=Math.max(s.a.v,s.b.v);if(c>=v0-1e-12&&c<=v1+1e-12){const t=v1-v0<1e-15?0:(c-s.a.v)/(s.b.v-s.a.v);return {u:U[k],v:c,p:lerp(s.a.p,s.b.p,t)};}}return {u:U[k],v:c,p:S.eval(U[k],c)};};
+  const tris=[];const vtol=1e-9;
+  const emit=(A,B,C)=>{const ar=(B.u-A.u)*(C.v-A.v)-(C.u-A.u)*(B.v-A.v);if(Math.abs(ar)<1e-18)return;const t=ar>0?[A.p,B.p,C.p]:[A.p,C.p,B.p];if(K.len(K.cross(K.sub(t[1],t[0]),K.sub(t[2],t[0])))<1e-14)return;tris.push(flip?[t[0],t[2],t[1]]:t);};
+  const zipper=poly=>{const n=poly.length;if(n<3)return;let s=0,e=0;for(let i=1;i<n;i++){if(poly[i].v<poly[s].v-vtol||(Math.abs(poly[i].v-poly[s].v)<=vtol&&poly[i].u<poly[s].u))s=i;if(poly[i].v>poly[e].v+vtol||(Math.abs(poly[i].v-poly[e].v)<=vtol&&poly[i].u>poly[e].u))e=i;}
+    const A=[],B=[];for(let i=s;;i=(i+1)%n){A.push(poly[i]);if(i===e)break;}for(let i=s;;i=(i-1+n)%n){B.push(poly[i]);if(i===e)break;}
+    let a=0,b=0;while(a<A.length-1||b<B.length-1){const nA=a<A.length-1?A[a+1]:null,nB=b<B.length-1?B[b+1]:null;let takeA;if(!nB)takeA=true;else if(!nA)takeA=false;else if(a+1===A.length-1&&b+1<B.length-1)takeA=false;else if(b+1===B.length-1&&a+1<A.length-1)takeA=true;else takeA=nA.v<=nB.v;
+      if(takeA){emit(A[a],B[b],nA);a++;}else{emit(A[a],B[b],nB);b++;}}};
+  // konvexes Polygon (u,v,p, gegen den Uhrzeigersinn) an v=c teilen; Kanten: senkrecht -> vertPoint, sonst Sehne
+  const cutAt=(poly,c)=>{const lo=[],hi=[];const n=poly.length;for(let i=0;i<n;i++){const P=poly[i],Q=poly[(i+1)%n];(P.v<c?lo:hi).push(P);if((P.v<c&&Q.v>c)||(P.v>c&&Q.v<c)){let X;if(Math.abs(P.u-Q.u)<1e-12)X=vertPoint(idx(P.u),c);else{const t=(c-P.v)/(Q.v-P.v);X={u:P.u+(Q.u-P.u)*t,v:c,p:lerp(P.p,Q.p,t)};}lo.push(X);hi.push(X);}else if(Math.abs(P.v-c)<=vtol){(P.v<c?hi:lo).push(P);}}return [lo,hi];};
+  for(let k=0;k<nU-1;k++){const X=[];for(const s of segs){const lo=Math.min(s.a.k,s.b.k),hi=Math.max(s.a.k,s.b.k);if(lo<=k&&hi>=k+1){const L=cross_(s,k),R=cross_(s,k+1);X.push({L,R,m:L.v+R.v});}}
+    X.sort((p,q)=>p.m-q.m);
+    for(let i=0;i+1<X.length;i+=2){const lo=X[i],hi=X[i+1];if(hi.L.v-lo.L.v<vtol&&hi.R.v-lo.R.v<vtol)continue;
+      const poly=[{u:U[k],v:lo.L.v,p:lo.L.p},{u:U[k+1],v:lo.R.v,p:lo.R.p}];
+      for(const q of lines[k+1])if(q.v>lo.R.v+vtol&&q.v<hi.R.v-vtol)poly.push({u:U[k+1],v:q.v,p:q.p});
+      poly.push({u:U[k+1],v:hi.R.v,p:hi.R.p},{u:U[k],v:hi.L.v,p:hi.L.p});
+      const left=lines[k].filter(q=>q.v>lo.L.v+vtol&&q.v<hi.L.v-vtol);for(let j=left.length-1;j>=0;j--)poly.push({u:U[k],v:left[j].v,p:left[j].p});
+      if(isFinite(dv)&&dv>0){let cur=poly;const vmin=Math.min(...poly.map(q=>q.v)),vmax=Math.max(...poly.map(q=>q.v));for(let m=Math.ceil(vmin/dv);m<=Math.floor(vmax/dv);m++){const c=m*dv;if(c<=vmin+1e-9||c>=vmax-1e-9)continue;const [a,b]=cutAt(cur,c);if(a.length>=3)zipper(a);cur=b;}if(cur.length>=3)zipper(cur);}
+      else zipper(poly);}
+  }
+  return tris;
+}
+// Kanten-Stützpunkte (3D) einer Schleife in uv bringen: per Fläche-Umkehrung, dann entrollen
+function loopToUV(pts,S){let prev=null;const L=pts.map(p=>{const uv=S.inv(p,prev);prev=uv;return {u:uv[0],v:uv[1],p};});return unwrapLoop(L,S.perU,S.perV);}
+// ============================================================================
+// Teil 3: Leser: OCCT-BRep (ASCII, in FCStd) und STEP AP203/AP214 -> Dreiecke
+// ============================================================================
+// Kantenstücke einer Schleife verketten (Reihenfolge prüfen, notfalls per 3D-Endpunkt suchen)
+function chainParts(parts,tol,uvMode){
+  const P=parts.filter(p=>p.length>=1);if(!P.length)return [];const first=x=>x[0],last=x=>x[x.length-1];
+  let tolUV=1e-7;if(uvMode){let umin=Infinity,umax=-Infinity,vmin=Infinity,vmax=-Infinity;for(const p of P)for(const q of p){umin=Math.min(umin,q.u);umax=Math.max(umax,q.u);vmin=Math.min(vmin,q.v);vmax=Math.max(vmax,q.v);}tolUV=1e-6*Math.max(1,umax-umin,vmax-vmin);}
+  const near=(a,b)=>uvMode?(Math.abs(a.u-b.u)<=tolUV&&Math.abs(a.v-b.v)<=tolUV):len(sub(a.p,b.p))<=tol;
+  const out=[P[0]];const rest=P.slice(1);
+  while(rest.length){const cur=last(out[out.length-1]);let j=-1,revd=false;
+    if(near(first(rest[0]),cur))j=0;else{j=rest.findIndex(x=>near(first(x),cur));if(j<0){j=rest.findIndex(x=>near(last(x),cur));revd=j>=0;}if(j<0)j=0;}
+    const nx=rest.splice(j,1)[0];out.push(revd?nx.slice().reverse():nx);}
+  const loop=[];for(const part of out)for(const q of part){const l=loop[loop.length-1];if(l&&near(l,q)&&len(sub(l.p,q.p))<=Math.max(tol,1e-9))continue;loop.push(q);}
+  if(loop.length>1){const f=loop[0],l=loop[loop.length-1];if(near(f,l)&&len(sub(f.p,l.p))<=Math.max(tol,1e-9))loop.pop();}
+  return loop;
+}
+// ---- OCCT BRep ---------------------------------------------------------------------
+function brepRead(text,opts){
+  const tok=text.split(/\s+/).filter(Boolean);let i=0;const warnings=[];
+  const next=()=>{if(i>=tok.length)throw new Error('BRep: Datei endet unerwartet');return tok[i++];};
+  const num=()=>{const t=next();const x=parseFloat(t);if(!isFinite(x))throw new Error('BRep: Zahl erwartet, "'+t+'" gefunden');return x;};
+  const int=()=>Math.round(num());const pt3=()=>[num(),num(),num()],pt2=()=>[num(),num()];
+  while(i<tok.length&&tok[i]!=='Locations')i++;if(i>=tok.length)throw new Error('BRep: Abschnitt Locations fehlt');i++;
+  const nLoc=int();const locs=[M_ID];
+  for(let k=0;k<nLoc;k++){const type=int();if(type===1){const M=[[0,0,0,0],[0,0,0,0],[0,0,0,0]];for(let r=0;r<3;r++)for(let c=0;c<4;c++)M[r][c]=num();locs.push(M);}
+    else if(type===2){let M=M_ID;for(;;){const idx=int();if(idx===0)break;const pow=int();let L=locs[idx]||M_ID;if(pow<0)L=mInv(L);for(let q=0;q<Math.abs(pow);q++)M=mMul(M,L);}locs.push(M);}
+    else throw new Error('BRep: Location-Typ '+type);}
+  const readCurve=dim=>{const type=int();const P=dim===2?pt2:pt3;
+    switch(type){
+      case 1:return {type:'line',p:P(),d:P()};
+      case 2:{const c=P();if(dim===3)P();const x=P(),y=P();const r=num();return {type:'circle',c,x,y,r};}
+      case 3:{const c=P();if(dim===3)P();const x=P(),y=P();const ra=num(),rb=num();return {type:'ellipse',c,x,y,ra,rb};}
+      case 4:{const c=P();if(dim===3)P();const x=P(),y=P();const f=num();return {type:'parabola',c,x,y,f};}
+      case 5:{const c=P();if(dim===3)P();const x=P(),y=P();const a=num(),b=num();return {type:'hyperbola',c,x,y,a,b};}
+      case 6:{const rat=int(),deg=int();const poles=[],w=[];for(let k=0;k<=deg;k++){poles.push(P());if(rat)w.push(num());}return mkBezier(poles,rat?w:null);}
+      case 7:{const rat=int(),per=int(),deg=int(),np=int(),nk=int();const poles=[],w=[];for(let k=0;k<np;k++){poles.push(P());if(rat)w.push(num());}const knots=[],mults=[];for(let k=0;k<nk;k++){knots.push(num());mults.push(int());}return mkBspline(deg,poles,rat?w:null,knots,mults,!!per);}
+      case 8:{const t0=num(),t1=num();const base=readCurve(dim);return {type:'trimmed',base,t0,t1};}
+      case 9:{const off=num();let dir=null;if(dim===3)dir=P();const base=readCurve(dim);return {type:'offset',base,off,dir};}
+    }throw new Error('BRep: Kurventyp '+type);};
+  const readSurface=()=>{const type=int();
+    switch(type){
+      case 1:{const P=pt3(),N=pt3(),X=pt3(),Y=pt3();return surfPlane(P,N,X,Y);}
+      case 2:{const P=pt3(),N=pt3(),X=pt3(),Y=pt3();return surfCylinder(P,N,X,num(),Y);}
+      case 3:{const P=pt3(),N=pt3(),X=pt3(),Y=pt3();const r=num(),ang=num();return surfCone(P,N,X,r,ang,Y);}
+      case 4:{const P=pt3(),N=pt3(),X=pt3(),Y=pt3();return surfSphere(P,N,X,num(),Y);}
+      case 5:{const P=pt3(),N=pt3(),X=pt3(),Y=pt3();const R=num(),r=num();return surfTorus(P,N,X,R,r,Y);}
+      case 6:{const D=pt3();const C=readCurve(3);return surfExtrusion(C,D);}
+      case 7:{const P=pt3(),D=pt3();const C=readCurve(3);return surfRevolution(P,D,C);}
+      case 8:{const ur=int(),vr=int(),ud=int(),vd=int();const poles=[],w=[];for(let a=0;a<=ud;a++){const row=[],wr=[];for(let b=0;b<=vd;b++){row.push(pt3());if(ur||vr)wr.push(num());}poles.push(row);w.push(wr);}return surfBspline(ud,vd,poles,(ur||vr)?w:null,[0,1],[ud+1,ud+1],[0,1],[vd+1,vd+1],false,false);}
+      case 9:{const ur=int(),vr=int(),up=int(),vp=int(),ud=int(),vd=int(),nu=int(),nv=int(),nku=int(),nkv=int();const poles=[],w=[];for(let a=0;a<nu;a++){const row=[],wr=[];for(let b=0;b<nv;b++){row.push(pt3());if(ur||vr)wr.push(num());}poles.push(row);w.push(wr);}const uk=[],um=[],vk=[],vm=[];for(let a=0;a<nku;a++){uk.push(num());um.push(int());}for(let a=0;a<nkv;a++){vk.push(num());vm.push(int());}return surfBspline(ud,vd,poles,(ur||vr)?w:null,uk,um,vk,vm,!!up,!!vp);}
+      case 10:{num();num();num();num();return readSurface();}
+      case 11:{const off=num();return surfOffset(readSurface(),off);}
+    }throw new Error('BRep: Flächentyp '+type);};
+  let curves2=[],curves3=[],surfs=[];let nSh=0;
+  for(;;){const h=next();
+    if(h==='Curve2ds'){const n=int();for(let k=0;k<n;k++)curves2.push(readCurve(2));}
+    else if(h==='Curves'){const n=int();for(let k=0;k<n;k++)curves3.push(readCurve(3));}
+    else if(h==='Surfaces'){const n=int();for(let k=0;k<n;k++)surfs.push(readSurface());}
+    else if(h==='Polygon3D'||h==='PolygonOnTriangulations'||h==='Triangulations'){const n=int();if(n>0)throw new Error('BRep: Abschnitt '+h+' wird nicht unterstützt');}
+    else if(h==='TShapes'){nSh=int();break;}
+    else throw new Error('BRep: unbekannter Abschnitt "'+h+'"');}
+  const shapes=[];const isFlags=t=>/^[01]{7}$/.test(t);
+  for(let k=0;k<nSh;k++){const kind=next();const sh={kind,subs:[]};
+    if(kind==='Ve'){sh.tol=num();sh.p=pt3();for(;;){if(tok[i]==='0'&&tok[i+1]==='0'){i+=2;break;}const t=int();if(t===1){num();int();int();}else if(t===2){num();int();int();int();}else if(t===3){num();num();int();int();}else throw new Error('BRep: Punkt-Darstellung '+t);}}
+    else if(kind==='Ed'){sh.tol=num();sh.sameParam=int();sh.sameRange=int();sh.degenerated=int();sh.reps=[];
+      for(;;){const t=int();if(t===0)break;
+        if(t===1)sh.reps.push({t:1,curve:int(),loc:int(),first:num(),last:num()});
+        else if(t===2)sh.reps.push({t:2,pc:int(),surf:int(),loc:int(),first:num(),last:num()});
+        else if(t===3){const pc1=int();const tk=next();const m=/^(-?\d+)([A-Za-z]\w*)?$/.exec(tk);if(!m)throw new Error('BRep: Naht-Darstellung');const pc2=parseInt(m[1]);if(!m[2])next();sh.reps.push({t:3,pc:pc1,pc2,surf:int(),loc:int(),first:num(),last:num()});}
+        else if(t===4){next();int();int();int();int();}
+        else if(t===5){int();int();}else if(t===6){int();int();int();}else if(t===7){int();int();int();int();}
+        else throw new Error('BRep: Kanten-Darstellung '+t);}}
+    else if(kind==='Fa'){sh.natural=int();sh.tol=num();sh.surf=int();sh.loc=int();}
+    else if(!['Wi','Sh','So','CS','Co'].includes(kind))throw new Error('BRep: Formtyp "'+kind+'"');
+    let f=next();if(!isFlags(f)){if(kind==='Fa'){int();f=next();}if(!isFlags(f))throw new Error('BRep: Flags erwartet, "'+f+'" gefunden');}
+    sh.flags=f;
+    for(;;){const t=next();if(t==='*')break;const m=/^([+\-ie])(\d+)$/.exec(t);if(!m)throw new Error('BRep: Unterform "'+t+'"');sh.subs.push({o:m[1],num:parseInt(m[2]),loc:int()});}
+    shapes.push(sh);}
+  let rootNum=1,rootLoc=0;if(i<tok.length){const m=/^([+\-ie])(\d+)$/.exec(tok[i]);if(m){rootNum=parseInt(m[2]);i++;rootLoc=parseInt(tok[i]||'0')||0;}}
+  const byNum=n=>shapes[nSh-n];
+  const tris=[];const edgeCache=new Map();
+  const edgeSamples=(ed,num,Me)=>{const key=num+'|'+Me.map(r=>r.map(x=>x.toFixed(9)).join(',')).join(';');if(edgeCache.has(key))return edgeCache.get(key);
+    let res=null;const r1=ed.reps.find(r=>r.t===1);
+    if(ed.degenerated||!r1){const vs=ed.subs.find(s=>byNum(s.num)&&byNum(s.num).kind==='Ve');if(vs){const ve=byNum(vs.num);const p=mApply(mMul(Me,locs[vs.loc]||M_ID),ve.p);const pr=ed.reps.find(r=>r.t===2||r.t===3);const t0=pr?pr.first:0,t1=pr?pr.last:1;const t=[],pp=[];for(let k=0;k<=8;k++){t.push(t0+(t1-t0)*k/8);pp.push(p);}res={t,p:pp};}}
+    else{const c=curves3[r1.curve-1];if(c){const Mc=mMul(Me,locs[r1.loc]||M_ID);const sp=samplePoints(c,r1.first,r1.last);res={t:sp.map(s=>s.t),p:sp.map(s=>mApply(Mc,s.p))};}}
+    edgeCache.set(key,res);return res;};
+  const faceTris=(fa,Mf,rev)=>{const S0=surfs[fa.surf-1];if(!S0){warnings.push('Fläche ohne Flächengeometrie');return;}
+    const S=surfTransform(S0,mMul(Mf,locs[fa.loc]||M_ID));const loops=[];
+    for(const ws of fa.subs){const wi=byNum(ws.num);if(!wi||wi.kind!=='Wi')continue;const Mw=mMul(Mf,locs[ws.loc]||M_ID);const wrev=(ws.o==='-');const parts=[];let needUnwrap=false; // Umlaufsinn der gespeicherten Schleife; die Schalen-Orientierung der Fläche dreht nur die Normalen
+      for(const es of wi.subs){const ed=byNum(es.num);if(!ed||ed.kind!=='Ed')continue;const Me=mMul(Mw,locs[es.loc]||M_ID);const erev=wrev!==(es.o==='-');
+        const samp=edgeSamples(ed,es.num,Me);if(!samp)continue;
+        let pc=null;for(const r of ed.reps){if((r.t===2||r.t===3)&&r.surf===fa.surf){pc=r;break;}}
+        let uv;if(pc){const c2=(pc.t===3&&erev)?curves2[pc.pc2-1]:curves2[pc.pc-1];uv=c2?samp.t.map(t=>curveEval(c2,t)):null;}
+        if(uv){ // Parameterkurve gegen die 3D-Punkte prüfen (Lagen der Kante und der Fläche können abweichen); bei Abweichung uv aus der Umkehrung, Zweig nach der Parameterkurve
+          const tolP=1e-4*(1+fa.tol*1e3);let bad=false;for(const k of [0,uv.length-1,uv.length>>1]){const q=S.eval(uv[k][0],uv[k][1]);if(len(sub(q,samp.p[k]))>tolP+1e-6*len(samp.p[k])){bad=true;break;}}
+          if(bad){const nb=(x,g,per)=>!isFinite(x)?g:(per?x+Math.round((g-x)/per)*per:x);uv=samp.p.map((p,k)=>{const q=S.inv(p);return [nb(q[0],uv[k][0],S.perU),nb(q[1],uv[k][1],S.perV)];});}}
+        if(!uv){needUnwrap=true;let prev=null;uv=samp.p.map(p=>{const q=S.inv(p,prev);prev=q;return q;});}
+        const pts=samp.p.map((p,k)=>({u:uv[k][0],v:uv[k][1],p}));if(erev)pts.reverse();parts.push(pts);}
+      if(opts&&opts.onWire)opts.onWire({type:S0.type,parts,needUnwrap});
+      let loop=chainParts(parts,Math.max(1e-6,fa.tol*10),!needUnwrap);if(needUnwrap)loop=unwrapLoop(loop,S.perU,S.perV);if(loop.length>=3)loops.push(loop);}
+    if(!loops.length)return;
+    try{const T=tessellate(loops,S,S.du,S.dv,rev);for(const t of T)tris.push(t);if(opts&&opts.onFace)opts.onFace({type:S0.type,loops,tris:T,rev,S});}catch(e){warnings.push('Fläche nicht vernetzbar: '+e.message);}};
+  const visit=(num,M,rev,depth)=>{const sh=byNum(num);if(!sh||depth>40)return;
+    if(sh.kind==='Fa'){faceTris(sh,M,rev);return;}
+    if(sh.kind==='Ed'||sh.kind==='Ve'||sh.kind==='Wi')return;
+    for(const s of sh.subs){if(s.o==='i'||s.o==='e')continue;visit(s.num,mMul(M,locs[s.loc]||M_ID),rev!==(s.o==='-'),depth+1);}};
+  visit(rootNum,locs[rootLoc]||M_ID,false,0);
+  return {tris,warnings};
+}
+// ---- STEP ------------------------------------------------------------------------------
+function stepParseRecord(rec){
+  let i=0;const n=rec.length;
+  const ws=()=>{while(i<n&&/\s/.test(rec[i]))i++;};
+  const value=()=>{ws();const c=rec[i];
+    if(c==='('){i++;const list=[];for(;;){ws();if(rec[i]===')'){i++;break;}list.push(value());ws();if(rec[i]===',')i++;}return list;}
+    if(c==="'"){i++;let s='';while(i<n){if(rec[i]==="'"){if(rec[i+1]==="'"){s+="'";i+=2;continue;}i++;break;}s+=rec[i++];}return {str:s};}
+    if(c==='.'){const j=rec.indexOf('.',i+1);const e=rec.slice(i+1,j);i=j+1;return {enum:e};}
+    if(c==='#'){i++;let j=i;while(j<n&&/\d/.test(rec[j]))j++;const id=parseInt(rec.slice(i,j));i=j;return {ref:id};}
+    if(c==='$'){i++;return null;}if(c==='*'){i++;return {star:true};}
+    if(/[0-9+\-]/.test(c)){let j=i+1;while(j<n&&/[0-9eE+\-.]/.test(rec[j]))j++;const x=parseFloat(rec.slice(i,j));i=j;return x;}
+    let j=i;
+    // Typname (mit Argumenten)
+    while(j<n&&/[A-Za-z0-9_]/.test(rec[j]))j++;const name=rec.slice(i,j);i=j;ws();let args=[];if(rec[i]==='('){args=value();}return {name,args};};
+  ws();
+  if(rec[0]==='('){i++;const parts=[];for(;;){ws();if(rec[i]===')'||i>=n)break;const v=value();if(v&&v.name)parts.push(v);}return {name:'COMPLEX',parts};}
+  const v=value();return v&&v.name?v:{name:'?',args:[]};
+}
+function stepParse(text){
+  const ents=new Map();const ds=text.indexOf('DATA;');let i=ds<0?0:ds+5;const n=text.length;
+  while(i<n){const h=text.indexOf('#',i);if(h<0)break;let j=h+1;while(j<n&&/\d/.test(text[j]))j++;if(j===h+1){i=h+1;continue;}const id=parseInt(text.slice(h+1,j));
+    let k=j;while(k<n&&/\s/.test(text[k]))k++;if(text[k]!=='='){i=j;continue;}k++;
+    let q=false,m=k;while(m<n){const c=text[m];if(c==="'"){if(q&&text[m+1]==="'"){m+=2;continue;}q=!q;}else if(c===';'&&!q)break;m++;}
+    ents.set(id,stepParseRecord(text.slice(k,m).replace(/\r?\n/g,' ')));i=m+1;}
+  return ents;
+}
+function stepRead(text,opts){
+  const ents=stepParse(text);const warnings=[];const unknown=new Set();
+  const E=x=>x&&x.ref!==undefined?ents.get(x.ref):null;
+  const parts=e=>e?(e.name==='COMPLEX'?e.parts:[e]):[];
+  const part=(e,name)=>parts(e).find(p=>p.name===name);
+  const has=(e,name)=>!!part(e,name);
+  // Längeneinheit
+  let unit=1;
+  for(const e of ents.values()){if(e.name==='COMPLEX'&&has(e,'LENGTH_UNIT')){const si=part(e,'SI_UNIT');if(si){const pre=si.args[0]&&si.args[0].enum;unit=pre==='MILLI'?1:pre==='CENTI'?10:pre==='MICRO'?0.001:pre==='DECI'?100:pre==='KILO'?1e6:!pre?1000:1;}break;}
+    if(e.name==='COMPLEX'&&has(e,'CONVERSION_BASED_UNIT')&&has(e,'LENGTH_UNIT')){const cb=part(e,'CONVERSION_BASED_UNIT');const meas=E(cb.args[1]);const mv=meas&&meas.args[0]&&meas.args[0].args?meas.args[0].args[0]:null;const base=E(meas&&meas.args[1]);let f=1;const si=part(base,'SI_UNIT');if(si){const pre=si.args[0]&&si.args[0].enum;f=pre==='MILLI'?1:pre==='CENTI'?10:!pre?1000:1;}if(typeof mv==='number')unit=mv*f;break;}}
+  const cache=new Map();const memo=(key,fn)=>{if(cache.has(key))return cache.get(key);const v=fn();cache.set(key,v);return v;};
+  const point=r=>{const e=E(r);if(!e)return [0,0,0];const c=(e.args[1]||[]).map(x=>(typeof x==='number'?x:0)*unit);while(c.length<3)c.push(0);return c;};
+  const dir=r=>{const e=E(r);if(!e)return null;const c=(e.args[1]||[]).map(x=>typeof x==='number'?x:0);while(c.length<3)c.push(0);return c;};
+  const place=r=>{const e=E(r);if(!e)return {P:[0,0,0],Z:[0,0,1],X:[1,0,0]};return {P:point(e.args[1]),Z:dir(e.args[2])||[0,0,1],X:dir(e.args[3])};};
+  const num=x=>typeof x==='number'?x:0;
+  const bsplineFrom=(deg,ptsRefs,knotsE,weights)=>{const poles=ptsRefs.map(point);const mults=knotsE.args[0].map(num),knots=knotsE.args[1].map(num);return mkBspline(deg,poles,weights,knots,mults,false);};
+  const curve=r=>memo('c'+(r&&r.ref),()=>{const e=E(r);if(!e)return null;
+    const nm=e.name==='COMPLEX'?(has(e,'B_SPLINE_CURVE')?'B_SPLINE_CURVE_RATIONAL':parts(e)[0].name):e.name;
+    switch(nm){
+      case 'LINE':{const p=point(e.args[1]);const v=E(e.args[2]);const d=v?vmul(dir(v.args[1])||[1,0,0],num(v.args[2])*unit):[1,0,0];return {type:'line',p,d};}
+      case 'CIRCLE':{const f=frame(place(e.args[1]).P,place(e.args[1]).Z,place(e.args[1]).X);return {type:'circle',c:f.P,x:f.X,y:f.Y,r:num(e.args[2])*unit};}
+      case 'ELLIPSE':{const pl=place(e.args[1]);const f=frame(pl.P,pl.Z,pl.X);return {type:'ellipse',c:f.P,x:f.X,y:f.Y,ra:num(e.args[2])*unit,rb:num(e.args[3])*unit};}
+      case 'B_SPLINE_CURVE_WITH_KNOTS':{const deg=num(e.args[1]);const poles=e.args[2].map(point);const mults=e.args[6].map(num),knots=e.args[7].map(num);return mkBspline(deg,poles,null,knots,mults,false);}
+      case 'B_SPLINE_CURVE_RATIONAL':{const b=part(e,'B_SPLINE_CURVE'),k=part(e,'B_SPLINE_CURVE_WITH_KNOTS'),w=part(e,'RATIONAL_B_SPLINE_CURVE');const deg=num(b.args[0]);const poles=b.args[1].map(point);if(k)return mkBspline(deg,poles,w?w.args[0].map(num):null,k.args[1].map(num),k.args[0].map(num),false);return mkBezier(poles,w?w.args[0].map(num):null);}
+      case 'BEZIER_CURVE':return mkBezier(e.args[2].map(point),null);
+      case 'TRIMMED_CURVE':{const base=curve(e.args[1]);if(!base)return null;const tr=t=>{const pv=(t||[]).find(x=>x&&x.name==='PARAMETER_VALUE');if(pv)return num(pv.args[0]);const pr=(t||[]).find(x=>x&&x.ref!==undefined);return pr?curveInverse(base,point(pr)):0;};let t0=tr(e.args[2]),t1=tr(e.args[3]);const sense=e.args[4]&&e.args[4].enum!=='F';if(!sense){const tmp=t0;t0=t1;t1=tmp;}return {type:'trimmed',base,t0,t1};}
+      case 'SURFACE_CURVE':case 'SEAM_CURVE':case 'BOUNDED_SURFACE_CURVE':case 'INTERSECTION_CURVE':return curve(e.args[1]);
+      case 'POLYLINE':return {type:'poly',pts:e.args[1].map(point)};
+      case 'COMPOSITE_CURVE':case 'COMPOSITE_CURVE_ON_SURFACE':{const pts=[];for(const sr of e.args[1]){const seg=E(sr);if(!seg)continue;const c=curve(seg.args[2]);if(!c)continue;const [a,b]=curveDomain(c);const sp=samplePoints(c,a,b);const same=!(seg.args[1]&&seg.args[1].enum==='F');const list=sp.map(s=>s.p);if(!same)list.reverse();for(const p of list){if(pts.length&&len(sub(pts[pts.length-1],p))<1e-9)continue;pts.push(p);}}return {type:'poly',pts};}
+    }
+    unknown.add(nm);return null;});
+  const surface=r=>memo('s'+(r&&r.ref),()=>{const e=E(r);if(!e)return null;
+    const nm=e.name==='COMPLEX'?(has(e,'B_SPLINE_SURFACE')?'B_SPLINE_SURFACE_RATIONAL':parts(e)[0].name):e.name;
+    const pl=()=>place(e.args[1]);
+    switch(nm){
+      case 'PLANE':{const p=pl();return surfPlane(p.P,p.Z,p.X);}
+      case 'CYLINDRICAL_SURFACE':{const p=pl();return surfCylinder(p.P,p.Z,p.X,num(e.args[2])*unit);}
+      case 'CONICAL_SURFACE':{const p=pl();return surfCone(p.P,p.Z,p.X,num(e.args[2])*unit,num(e.args[3]));}
+      case 'SPHERICAL_SURFACE':{const p=pl();return surfSphere(p.P,p.Z,p.X,num(e.args[2])*unit);}
+      case 'TOROIDAL_SURFACE':case 'DEGENERATE_TOROIDAL_SURFACE':{const p=pl();return surfTorus(p.P,p.Z,p.X,num(e.args[2])*unit,num(e.args[3])*unit);}
+      case 'SURFACE_OF_LINEAR_EXTRUSION':{const c=curve(e.args[1]);const v=E(e.args[2]);if(!c||!v)return null;return surfExtrusion(c,vmul(dir(v.args[1])||[0,0,1],num(v.args[2])*unit));}
+      case 'SURFACE_OF_REVOLUTION':{const c=curve(e.args[1]);const ax=E(e.args[2]);if(!c||!ax)return null;return surfRevolution(point(ax.args[1]),dir(ax.args[2])||[0,0,1],c);}
+      case 'B_SPLINE_SURFACE_WITH_KNOTS':{const ud=num(e.args[1]),vd=num(e.args[2]);const poles=e.args[3].map(row=>row.map(point));return surfBspline(ud,vd,poles,null,e.args[10].map(num),e.args[8].map(num),e.args[11].map(num),e.args[9].map(num),false,false);}
+      case 'B_SPLINE_SURFACE_RATIONAL':{const b=part(e,'B_SPLINE_SURFACE'),k=part(e,'B_SPLINE_SURFACE_WITH_KNOTS'),w=part(e,'RATIONAL_B_SPLINE_SURFACE');const ud=num(b.args[0]),vd=num(b.args[1]);const poles=b.args[2].map(row=>row.map(point));const W=w?w.args[0].map(row=>row.map(num)):null;if(k)return surfBspline(ud,vd,poles,W,k.args[2].map(num),k.args[0].map(num),k.args[3].map(num),k.args[1].map(num),false,false);return surfBspline(ud,vd,poles,W,[0,1],[ud+1,ud+1],[0,1],[vd+1,vd+1],false,false);}
+      case 'BEZIER_SURFACE':{const ud=num(e.args[1]),vd=num(e.args[2]);const poles=e.args[3].map(row=>row.map(point));return surfBspline(ud,vd,poles,null,[0,1],[ud+1,ud+1],[0,1],[vd+1,vd+1],false,false);}
+      case 'RECTANGULAR_TRIMMED_SURFACE':return surface(e.args[1]);
+      case 'OFFSET_SURFACE':{const b=surface(e.args[1]);return b?surfOffset(b,num(e.args[2])*unit):null;}
+    }
+    unknown.add(nm);return null;});
+  // Kanten: Stützpunkte vom Anfangs- zum Endpunkt
+  const edgePts=r=>memo('e'+(r&&r.ref),()=>{const e=E(r);if(!e)return null;
+    if(e.name!=='EDGE_CURVE'){unknown.add(e.name);return null;}
+    const v1=E(e.args[1]),v2=E(e.args[2]);const P1=v1?point(v1.args[1]):null,P2=v2?point(v2.args[1]):null;const c=curve(e.args[3]);const same=!(e.args[4]&&e.args[4].enum==='F');
+    if(!c||!P1||!P2)return null;
+    let pts;
+    if(c.type==='line'){pts=[P1,P2];}
+    else if(c.type==='circle'||c.type==='ellipse'){let a0=curveInverse(c,P1),a1=curveInverse(c,P2);const closed=len(sub(P1,P2))<1e-7;if(closed)a1=same?a0+TAU:a0-TAU;else if(same){a1=a0+((a1-a0)%TAU+TAU)%TAU;}else{a1=a0-((a0-a1)%TAU+TAU)%TAU;}pts=samplePoints(c,a0,a1).map(s=>s.p);}
+    else{const [d0,d1]=curveDomain(c);let ta=curveInverse(c,P1,[d0,d1]),tb=curveInverse(c,P2,[d0,d1]);const closed=len(sub(P1,P2))<1e-7;if(closed){ta=same?d0:d1;tb=same?d1:d0;}pts=samplePoints(c,ta,tb).map(s=>s.p);}
+    pts[0]=P1;pts[pts.length-1]=P2;return pts;});
+  const tris=[];
+  const faceTris=(fr,shellRev)=>{const f=E(fr);if(!f)return;const isFace=['ADVANCED_FACE','FACE_SURFACE','FACE'].includes(f.name);if(!isFace){unknown.add(f.name);return;}
+    let S=null,same=true;if(f.name!=='FACE'){S=surface(f.args[2]);same=!(f.args[3]&&f.args[3].enum==='F');if(!S){return;}}
+    const loops3=[];
+    for(const br of f.args[1]||[]){const b=E(br);if(!b)continue;const lp=E(b.args[1]);const bor=!(b.args[2]&&b.args[2].enum==='F');if(!lp)continue;let pts=[];
+      const eids=[];
+      if(lp.name==='EDGE_LOOP'){let oi=0;for(const oer of lp.args[1]||[]){const oe=E(oer);if(!oe)continue;const ep=edgePts(oe.args[3]);if(!ep)continue;oi++;const list=(oe.args[4]&&oe.args[4].enum==='F')?ep.slice().reverse():ep;for(const p of list){if(pts.length&&len(sub(pts[pts.length-1],p))<1e-9)continue;pts.push(p);eids.push({e:oe.args[3].ref,oi});}}}
+      else if(lp.name==='POLY_LOOP'){pts=lp.args[1].map(point);}
+      else continue; // VERTEX_LOOP
+      if(pts.length>1&&len(sub(pts[0],pts[pts.length-1]))<1e-9){pts.pop();eids.pop();}
+      if(!bor){pts.reverse();eids.reverse();}if(pts.length>=3)loops3.push({pts,eids});}
+    if(!loops3.length)return;
+    if(!S){const all=loops3[0].pts;const nrm=K.norm((()=>{const n=[0,0,0];for(let i=0;i<all.length;i++){const a=all[i],b=all[(i+1)%all.length];n[0]+=(a[1]-b[1])*(a[2]+b[2]);n[1]+=(a[2]-b[2])*(a[0]+b[0]);n[2]+=(a[0]-b[0])*(a[1]+b[1]);}return n;})());S=surfPlane(all[0],nrm,null);}
+    const loops=loops3.map(L=>{let prev=null;const uv=L.pts.map((p,i)=>{const q=S.inv(p,prev);prev=q;const id=L.eids[i]||{};return {u:q[0],v:q[1],p,e:id.e,oi:id.oi};});return unwrapLoop(uv,S.perU,S.perV);});
+    // Innenschleifen in den Periodenbereich der Außenschleife legen
+    if(loops.length>1){const bb=L=>{let a=Infinity,b=-Infinity;for(const q of L){if(q.u<a)a=q.u;if(q.u>b)b=q.u;}return [a,b];};const bv=L=>{let a=Infinity,b=-Infinity;for(const q of L){if(q.v<a)a=q.v;if(q.v>b)b=q.v;}return [a,b];};
+      const [oa,ob]=bb(loops[0]),[va,vb]=bv(loops[0]);for(let i=1;i<loops.length;i++){if(S.perU){const [a,b]=bb(loops[i]);const k=Math.round(((oa+ob)/2-(a+b)/2)/S.perU);if(k)for(const q of loops[i])q.u+=k*S.perU;}if(S.perV){const [a,b]=bv(loops[i]);const k=Math.round(((va+vb)/2-(a+b)/2)/S.perV);if(k)for(const q of loops[i])q.v+=k*S.perV;}}}
+    try{const T=tessellate(loops,S,S.du,S.dv,!same!==shellRev);for(const t of T)tris.push(t);if(opts&&opts.onFace)opts.onFace({type:S.type,loops,tris:T,rev:!same!==shellRev});}catch(err){warnings.push('Fläche nicht vernetzbar: '+err.message);}};
+  const shellFaces=(sr,rev)=>{const s=E(sr);if(!s)return;if(s.name==='ORIENTED_CLOSED_SHELL'||s.name==='ORIENTED_OPEN_SHELL'){shellFaces(s.args[3],rev!==(s.args[4]&&s.args[4].enum==='F'));return;}
+    for(const fr of s.args[1]||[])faceTris(fr,rev);};
+  let nSolids=0;
+  for(const e of ents.values()){const nm=e.name==='COMPLEX'?parts(e).map(p=>p.name).join('+'):e.name;
+    if(nm==='MANIFOLD_SOLID_BREP'||nm==='FACETED_BREP'){nSolids++;shellFaces(e.args[1],false);}
+    else if(nm==='BREP_WITH_VOIDS'||nm.includes('BREP_WITH_VOIDS')){nSolids++;const b=part(e,'MANIFOLD_SOLID_BREP')||e;shellFaces(b.args[1],false);const v=part(e,'BREP_WITH_VOIDS')||e;for(const sr of v.args[v===e?2:0]||[])shellFaces(sr,true);}
+    else if(nm==='SHELL_BASED_SURFACE_MODEL'){nSolids++;for(const sr of e.args[1]||[])shellFaces(sr,false);}
+    else if(nm==='REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION'||nm.includes('REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION'))warnings.push('Baugruppe: Lagen der Teile werden nicht berücksichtigt');}
+  if(!nSolids)warnings.push('Keine Körper (MANIFOLD_SOLID_BREP) in der Datei');
+  if(unknown.size)warnings.push('Nicht unterstützt: '+Array.from(unknown).join(', '));
+  return {tris,warnings,unit};
+}
+// ============================================================================
+// Teil 4: Facettierte Topologie aus dem CSG-Netz (T-Stöße auflösen, ebene Facetten
+// zu Flächen mit Löchern zusammenfassen) und Schreiber: STEP (AP214) und OCCT-BRep
+// ============================================================================
+function facetTopology(polys){
+  const verts=[];const cell=1e-4;const hash=new Map();const key=(x,y,z)=>x+','+y+','+z;
+  const vid=p=>{const cx=Math.floor(p[0]/cell),cy=Math.floor(p[1]/cell),cz=Math.floor(p[2]/cell);
+    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++){const l=hash.get(key(cx+dx,cy+dy,cz+dz));if(!l)continue;for(const id of l){const q=verts[id];if(Math.abs(q[0]-p[0])<1e-7&&Math.abs(q[1]-p[1])<1e-7&&Math.abs(q[2]-p[2])<1e-7)return id;}}
+    const id=verts.length;verts.push([p[0],p[1],p[2]]);const k=key(cx,cy,cz);if(!hash.has(k))hash.set(k,[]);hash.get(k).push(id);return id;};
+  // Polygone als Eckenringe
+  let rings=[];for(const P of polys){const r=[];for(const v of P.v){const id=vid(v);if(r.length&&r[r.length-1]===id)continue;r.push(id);}while(r.length>1&&r[0]===r[r.length-1])r.pop();if(r.length>=3){const nn=[0,0,0];const V=P.v;for(let i=0;i<V.length;i++){const a=V[i],b=V[(i+1)%V.length];nn[0]+=(a[1]-b[1])*(a[2]+b[2]);nn[1]+=(a[2]-b[2])*(a[0]+b[0]);nn[2]+=(a[0]-b[0])*(a[1]+b[1]);}const n=norm(nn);rings.push({r,n,w:dot(n,V[0])});}}
+  // T-Stöße: Ecken auf Kanten einfügen
+  const onSeg=(a,b,p)=>{const ab=sub(b,a),ap=sub(p,a);const L2=dot(ab,ab);if(L2<1e-20)return -1;const t=dot(ap,ab)/L2;if(t<1e-7||t>1-1e-7)return -1;const d=len(sub(ap,mul(ab,t)));return d<1e-6?t:-1;};
+  // grobes Gitter für die Suche nach Ecken auf Kanten
+  let mn=[Infinity,Infinity,Infinity],mx=[-Infinity,-Infinity,-Infinity];for(const v of verts)for(let k=0;k<3;k++){if(v[k]<mn[k])mn[k]=v[k];if(v[k]>mx[k])mx[k]=v[k];}
+  const cc=Math.max(0.5,Math.hypot(mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2])/64);const chash=new Map();verts.forEach((v,id)=>{const k=key(Math.floor(v[0]/cc),Math.floor(v[1]/cc),Math.floor(v[2]/cc));if(!chash.has(k))chash.set(k,[]);chash.get(k).push(id);});
+  const cellsOf=(a,b)=>{const out=[];const lo=[0,1,2].map(k=>Math.floor((Math.min(a[k],b[k])-1e-5)/cc)),hi=[0,1,2].map(k=>Math.floor((Math.max(a[k],b[k])+1e-5)/cc));for(let x=lo[0];x<=hi[0];x++)for(let y=lo[1];y<=hi[1];y++)for(let z=lo[2];z<=hi[2];z++){const l=chash.get(key(x,y,z));if(l)out.push(...l);}return out;};
+  for(const ring of rings){const r=ring.r;const out=[];for(let i=0;i<r.length;i++){const a=verts[r[i]],b=verts[r[(i+1)%r.length]];out.push(r[i]);const cand=cellsOf(a,b);
+      const ins=[];for(const id of cand){if(id===r[i]||id===r[(i+1)%r.length])continue;const t=onSeg(a,b,verts[id]);if(t>0)ins.push({t,id});}ins.sort((p,q)=>p.t-q.t);for(const x of ins)if(out[out.length-1]!==x.id)out.push(x.id);}
+    ring.r=out;}
+  // Zusammenhängende, koplanare Facetten -> Flächen
+  const emap=new Map();rings.forEach((ring,pi)=>{const r=ring.r;for(let i=0;i<r.length;i++)emap.set(r[i]+'>'+r[(i+1)%r.length],pi);});
+  const parent=rings.map((_,i)=>i);const find=i=>{while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;};
+  rings.forEach((ring,pi)=>{const r=ring.r;for(let i=0;i<r.length;i++){const qi=emap.get(r[(i+1)%r.length]+'>'+r[i]);if(qi===undefined||qi===pi)continue;const A=rings[pi],B=rings[qi];if(dot(A.n,B.n)>1-1e-9&&Math.abs(A.w-B.w)<1e-6){const a=find(pi),b=find(qi);if(a!==b)parent[a]=b;}}});
+  const groups=new Map();rings.forEach((ring,pi)=>{const g=find(pi);if(!groups.has(g))groups.set(g,[]);groups.get(g).push(pi);});
+  const faces=[];
+  for(const [g,members] of groups){const set=new Set(members);const bnd=new Map();for(const pi of members){const r=rings[pi].r;for(let i=0;i<r.length;i++){const a=r[i],b=r[(i+1)%r.length];const tw=emap.get(b+'>'+a);if(tw!==undefined&&set.has(tw))continue;if(!bnd.has(a))bnd.set(a,[]);bnd.get(a).push(b);}}
+    const loops=[];while(bnd.size){const [start,list]=bnd.entries().next().value;const loop=[start];let cur=list.shift();if(!list.length)bnd.delete(start);let guard=0;
+      while(cur!==start&&guard++<100000){loop.push(cur);const l=bnd.get(cur);if(!l||!l.length){break;}cur=l.shift();if(!l.length)bnd.delete(cur===start?loop[loop.length-1]:loop[loop.length-1]);}
+      if(loop.length>=3&&cur===start)loops.push(loop);}
+    const n=rings[members[0]].n;const P=verts[rings[members[0]].r[0]];
+    // Fläche jeder Schleife (Vorzeichen) -> größte = Außenkontur
+    const X=norm(Math.abs(n[0])<0.9?cross(n,[1,0,0]):cross(n,[0,1,0])),Y=cross(n,X);
+    const area2=loop=>{let s=0;for(let i=0;i<loop.length;i++){const a=verts[loop[i]],b=verts[loop[(i+1)%loop.length]];const ax=dot(sub(a,P),X),ay=dot(sub(a,P),Y),bx=dot(sub(b,P),X),by=dot(sub(b,P),Y);s+=ax*by-bx*ay;}return s/2;};
+    const L=loops.map(l=>({l,a:area2(l)})).sort((p,q)=>Math.abs(q.a)-Math.abs(p.a));
+    if(L.length)faces.push({n,P,X,Y,loops:L.map(x=>x.l),members});}
+  // Zusammenhang der Flächen über Kanten -> Schalen
+  const ekey=(a,b)=>a<b?a+'|'+b:b+'|'+a;const edgeFaces=new Map();faces.forEach((f,fi)=>{for(const l of f.loops)for(let i=0;i<l.length;i++){const k=ekey(l[i],l[(i+1)%l.length]);if(!edgeFaces.has(k))edgeFaces.set(k,[]);edgeFaces.get(k).push(fi);}});
+  const fp=faces.map((_,i)=>i);const ff=i=>{while(fp[i]!==i){fp[i]=fp[fp[i]];i=fp[i];}return i;};for(const l of edgeFaces.values())for(let i=1;i<l.length;i++){const a=ff(l[0]),b=ff(l[i]);if(a!==b)fp[a]=b;}
+  const shells=new Map();faces.forEach((f,fi)=>{const g=ff(fi);if(!shells.has(g))shells.set(g,[]);shells.get(g).push(fi);});
+  return {verts,faces,shells:Array.from(shells.values()),edgeKey:ekey};
+}
+const fmtR=x=>{if(!isFinite(x))x=0;let s=(Math.abs(x)<1e-12?0:+x.toFixed(9)).toString();if(s.includes('e')){let [m,e]=s.split('e');if(!m.includes('.'))m+='.';return m+'E'+e;}if(!s.includes('.'))s+='.';return s;};
+// ---- STEP AP214 schreiben (facettierter B-Rep mit ebenen Flächen und geteilten Kanten) ----
+function stepWrite(polys,name,datum){
+  const T=facetTopology(polys);if(!T.faces.length)throw new Error('kein Körper');
+  const out=[];let id=0;const add=s=>{out.push('#'+(++id)+' = '+s+';');return id;};
+  const str=s=>"'"+String(s||'').replace(/[^\x20-\x7E]/g,'?').replace(/'/g,"''")+"'";
+  const app=add("APPLICATION_CONTEXT('core data for automotive mechanical design processes')");
+  add(`APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,#${app})`);
+  const pc=add(`PRODUCT_CONTEXT('',#${app},'mechanical')`);
+  const prod=add(`PRODUCT(${str(name)},${str(name)},'',(#${pc}))`);
+  const pdf=add(`PRODUCT_DEFINITION_FORMATION('','',#${prod})`);
+  const pdc=add(`PRODUCT_DEFINITION_CONTEXT('part definition',#${app},'design')`);
+  const pd=add(`PRODUCT_DEFINITION('design','',#${pdf},#${pdc})`);
+  const pds=add(`PRODUCT_DEFINITION_SHAPE('','',#${pd})`);
+  const lu=add('( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) )');
+  const au=add('( NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.) )');
+  const su=add('( NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT() )');
+  const unc=add(`UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#${lu},'distance_accuracy_value','confusion accuracy')`);
+  const ctx=add(`( GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#${unc})) GLOBAL_UNIT_ASSIGNED_CONTEXT((#${lu},#${au},#${su})) REPRESENTATION_CONTEXT('Context #1','3D Context with UNIT and UNCERTAINTY') )`);
+  const pt=p=>add(`CARTESIAN_POINT('',(${fmtR(p[0])},${fmtR(p[1])},${fmtR(p[2])}))`);
+  const dr=d=>add(`DIRECTION('',(${fmtR(d[0])},${fmtR(d[1])},${fmtR(d[2])}))`);
+  const vpt=new Map();const vertexId=v=>{if(!vpt.has(v))vpt.set(v,add(`VERTEX_POINT('',#${pt(T.verts[v])})`));return vpt.get(v);};
+  const eid=new Map();const edgeId=(a,b)=>{const k=T.edgeKey(a,b);if(eid.has(k))return eid.get(k);const lo=a<b?a:b,hi=a<b?b:a;const A=T.verts[lo],B=T.verts[hi];const d=sub(B,A);const L=len(d);
+    const line=add(`LINE('',#${pt(A)},#${add(`VECTOR('',#${dr(norm(d))},${fmtR(L)})`)})`);const e=add(`EDGE_CURVE('',#${vertexId(lo)},#${vertexId(hi)},#${line},.T.)`);eid.set(k,{id:e,lo});return eid.get(k);};
+  const solids=[];
+  for(const shell of T.shells){const fids=[];
+    for(const fi of shell){const f=T.faces[fi];const bounds=[];
+      f.loops.forEach((loop,li)=>{const oes=[];for(let i=0;i<loop.length;i++){const a=loop[i],b=loop[(i+1)%loop.length];const e=edgeId(a,b);oes.push(add(`ORIENTED_EDGE('',*,*,#${e.id},${e.lo===a?'.T.':'.F.'})`));}
+        const el=add(`EDGE_LOOP('',(${oes.map(x=>'#'+x).join(',')}))`);bounds.push(add(`${li===0?'FACE_OUTER_BOUND':'FACE_BOUND'}('',#${el},.T.)`));});
+      const pl=add(`PLANE('',#${add(`AXIS2_PLACEMENT_3D('',#${pt(f.P)},#${dr(f.n)},#${dr(f.X)})`)})`);
+      fids.push(add(`ADVANCED_FACE('',(${bounds.map(x=>'#'+x).join(',')}),#${pl},.T.)`));}
+    const sh=add(`CLOSED_SHELL('',(${fids.map(x=>'#'+x).join(',')}))`);solids.push(add(`MANIFOLD_SOLID_BREP(${str(name)},#${sh})`));}
+  const ax=add(`AXIS2_PLACEMENT_3D('',#${pt([0,0,0])},#${dr([0,0,1])},#${dr([1,0,0])})`);
+  const rep=add(`ADVANCED_BREP_SHAPE_REPRESENTATION('',(#${ax},${solids.map(x=>'#'+x).join(',')}),#${ctx})`);
+  add(`SHAPE_DEFINITION_REPRESENTATION(#${pds},#${rep})`);
+  add(`PRODUCT_RELATED_PRODUCT_CATEGORY('part',$,(#${prod}))`);
+  const d=datum||new Date().toISOString().slice(0,19);
+  return "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('Technisches-Zeichnen-Lab, facettierter Koerper'),'2;1');\nFILE_NAME("+str(name+'.step')+",'"+d+"',('Technisches-Zeichnen-Lab'),(''),'','Technisches-Zeichnen-Lab','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n"+out.join('\n')+"\nENDSEC;\nEND-ISO-10303-21;\n";
+}
+// ---- OCCT-BRep (ASCII V1) schreiben: ebene Flächen, Linienkanten mit Kurven im Parameterraum ----
+function brepWrite(polys){
+  const T=facetTopology(polys);if(!T.faces.length)throw new Error('kein Körper');
+  const f9=x=>(Math.abs(x)<1e-15?0:x).toFixed(10);
+  const curves=[],curves2=[],surfaces=[];
+  const edges=new Map();const edgeList=[];const edgeOf=(a,b)=>{const k=T.edgeKey(a,b);if(edges.has(k))return edges.get(k);const lo=a<b?a:b,hi=a<b?b:a;const A=T.verts[lo],B=T.verts[hi];const d=sub(B,A);const L=len(d);const D=norm(d);curves.push('1 '+A.map(f9).join(' ')+' '+D.map(f9).join(' '));const e={lo,hi,A,D,L,curve:curves.length,pcs:[]};edges.set(k,e);edgeList.push(e);return e;};
+  T.faces.forEach((f,fi)=>{surfaces.push('1 '+f.P.map(f9).join(' ')+' '+f.n.map(f9).join(' ')+' '+f.X.map(f9).join(' ')+' '+f.Y.map(f9).join(' '));f.surf=fi+1;
+    for(const loop of f.loops)for(let i=0;i<loop.length;i++){const e=edgeOf(loop[i],loop[(i+1)%loop.length]);const p2=[dot(sub(e.A,f.P),f.X),dot(sub(e.A,f.P),f.Y)],d2=[dot(e.D,f.X),dot(e.D,f.Y)];curves2.push('1 '+f9(p2[0])+' '+f9(p2[1])+' '+f9(d2[0])+' '+f9(d2[1]));e.pcs.push({pc:curves2.length,surf:f.surf});}});
+  // Reihenfolge: Ecken, Kanten, Drähte, Flächen, Schalen, Körper, Compound
+  const usedV=new Set();for(const e of edgeList){usedV.add(e.lo);usedV.add(e.hi);}const vlist=Array.from(usedV);
+  const wires=[];T.faces.forEach(f=>{f.wires=f.loops.map(loop=>{const w={refs:[]};for(let i=0;i<loop.length;i++){const a=loop[i],b=loop[(i+1)%loop.length];const e=edgeOf(a,b);w.refs.push({e,o:e.lo===a?'+':'-'});}wires.push(w);return w;});});
+  const nV=vlist.length,nE=edgeList.length,nW=wires.length,nF=T.faces.length,nS=T.shells.length,nSo=T.shells.length;const N=nV+nE+nW+nF+nS+nSo+1;
+  const vpos=new Map();vlist.forEach((v,i)=>vpos.set(v,i));const epos=new Map();edgeList.forEach((e,i)=>epos.set(e,i));const wpos=new Map();wires.forEach((w,i)=>wpos.set(w,i));
+  const ref=pos=>N-pos;const vRef=v=>ref(vpos.get(v)),eRef=e=>ref(nV+epos.get(e)),wRef=w=>ref(nV+nE+wpos.get(w)),fRef=fi=>ref(nV+nE+nW+fi),sRef=si=>ref(nV+nE+nW+nF+si),soRef=si=>ref(nV+nE+nW+nF+nS+si);
+  const rec=[];
+  for(const v of vlist)rec.push('Ve\n0.000000100000000\n'+T.verts[v].map(f9).join(' ')+'\n0 0\n\n0101101\n*');
+  for(const e of edgeList){let s='Ed\n 0.000000100000000 1 1 0\n1  '+e.curve+' 0 0.000000000000000 '+f9(e.L)+'\n';for(const p of e.pcs)s+='2  '+p.pc+' '+p.surf+' 0 0.000000000000000 '+f9(e.L)+'\n';s+='0\n\n0101000\n+'+vRef(e.lo)+' 0 -'+vRef(e.hi)+' 0 *';rec.push(s);}
+  for(const w of wires)rec.push('Wi\n\n0101000\n'+w.refs.map(r=>r.o+eRef(r.e)+' 0').join(' ')+' *');
+  T.faces.forEach(f=>rec.push('Fa\n0  0.000000100000000 '+f.surf+' 0\n\n0101000\n'+f.wires.map(w=>'+'+wRef(w)+' 0').join(' ')+' *'));
+  T.shells.forEach(sh=>rec.push('Sh\n\n0101100\n'+sh.map(fi=>'+'+fRef(fi)+' 0').join(' ')+' *'));
+  T.shells.forEach((sh,si)=>rec.push('So\n\n0100000\n+'+sRef(si)+' 0 *'));
+  rec.push('Co\n\n1100000\n'+T.shells.map((sh,si)=>'+'+soRef(si)+' 0').join(' ')+' *');
+  return 'DBRep_DrawableShape\n\nCASCADE Topology V1, (c) Matra-Datavision\nLocations 0\nCurve2ds '+curves2.length+'\n'+curves2.join('\n')+'\nCurves '+curves.length+'\n'+curves.join('\n')+'\nPolygon3D 0\nPolygonOnTriangulations 0\nSurfaces '+surfaces.length+'\n'+surfaces.join('\n')+'\nTriangulations 0\n\nTShapes '+N+'\n'+rec.join('\n')+'\n\n+1 0\n';
+}
+// Geschlossener Linienzug (Skizze) als Draht mit Lage: Punkte in lokalen xy-Koordinaten, M = Lage (3x4)
+function brepWriteWire(pts2,M){
+  const NL=String.fromCharCode(10);const f9=x=>(Math.abs(x)<1e-15?0:x).toFixed(10);const n=pts2.length;if(n<2)throw new Error('zu wenige Punkte');
+  const curves=[];for(let i=0;i<n;i++){const a=pts2[i],b=pts2[(i+1)%n];const d=[b[0]-a[0],b[1]-a[1]];const L=Math.hypot(d[0],d[1])||1;curves.push('1 '+f9(a[0])+' '+f9(a[1])+' 0 '+f9(d[0]/L)+' '+f9(d[1]/L)+' 0');}
+  const N=2*n+1;const vRef=i=>N-i,eRef=i=>N-n-i;const rec=[];
+  for(let i=0;i<n;i++)rec.push(['Ve','0.000000100000000',f9(pts2[i][0])+' '+f9(pts2[i][1])+' 0','0 0','','0101101','*'].join(NL));
+  for(let i=0;i<n;i++){const a=pts2[i],b=pts2[(i+1)%n];const L=Math.hypot(b[0]-a[0],b[1]-a[1]);rec.push(['Ed',' 0.000000100000000 1 1 0','1  '+(i+1)+' 0 0.000000000000000 '+f9(L),'0','','0101000','+'+vRef(i)+' 0 -'+vRef((i+1)%n)+' 0 *'].join(NL));}
+  rec.push(['Wi','','0101100',pts2.map((p,i)=>'+'+eRef(i)+' 0').join(' ')+' *'].join(NL));
+  const loc=M?['Locations 1','1'].concat(M.map(r=>r.map(f9).join(' '))).join(NL)+NL:'Locations 0'+NL;
+  return ['DBRep_DrawableShape','','CASCADE Topology V1, (c) Matra-Datavision'].join(NL)+NL+loc+['Curve2ds 0','Curves '+n].concat(curves,['Polygon3D 0','PolygonOnTriangulations 0','Surfaces 0','Triangulations 0','','TShapes '+N]).join(NL)+NL+rec.join(NL)+NL+NL+'+1 '+(M?1:0)+NL;
+}
+// ============================================================================
+// Teil 5: FCStd (FreeCAD) lesen -> Bauliste (Part-Grundkörper, Boolesche Verknüpfungen,
+// Extrusion/Rotation von Skizzen, PartDesign Pad/Pocket/Hole; sonst Netz aus der .brp)
+// und schreiben -> parametrische FreeCAD-Objekte mit facettierten Formen
+// ============================================================================
+const ISO_M=['M1x0.25','M1.1x0.25','M1.2x0.25','M1.4x0.3','M1.6x0.35','M1.8x0.35','M2x0.4','M2.2x0.45','M2.5x0.45','M3x0.5','M3.5x0.6','M4x0.7','M4.5x0.75','M5x0.8','M6x1.0','M7x1.0','M8x1.25','M9x1.25','M10x1.5','M11x1.5','M12x1.75','M14x2.0','M16x2.0','M18x2.5','M20x2.5','M22x2.5','M24x3.0','M27x3.0','M30x3.5','M33x3.5','M36x4.0','M39x4.0','M42x4.5','M45x4.5','M48x5.0','M52x5.0','M56x5.5','M60x5.5','M64x6.0','M68x6.0'];
+const AXES={x:[1,0,0],y:[0,1,0],z:[0,0,1]};
+// Richtung -> Achsbuchstabe mit Vorzeichen, wenn (fast) achsparallel
+function principal(d){const n=norm(d);for(const k of ['x','y','z']){const c=dot(n,AXES[k]);if(Math.abs(Math.abs(c)-1)<1e-6)return {axis:k,sign:c>0?1:-1};}return null;}
+// Profilkoordinaten (a,b) und Achsanteil w eines Weltpunkts für die Prismenachse (Umkehrung von profilMap)
+function toProfile(p,axis){return axis==='x'?[p[1],p[2],p[0]]:axis==='y'?[p[0],p[2],p[1]]:[p[0],p[1],p[2]];}
+function fromProfile(a,b,w,axis){return axis==='x'?[w,a,b]:axis==='y'?[a,w,b]:[a,b,w];}
+function polyArea(pts){let s=0;for(let i=0;i<pts.length;i++){const p=pts[i],q=pts[(i+1)%pts.length];s+=p[0]*q[1]-q[0]*p[1];}return s/2;}
+function pointInPoly(pt,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if((a[1]>pt[1])!==(b[1]>pt[1])&&pt[0]<(b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1])+a[0])inside=!inside;}return inside;}
+// ---- Lesen ----------------------------------------------------------------------------
+function fcstdRead(bytes){
+  const files=zipRead(bytes);if(!files['Document.xml'])throw new Error('keine Document.xml im Archiv');
+  const doc=xmlParse(td.decode(files['Document.xml']));const root=xChild(doc,'Document');if(!root)throw new Error('kein Document-Element');
+  const warnings=[];const objs=new Map();
+  const list=xChild(root,'Objects');if(list)for(const o of xChildren(list,'Object'))objs.set(o.attrs.name,{type:o.attrs.type,name:o.attrs.name,props:{},label:o.attrs.name});
+  const data=xChild(root,'ObjectData');if(data)for(const o of xChildren(data,'Object')){const ob=objs.get(o.attrs.name);if(!ob)continue;const pr=xChild(o,'Properties');if(!pr)continue;for(const p of xChildren(pr,'Property')){ob.props[p.attrs.name]={type:p.attrs.type,el:p};}
+    const lb=ob.props.Label;if(lb){const s=xChild(lb.el,'String');if(s&&s.attrs.value)ob.label=s.attrs.value;}}
+  const vis=new Map();if(files['GuiDocument.xml']){try{const g=xmlParse(td.decode(files['GuiDocument.xml']));const vpd=xFind(g,'ViewProviderData');if(vpd)for(const vp of xChildren(vpd,'ViewProvider')){const pr=xChild(vp,'Properties');if(!pr)continue;for(const p of xChildren(pr,'Property'))if(p.attrs.name==='Visibility'){const b=xChild(p,'Bool');if(b)vis.set(vp.attrs.name,b.attrs.value==='true');}}}catch(e){}}
+  // Eigenschaften lesen
+  const P=(ob,name)=>ob.props[name]?ob.props[name].el:null;
+  const num=(ob,name,def)=>{const e=P(ob,name);if(!e)return def;const c=xChild(e,'Float')||xChild(e,'Integer');return c?parseFloat(c.attrs.value):def;};
+  const bool=(ob,name,def)=>{const e=P(ob,name);if(!e)return def;const c=xChild(e,'Bool');return c?c.attrs.value==='true':def;};
+  const enumIdx=(ob,name,def)=>{const e=P(ob,name);if(!e)return def;const c=xChild(e,'Integer');return c?parseInt(c.attrs.value):def;};
+  const enumList=(ob,name)=>{const e=P(ob,name);if(!e)return null;const l=xChild(e,'CustomEnumList');return l?xChildren(l,'Enum').map(x=>x.attrs.value):null;};
+  const link=(ob,name)=>{const e=P(ob,name);if(!e)return null;const c=xChild(e,'Link')||xChild(e,'LinkSub');return c&&c.attrs.value?objs.get(c.attrs.value)||null:null;};
+  const linkList=(ob,name)=>{const e=P(ob,name);if(!e)return [];const l=xChild(e,'LinkList');return l?xChildren(l,'Link').map(x=>objs.get(x.attrs.value)).filter(Boolean):[];};
+  const vec=(ob,name,def)=>{const e=P(ob,name);if(!e)return def;const c=xChild(e,'PropertyVector');return c?[parseFloat(c.attrs.valueX),parseFloat(c.attrs.valueY),parseFloat(c.attrs.valueZ)]:def;};
+  const placement=ob=>{const e=P(ob,'Placement');const c=e&&xChild(e,'PropertyPlacement');if(!c)return {pos:[0,0,0],q:[0,0,0,1]};const a=c.attrs;return {pos:[parseFloat(a.Px),parseFloat(a.Py),parseFloat(a.Pz)],q:[parseFloat(a.Q0),parseFloat(a.Q1),parseFloat(a.Q2),parseFloat(a.Q3)]};};
+  const isId=q=>Math.abs(q[3])>1-1e-9;
+  // Drehung als eigene Körperdrehung (nur um eine Hauptachse darstellbar)
+  const bodyRot=q=>{if(isId(q))return null;const aa=qAxisDeg(q);const pr=principal(aa.axis);if(!pr)return undefined;let deg=aa.deg*pr.sign;deg=((deg+180)%360+360)%360-180;return Math.abs(deg)<1e-9?null:{axis:pr.axis,deg:Math.round(deg*1e6)/1e6};};
+  // Skizze -> Schleifen in Skizzenkoordinaten: [{kind:'circle',c,r}|{kind:'poly',pts}]
+  const sketchLoops=sk=>{const e=P(sk,'Geometry');const gl=e&&xChild(e,'GeometryList');if(!gl)return [];const segs=[],loops=[];
+    for(const g of xChildren(gl,'Geometry')){const t=g.attrs.type;const ext=xFind(g,'GeoExtension');const flags=ext&&ext.attrs.geometryModeFlags;const cons=xChild(g,'Construction');if((flags&&flags.length>=2&&flags[flags.length-2]==='1')||(cons&&cons.attrs.value==='1'))continue;
+      const A=(el,k)=>parseFloat(el.attrs[k]);
+      if(t==='Part::GeomLineSegment'){const l=xChild(g,'LineSegment');if(l)segs.push([[A(l,'StartX'),A(l,'StartY')],[A(l,'EndX'),A(l,'EndY')]]);}
+      else if(t==='Part::GeomCircle'){const c=xChild(g,'Circle');if(c)loops.push({kind:'circle',c:[A(c,'CenterX'),A(c,'CenterY')],r:A(c,'Radius')});}
+      else if(t==='Part::GeomArcOfCircle'){const c=xChild(g,'ArcOfCircle');if(!c)continue;const cx=A(c,'CenterX'),cy=A(c,'CenterY'),r=A(c,'Radius'),a0=A(c,'StartAngle'),a1=A(c,'EndAngle'),phi=A(c,'AngleXU')||0,nz=A(c,'NormalZ')||1;const n=Math.max(4,Math.ceil(64*Math.abs(a1-a0)/TAU));const pts=[];for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;const x=r*Math.cos(a),y=r*Math.sin(a)*(nz<0?-1:1);pts.push([cx+x*Math.cos(phi)-y*Math.sin(phi),cy+x*Math.sin(phi)+y*Math.cos(phi)]);}segs.push(pts);}
+      else if(t==='Part::GeomEllipse'||t==='Part::GeomArcOfEllipse'){const c=xChild(g,'Ellipse')||xChild(g,'ArcOfEllipse');if(!c)continue;const cx=A(c,'CenterX'),cy=A(c,'CenterY'),ra=A(c,'MajorRadius'),rb=A(c,'MinorRadius'),phi=A(c,'AngleXU')||0;const full=!c.attrs.StartAngle;const a0=full?0:A(c,'StartAngle'),a1=full?TAU:A(c,'EndAngle');const n=64;const pts=[];for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;const x=ra*Math.cos(a),y=rb*Math.sin(a);pts.push([cx+x*Math.cos(phi)-y*Math.sin(phi),cy+x*Math.sin(phi)+y*Math.cos(phi)]);}if(full){pts.pop();loops.push({kind:'poly',pts});}else segs.push(pts);}
+      else if(t==='Part::GeomBSplineCurve'){const b=xChild(g,'BSplineCurve');if(!b)continue;const poles=xChildren(b,'Pole').map(p=>[A(p,'X'),A(p,'Y')]);const w=xChildren(b,'Pole').map(p=>p.attrs.Weight?A(p,'Weight'):1);const knots=xChildren(b,'Knot').map(k=>A(k,'Value')),mults=xChildren(b,'Knot').map(k=>parseInt(k.attrs.Mult));const deg=parseInt(b.attrs.Degree);const per=b.attrs.IsPeriodic==='1';if(!poles.length||!knots.length)continue;const c=mkBspline(deg,poles,w,knots,mults,per);const n=Math.max(16,8*(knots.length-1));const pts=[];for(let i=0;i<=n;i++)pts.push(c.eval(c.t0+(c.t1-c.t0)*i/n));if(per){pts.pop();loops.push({kind:'poly',pts});}else segs.push(pts);}
+      else if(t==='Part::GeomPoint')continue;else warnings.push('Skizze '+sk.label+': '+t+' übersprungen');}
+    // offene Stücke zu geschlossenen Schleifen verketten
+    const tol=1e-6;const near=(a,b)=>Math.abs(a[0]-b[0])<tol&&Math.abs(a[1]-b[1])<tol;
+    while(segs.length){const cur=segs.shift().slice();let guard=0;while(guard++<10000&&!near(cur[0],cur[cur.length-1])){const end=cur[cur.length-1];let j=segs.findIndex(s=>near(s[0],end));let rv=false;if(j<0){j=segs.findIndex(s=>near(s[s.length-1],end));rv=true;}if(j<0)break;let nx=segs.splice(j,1)[0];if(rv)nx=nx.slice().reverse();cur.push(...nx.slice(1));}
+      if(near(cur[0],cur[cur.length-1])&&cur.length>3){cur.pop();loops.push({kind:'poly',pts:cur});}else warnings.push('Skizze '+sk.label+': offener Linienzug übersprungen');}
+    return loops;};
+  // Schleifen einer Skizze in Weltkoordinaten -> Körper (Prisma/Zylinder) entlang der Richtung dir (Weltvektor) von t0..t1 (relativ zur Skizzenebene)
+  const sketchBodies=(sk,op,dir,t0,t1,label)=>{const pl=placement(sk);const loops=sketchLoops(sk);if(!loops.length)return null;const n=norm(dir);const pr=principal(n);if(!pr)return null;
+    const nrm=qRot(pl.q,[0,0,1]);if(Math.abs(Math.abs(dot(nrm,n))-1)>1e-6)return null; // Ebene muss senkrecht zur Richtung sein
+    const toW=(x,y)=>add(pl.pos,qRot(pl.q,[x,y,0]));const h=t1-t0;if(h<=1e-9)return null;const mid=(t0+t1)/2;const axis=pr.axis;
+    // Verschachtelung: gerade Tiefe = Material, ungerade = Loch
+    const polys=loops.map(l=>l.kind==='circle'?(()=>{const pts=[];for(let i=0;i<32;i++)pts.push([l.c[0]+l.r*Math.cos(i/32*TAU),l.c[1]+l.r*Math.sin(i/32*TAU)]);return pts;})():l.pts);
+    const depth=loops.map((l,i)=>{let d=0;for(let j=0;j<loops.length;j++){if(j===i)continue;if(pointInPoly(polys[i][0],polys[j]))d++;}return d;});
+    const out=[];loops.forEach((l,i)=>{const sub_=(depth[i]%2===1)!==(op==='sub');const bop=sub_?'sub':'add';
+      if(l.kind==='circle'){const c=toW(l.c[0],l.c[1]);const pos=add(c,mul(n,mid));out.push({type:'cyl',op:bop,pos,d:2*l.r,h:h+(sub_?0:0),axis,name:label});}
+      else{const W=l.pts.map(p=>add(toW(p[0],p[1]),mul(n,mid)));const prof=W.map(p=>toProfile(p,axis));let ca=0,cb=0;for(const p of prof){ca+=p[0];cb+=p[1];}ca/=prof.length;cb/=prof.length;const w=prof[0][2];const pos=fromProfile(ca,cb,w,axis);let pts=prof.map(p=>[p[0]-ca,p[1]-cb]);if(polyArea(pts)<0)pts.reverse();out.push({type:'prism',op:bop,pos,pts,h,axis,name:label});}});
+    return out;};
+  const allAdd=l=>l.every(b=>b.op==='add');const asSub=l=>l.map(b=>Object.assign({},b,{op:b.op==='add'?'sub':'add'}));
+  const meshOf=ob=>{const f=files[ob.name+'.Shape.brp'];if(!f||!f.length)return null;try{const r=brepRead(td.decode(f));for(const w of r.warnings)warnings.push(ob.label+': '+w);if(!r.tris.length)return null;return [{type:'stl',op:'add',pos:[0,0,0],tris:r.tris,name:ob.label}];}catch(e){warnings.push(ob.label+': Form nicht lesbar ('+e.message+')');return null;}};
+  // Ausdehnung der bisherigen Körper entlang -n ab O (für "durch alles")
+  const extent=(bodies,O,n)=>{let m=0;for(const b of bodies){if(b.op!=='add')continue;const r=b.type==='box'?Math.hypot(b.lx,b.ly,b.lz)/2:b.type==='cyl'||b.type==='cone'?Math.hypot(b.d||Math.max(b.d1,b.d2),b.h)/2:b.type==='sphere'?b.d/2:b.type==='prism'?Math.hypot(Math.max(...b.pts.map(p=>Math.hypot(p[0],p[1]))),b.h/2):b.type==='stl'?(()=>{let mm=0;for(const t of b.tris)for(const p of t){const d=dot(sub(p,O),n);if(d>mm)mm=d;}return mm;})():50;const d=b.type==='stl'?r:dot(sub(b.pos,O),n)+r;if(d>m)m=d;}return m+1;};
+  const lin=(ob,depth)=>{if(!ob||depth>50)return null;const t=ob.type;const pl=placement(ob);const lbl=ob.label;
+    if(t==='Part::Box'){const rot=bodyRot(pl.q);if(rot===undefined)return null;const L=num(ob,'Length',10),W=num(ob,'Width',10),H=num(ob,'Height',10);const pos=add(pl.pos,qRot(pl.q,[L/2,W/2,H/2]));const b={type:'box',op:'add',pos,lx:L,ly:W,lz:H,name:lbl};if(rot)b.rot=rot;return [b];}
+    if(t==='Part::Cylinder'||t==='Part::Cone'||t==='Part::Prism'){if(t!=='Part::Prism'&&Math.abs(num(ob,'Angle',360)-360)>1e-6)return null;const H=num(ob,'Height',10);const ax=qRot(pl.q,[0,0,1]);const pr=principal(ax);if(!pr)return null;const pos=add(pl.pos,mul(ax,H/2));const axis=pr.axis;
+      if(t==='Part::Cylinder')return [{type:'cyl',op:'add',pos,d:2*num(ob,'Radius',1),h:H,axis,name:lbl}];
+      if(t==='Part::Cone'){let d1=2*num(ob,'Radius1',1),d2=2*num(ob,'Radius2',0);if(pr.sign<0){const s=d1;d1=d2;d2=s;}return [{type:'cone',op:'add',pos,d1,d2,h:H,axis,name:lbl}];}
+      if(Math.abs(num(ob,'FirstAngle',0))>1e-9||Math.abs(num(ob,'SecondAngle',0))>1e-9)return null;const n=Math.round(num(ob,'Polygon',6));
+      // Drehlage des Vielecks um die Achse: erste Ecke des Lab-n-Ecks liegt bei Winkel 0 der Profilebene
+      const x0=qRot(pl.q,[1,0,0]);const ref=axis==='x'?[0,1,0]:axis==='y'?[0,0,1]:[1,0,0];const axv=AXES[axis];const ang=Math.atan2(dot(cross(ref,x0),axv),dot(ref,x0))*180/Math.PI;const b={type:'cyl',op:'add',pos,d:2*num(ob,'Circumradius',1),h:H,axis,n,name:lbl};if(Math.abs(ang)>1e-6)b.rot={axis,deg:Math.round(ang*1e6)/1e6};return [b];}
+    if(t==='Part::Sphere'){if(Math.abs(num(ob,'Angle3',360)-360)>1e-6)return null;return [{type:'sphere',op:'add',pos:pl.pos.slice(),d:2*num(ob,'Radius',1),name:lbl}];}
+    if(t==='Part::Cut'){const A=lin(link(ob,'Base'),depth+1),B=lin(link(ob,'Tool'),depth+1);if(!A||!B||!allAdd(B))return null;return A.concat(asSub(B));}
+    if(t==='Part::Fuse'||t==='Part::MultiFuse'){const parts=t==='Part::Fuse'?[link(ob,'Base'),link(ob,'Tool')]:linkList(ob,'Shapes');let acc=null;for(const p of parts){const L=lin(p,depth+1);if(!L)return null;if(!acc){acc=L;continue;}if(allAdd(L))acc=acc.concat(L);else if(allAdd(acc))acc=L.concat(acc);else return null;}return acc;}
+    if(t==='Part::Extrusion'){const base=link(ob,'Base');if(!base||base.type!=='Sketcher::SketchObject'||!bool(ob,'Solid',false)||Math.abs(num(ob,'TaperAngle',0))>1e-9)return null;const mode=enumIdx(ob,'DirMode',0);const pls=placement(base);let dir=mode===2?qRot(pls.q,[0,0,1]):vec(ob,'Dir',[0,0,1]);if(len(dir)<1e-9)return null;const fwd=num(ob,'LengthFwd',10),rev=num(ob,'LengthRev',0),sym=bool(ob,'Symmetric',false);const t0=sym?-fwd/2:-rev,t1=sym?fwd/2:fwd;return sketchBodies(base,'add',dir,t0,t1,lbl);}
+    if(t==='Part::Revolution'){const src=link(ob,'Source');if(!src||src.type!=='Sketcher::SketchObject'||!bool(ob,'Solid',false)||Math.abs(num(ob,'Angle',360)-360)>1e-6)return null;const axv=vec(ob,'Axis',[0,0,1]),base=vec(ob,'Base',[0,0,0]);const pr=principal(axv);if(!pr)return null;const pls=placement(src);const nrm=qRot(pls.q,[0,0,1]);if(Math.abs(dot(nrm,norm(axv)))>1e-6)return null;
+      const loops=sketchLoops(src);if(!loops.length)return null;const ad=norm(axv);const out=[];const axis=pr.axis;
+      for(const l of loops){const pts=l.kind==='circle'?(()=>{const P=[];for(let i=0;i<64;i++)P.push([l.c[0]+l.r*Math.cos(i/64*TAU),l.c[1]+l.r*Math.sin(i/64*TAU)]);return P;})():l.pts;
+        const prof=pts.map(p=>{const w=add(pls.pos,qRot(pls.q,[p[0],p[1],0]));const z=dot(sub(w,base),ad)*pr.sign;const rad=sub(sub(w,base),mul(ad,dot(sub(w,base),ad)));return [len(rad),z,dot(rad,nrm)];});
+        // Vorzeichen des Radius über die Seite der Achse in der Skizzenebene
+        const side=cross(ad,nrm);const signed=pts.map((p,i)=>{const w=add(pls.pos,qRot(pls.q,[p[0],p[1],0]));return dot(sub(w,base),side);});const smax=Math.max(...signed),smin=Math.min(...signed);if(smin<-1e-6&&smax>1e-6)return null;
+        out.push({type:'revolve',op:'add',pos:base.slice(),prof:prof.map(p=>[p[0],p[1]]),axis,name:lbl});}
+      return out;}
+    if(t==='PartDesign::Body'){let f=link(ob,'Tip');const chain=[];let g=0;while(f&&g++<200){chain.unshift(f);f=link(f,'BaseFeature');}if(!chain.length)return null;let acc=[];
+      for(const fe of chain){const ft=fe.type;const sk=link(fe,'Profile');if(!sk||sk.type!=='Sketcher::SketchObject')return null;const pls=placement(sk);const nrm=qRot(pls.q,[0,0,1]);const rv=bool(fe,'Reversed',false);
+        if(ft==='PartDesign::Pad'){if(enumIdx(fe,'Type',0)!==0)return null;const L=num(fe,'Length',10);const mid=bool(fe,'Midplane',false);const dir=rv?mul(nrm,-1):nrm;const B=sketchBodies(sk,'add',dir,mid?-L/2:0,mid?L/2:L,fe.label);if(!B)return null;if(!acc.length&&!allAdd(B))return null;acc=acc.concat(B);}
+        else if(ft==='PartDesign::Pocket'){const ty=enumIdx(fe,'Type',0);if(ty!==0&&ty!==1)return null;const mid=bool(fe,'Midplane',false);const dir=rv?nrm:mul(nrm,-1);let L=ty===1?extent(acc,pls.pos,dir)+1:num(fe,'Length',10);const B=sketchBodies(sk,'sub',dir,mid?-L/2:0,mid?L/2:L,fe.label);if(!B)return null;acc=acc.concat(B);}
+        else if(ft==='PartDesign::Hole'){const loops=sketchLoops(sk).filter(l=>l.kind==='circle');if(!loops.length)return null;const dir=rv?nrm:mul(nrm,-1);const pr=principal(dir);if(!pr)return null;const thru=enumIdx(fe,'DepthType',0)===1;let D=thru?extent(acc,pls.pos,dir)+1:num(fe,'Depth',10);const dia=num(fe,'Diameter',5);const thr=bool(fe,'Threaded',false);let nominal=null;if(thr){const tt=enumIdx(fe,'ThreadType',0);const lst=enumList(fe,'ThreadSize')||(tt===1?ISO_M:null);const ts=enumIdx(fe,'ThreadSize',-1);if(lst&&ts>=0&&lst[ts]){const m=/^M([\d.]+)/.exec(lst[ts]);if(m)nominal=parseFloat(m[1]);}if(!nominal){for(const d of Object.keys(K.GEWINDE).map(parseFloat).sort((a,b)=>a-b)){if(Math.abs(d-K.GEWINDE[d]-dia)<0.3){nominal=d;break;}}}}
+          const cut=enumIdx(fe,'HoleCutType',0);if(cut>3)return null;const cd=num(fe,'HoleCutDiameter',0),cdep=num(fe,'HoleCutDepth',0),cang=num(fe,'HoleCutCountersinkAngle',90);
+          for(const l of loops){const c=add(pls.pos,qRot(pls.q,[l.c[0],l.c[1],0]));const b={type:'cyl',op:'sub',pos:add(c,mul(dir,D/2)),d:nominal||dia,h:D,axis:pr.axis,name:fe.label};if(nominal)b.gewinde=true;acc.push(b);
+            if((cut===1||cut===3)&&cd>0&&cdep>0)acc.push({type:'cyl',op:'sub',pos:add(c,mul(dir,cdep/2)),d:cd,h:cdep,axis:pr.axis,name:fe.label+' Senkung'});
+            if((cut===2||cut===3)&&cd>0){const dep=(cd-(nominal||dia))/2/Math.tan(cang/2*Math.PI/180);const top=cut===3?cdep:0;const dTop=cd,dBot=nominal||dia;const d1=pr.sign>0?dTop:dBot,d2=pr.sign>0?dBot:dTop; // d1 bei -Achse
+              acc.push({type:'cone',op:'sub',pos:add(c,mul(dir,top+dep/2)),d1:pr.sign>0?dBot:dTop,d2:pr.sign>0?dTop:dBot,h:dep,axis:pr.axis,name:fe.label+' Senkung'});}}}
+        else return null;}
+      return acc.length?acc:null;}};
+  // Spitzen: Formkörper, die kein anderes Objekt verbraucht
+  const consumed=new Set();for(const ob of objs.values()){for(const n of ['Base','Tool','Source','Profile','BaseFeature','Tip'])if(ob.props[n]){const l=link(ob,n);if(l)consumed.add(l.name);}for(const n of ['Shapes','Group'])for(const l of linkList(ob,n))consumed.add(l.name);}
+  const shapeTypes=t=>t.startsWith('Part::')&&!['Part::Part2DObject','Part::Compound'].includes(t)||t==='PartDesign::Body';
+  let tips=Array.from(objs.values()).filter(ob=>shapeTypes(ob.type)&&!consumed.has(ob.name)&&!ob.type.startsWith('PartDesign::')||ob.type==='PartDesign::Body'&&!consumed.has(ob.name));
+  const visTips=tips.filter(ob=>vis.get(ob.name)!==false);if(visTips.length)tips=visTips;
+  const bodies=[];let param=0,mesh=0;
+  for(const ob of tips){let L=null;try{L=lin(ob,0);}catch(e){warnings.push(ob.label+': '+e.message);}
+    if(L&&L.length&&L[0].op==='add'){param++;for(const b of L)bodies.push(b);}
+    else{const M=meshOf(ob);if(M){mesh++;for(const b of M)bodies.push(b);}else warnings.push(ob.label+' ('+ob.type+'): weder Bauliste noch Form lesbar');}}
+  if(!bodies.length&&!tips.length)warnings.push('kein Formkörper im Dokument');
+  return {bodies,warnings,param,mesh};
+}
+// ---- Schreiben --------------------------------------------------------------------------
+function fcstdWrite(bodies,opts){
+  opts=opts||{};const evalFn=opts.evaluate||(bs=>K.evaluate(bs));const label=opts.label||'Technisches-Zeichnen-Lab';
+  const objs=[];const files=[];const used=new Set();
+  const ident=s=>{let b=String(s||'Koerper').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/ß/g,'ss').replace(/[^A-Za-z0-9_]/g,'_').replace(/^[^A-Za-z_]/,'K$&');let n=b,i=1;while(used.has(n))n=b+(++i);used.add(n);return n;};
+  const f=x=>(Math.round(x*1e10)/1e10).toString();
+  const prop=(name,type,inner)=>`<Property name="${name}" type="${type}">${inner}</Property>`;
+  const pFloat=(name,v,type)=>prop(name,type||'App::PropertyLength',`<Float value="${f(v)}"/>`);
+  const pInt=(name,v,type)=>prop(name,type||'App::PropertyInteger',`<Integer value="${v}"/>`);
+  const pBool=(name,v)=>prop(name,'App::PropertyBool',`<Bool value="${v?'true':'false'}"/>`);
+  const pStr=(name,v)=>prop(name,'App::PropertyString',`<String value="${xmlEscape(v)}"/>`);
+  const pLink=(name,v)=>prop(name,'App::PropertyLink',`<Link value="${v}"/>`);
+  const pVec=(name,v)=>prop(name,'App::PropertyVector',`<PropertyVector valueX="${f(v[0])}" valueY="${f(v[1])}" valueZ="${f(v[2])}"/>`);
+  const pPlace=(pos,q)=>{const aa=qAxisDeg(q);return prop('Placement','App::PropertyPlacement',`<PropertyPlacement Px="${f(pos[0])}" Py="${f(pos[1])}" Pz="${f(pos[2])}" Q0="${f(q[0])}" Q1="${f(q[1])}" Q2="${f(q[2])}" Q3="${f(q[3])}" A="${f(aa.deg*Math.PI/180)}" Ox="${f(aa.axis[0])}" Oy="${f(aa.axis[1])}" Oz="${f(aa.axis[2])}"/>`);};
+  const pShape=name=>prop('Shape','Part::PropertyPartShape',`<Part file="${name}.Shape.brp"/>`);
+  const addObj=(type,name,lbl,props,polys,touched)=>{const o={type,name,label:lbl,props:props.slice(),touched,polys};objs.push(o);return o;};
+  const attachShape=o=>{if(o.polys&&o.polys.length&&!o.hasShape){try{files.push({name:o.name+'.Shape.brp',data:brepWrite(o.polys)});o.props.push(pShape(o.name));o.hasShape=true;}catch(e){}}};
+  const axisQ=axis=>axis==='x'?qFromAxis([0,1,0],90):axis==='y'?qFromAxis([1,0,0],-90):[0,0,0,1];
+  const rotQ=b=>b.rot&&b.rot.deg?qFromAxis(AXES[b.rot.axis||'z'],b.rot.deg):[0,0,0,1];
+  const sketch=(name,lbl,pts2,pos,q)=>{const geo=pts2.map((p,i)=>{const q2=pts2[(i+1)%pts2.length];return `<Geometry type="Part::GeomLineSegment" id="${i+1}"><GeoExtensions count="1"><GeoExtension type="Sketcher::SketchGeometryExtension" id="${i+1}" internalGeometryType="0" geometryModeFlags="00000000000000000000000000000000" geometryLayer="0"/></GeoExtensions><LineSegment StartX="${f(p[0])}" StartY="${f(p[1])}" StartZ="0" EndX="${f(q2[0])}" EndY="${f(q2[1])}" EndZ="0"/><Construction value="0"/></Geometry>`;}).join('');
+    const o=addObj('Sketcher::SketchObject',name,lbl,[pStr('Label',lbl),pPlace(pos,q),prop('Geometry','Part::PropertyGeometryList',`<GeometryList count="${pts2.length}">${geo}</GeometryList>`),prop('Constraints','Sketcher::PropertyConstraintList','<ConstraintList count="0"></ConstraintList>')],null,true);
+    // Skizzen brauchen eine gespeicherte Form mit Lage, sonst setzt FreeCAD die Lage beim Laden zurück
+    try{files.push({name:name+'.Shape.brp',data:brepWriteWire(pts2,mFromPlacement(pos,q))});o.props.push(pShape(name));o.hasShape=true;}catch(e){}
+    return o;};
+  let prev=null;const results=[];
+  bodies.forEach((b,i)=>{const lbl=(b.name||'').trim()||({box:'Quader',cyl:'Zylinder',cone:'Kegelstumpf',sphere:'Kugel',prism:'Prisma',revolve:'Drehteil',stl:'Netz'}[b.type]||'Körper');const name=ident(lbl);
+    const single=Object.assign({},b,{op:'add'});if(b.type==='cyl'&&b.gewinde&&b.op==='sub'){single.d=K.gewindeMasse(b.d).dk;single.gewinde=false;}
+    let polys=[];if(b.type==='stl'){try{polys=evalFn([single]).polys;}catch(e){}}
+    const q=rotQ(b);let o=null;
+    if(b.type==='box'){const pos=add(b.pos,qRot(q,[-b.lx/2,-b.ly/2,-b.lz/2]));o=addObj('Part::Box',name,lbl,[pStr('Label',lbl),pFloat('Length',b.lx),pFloat('Width',b.ly),pFloat('Height',b.lz),pPlace(pos,q)],polys,true);}
+    else if(b.type==='cyl'||b.type==='cone'){const qa=qMul(q,axisQ(b.axis||'z'));const pos=sub(b.pos,qRot(qa,[0,0,b.h/2]));
+      if(b.type==='cone')o=addObj('Part::Cone',name,lbl,[pStr('Label',lbl),pFloat('Radius1',b.d1/2),pFloat('Radius2',b.d2/2),pFloat('Height',b.h),pPlace(pos,qa)],polys,true);
+      else if((b.n||64)<16)o=addObj('Part::Prism',name,lbl,[pStr('Label',lbl),pInt('Polygon',b.n,'App::PropertyIntegerConstraint'),pFloat('Circumradius',single.d/2),pFloat('Height',b.h),pPlace(pos,qa)],polys,true);
+      else{const l2=b.gewinde?lbl+(b.op==='sub'?' (Kernloch M'+b.d+')':' (Gewinde M'+b.d+')'):lbl;o=addObj('Part::Cylinder',name,l2,[pStr('Label',l2),pFloat('Radius',single.d/2),pFloat('Height',b.h),pFloat('Angle',360,'App::PropertyAngle'),pPlace(pos,qa)],polys,true);}}
+    else if(b.type==='sphere')o=addObj('Part::Sphere',name,lbl,[pStr('Label',lbl),pFloat('Radius',b.d/2),pPlace(b.pos,[0,0,0,1])],polys,true);
+    else if(b.type==='prism'){const axis=b.axis||'z';const qa=qMul(q,axisQ(axis));let pts=(b.pts||[]).map(p=>axis==='y'?[p[0],-p[1]]:p.slice());if(pts.length>=3){const sk=sketch(ident(lbl+'_Skizze'),lbl+' Skizze',pts,b.pos,qa);const dir=qRot(qa,[0,0,1]);o=addObj('Part::Extrusion',name,lbl,[pStr('Label',lbl),pLink('Base',sk.name),pVec('Dir',dir),pInt('DirMode',0,'App::PropertyEnumeration'),pFloat('LengthFwd',b.h,'App::PropertyDistance'),pFloat('LengthRev',0,'App::PropertyDistance'),pBool('Solid',true),pBool('Symmetric',true),pFloat('TaperAngle',0,'App::PropertyAngle'),pPlace([0,0,0],[0,0,0,1])],polys,true);}}
+    else if(b.type==='revolve'){const axis=b.axis||'z';const qa=qMul(q,qMul(axisQ(axis),qFromAxis([1,0,0],90)));const prof=K.cleanProfile(b.prof||[]).map(p=>[Math.max(0,p[0]),p[1]]);if(prof.length>=3){const sk=sketch(ident(lbl+'_Profil'),lbl+' Profil',prof,b.pos,qa);const ax=qRot(q,AXES[axis]);o=addObj('Part::Revolution',name,lbl,[pStr('Label',lbl),pLink('Source',sk.name),pVec('Axis',ax),pVec('Base',b.pos),pFloat('Angle',360,'App::PropertyFloatConstraint'),pBool('Solid',true),pBool('Symmetric',false),pPlace([0,0,0],[0,0,0,1])],polys,true);}}
+    else if(b.type==='stl'){o=addObj('Part::Feature',name,lbl,[pStr('Label',lbl),pPlace([0,0,0],[0,0,0,1])],polys,false);attachShape(o);}
+    if(!o)return;
+    if(i===0||!prev){if(b.op==='sub')return;prev=o;results.push(o);return;}
+    const rn=ident(b.op==='sub'?'Schnitt':'Vereinigung');const rl=b.op==='sub'?'Schnitt '+(results.length):'Vereinigung '+(results.length);let rp=[];if(i===bodies.length-1){try{rp=evalFn(bodies).polys;}catch(e){}}
+    const r=addObj(b.op==='sub'?'Part::Cut':'Part::Fuse',rn,rl,[pStr('Label',rl),pLink('Base',prev.name),pLink('Tool',o.name),pPlace([0,0,0],[0,0,0,1])],rp,false);prev=r;results.push(r);});
+  if(!objs.length)throw new Error('kein Körper');
+  if(prev)attachShape(prev);
+  const finalName=prev?prev.name:objs[objs.length-1].name;
+  const now=new Date();const iso=now.toISOString().slice(0,19);
+  const objList=objs.map(o=>`        <Object type="${o.type}" name="${o.name}" id="${objs.indexOf(o)+1}"${o.touched?' Touched="1"':''} />`).join('\n');
+  const objData=objs.map(o=>`        <Object name="${o.name}">\n            <Properties Count="${o.props.length}">\n${o.props.map(p=>'                '+p).join('\n')}\n            </Properties>\n        </Object>`).join('\n');
+  const docXml=`<?xml version='1.0' encoding='utf-8'?>\n<!--\n FreeCAD Document, geschrieben vom Technisches-Zeichnen-Lab\n-->\n<Document SchemaVersion="4" ProgramVersion="1.0" FileVersion="1">\n    <Properties Count="5">\n        <Property name="Comment" type="App::PropertyString"><String value="${xmlEscape('Aus dem Technisches-Zeichnen-Lab. Formen sind facettiert; nach Strg+R (Neu berechnen) rechnet FreeCAD die Grundkörper exakt.')}"/></Property>\n        <Property name="CreatedBy" type="App::PropertyString"><String value="Technisches-Zeichnen-Lab"/></Property>\n        <Property name="CreationDate" type="App::PropertyString"><String value="${iso}"/></Property>\n        <Property name="Label" type="App::PropertyString"><String value="${xmlEscape(label)}"/></Property>\n        <Property name="Tip" type="App::PropertyLink"><Link value="${finalName}"/></Property>\n    </Properties>\n    <Objects Count="${objs.length}">\n${objList}\n    </Objects>\n    <ObjectData Count="${objs.length}">\n${objData}\n    </ObjectData>\n</Document>\n`;
+  const vpd=objs.map(o=>`        <ViewProvider name="${o.name}" expanded="0" treeRank="-1">\n            <Properties Count="1" TransientCount="0">\n                <Property name="Visibility" type="App::PropertyBool" status="1">\n                    <Bool value="${o.name===finalName?'true':'false'}"/>\n                </Property>\n            </Properties>\n        </ViewProvider>`).join('\n');
+  const guiXml=`<?xml version='1.0' encoding='utf-8'?>\n<Document SchemaVersion="1" HasExpansion="1">\n    <Expand />\n    <ViewProviderData Count="${objs.length}">\n${vpd}\n    </ViewProviderData>\n    <Camera settings=""/>\n</Document>\n`;
+  return zipWrite([{name:'Document.xml',data:docXml}].concat(files,[{name:'GuiDocument.xml',data:guiXml}])); // GuiDocument.xml zuletzt, wie FreeCAD selbst
+}
+return {stepRead,stepWrite,brepRead,brepWrite,brepWriteWire,fcstdRead,fcstdWrite,zipRead,zipWrite,facetTopology,tessellate};
+})();
+</script>
 <script>
 // =============================================================================
 //  Oberfläche, Teil 1: Zustand, Bauliste, Verlauf (Rückgängig), Auswertung,
@@ -1273,6 +2044,11 @@ $('stlImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)ret
 function importBodies(list,name){if(!list.length)throw new Error('keine Körper gefunden');if($('stlErsetzen').checked)TZ.loadBodies(list);else for(const b of list)TZ.addBody(b);TZ.renderListe();TZ.rebuild();}
 $('csgExport').addEventListener('click',()=>{if(!TZ.state.bodies.length){$('dateiMeldung').textContent='Keine Bauliste zum Exportieren.';return;}download(new Blob([CADIO.csgWrite(TZ.state.bodies)],{type:'text/plain'}),'koerper.csg');$('dateiMeldung').textContent='CSG geschrieben. In FreeCAD: Datei → Importieren, Dateityp OpenSCAD CSG.';});
 $('csgImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const r=CADIO.csgRead(rd.result);importBodies(r.bodies,f.name);$('dateiMeldung').textContent=f.name+': '+r.bodies.length+' Körper geladen.'+(r.warnings.length?' Hinweise: '+r.warnings.join(' · '):'');}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsText(f);});
+// FreeCAD FCStd und STEP
+$('fcstdExport').addEventListener('click',()=>{if(!TZ.state.bodies.length){$('dateiMeldung').textContent='Keine Bauliste zum Exportieren.';return;}try{const erst=TZ.state.bodies.find(b=>b.op!=='sub')||{};const bytes=CADX.fcstdWrite(TZ.state.bodies,{label:(erst.name||'').trim()||'Werkstück'});download(new Blob([bytes],{type:'application/octet-stream'}),'koerper.FCStd');$('dateiMeldung').textContent='FCStd geschrieben. In FreeCAD öffnen; Strg+R rechnet die Grundkörper exakt.';}catch(err){$('dateiMeldung').textContent='FCStd-Export fehlgeschlagen: '+err.message;}});
+$('fcstdImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const r=CADX.fcstdRead(new Uint8Array(rd.result));if(!r.bodies.length)throw new Error(r.warnings.join(' · ')||'keine Körper gefunden');importBodies(r.bodies,f.name);$('dateiMeldung').textContent=f.name+': '+r.bodies.length+' Körper geladen ('+r.param+' als Bauliste, '+r.mesh+' als Netz).'+(r.warnings.length?' Hinweise: '+r.warnings.slice(0,4).join(' · '):'');}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsArrayBuffer(f);});
+$('stepExport').addEventListener('click',()=>{const m=TZ.getModel();if(!m||!m.tris.length){$('dateiMeldung').textContent='Kein Körper zum Exportieren.';return;}try{const erst=TZ.state.bodies.find(b=>b.op!=='sub')||{};const txt=CADX.stepWrite(m.polys,(erst.name||'').trim()||'Werkstueck');download(new Blob([txt],{type:'text/plain'}),'koerper.step');$('dateiMeldung').textContent='STEP geschrieben (facettiert, '+m.polys.length+' Facetten).';}catch(err){$('dateiMeldung').textContent='STEP-Export fehlgeschlagen: '+err.message;}});
+$('stepImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const r=CADX.stepRead(rd.result);if(!r.tris.length)throw new Error(r.warnings.join(' · ')||'keine Flächen gefunden');importBodies([{type:'stl',op:'add',pos:[0,0,0],tris:r.tris,name:'STEP: '+f.name.replace(/\.(step|stp)$/i,'')}],f.name);$('dateiMeldung').textContent=f.name+': '+r.tris.length+' Dreiecke aus den Flächen erzeugt.'+(r.warnings.length?' Hinweise: '+r.warnings.slice(0,4).join(' · '):'');}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsText(f);});
 $('objExport').addEventListener('click',()=>{const m=TZ.getModel();if(!m||!m.tris.length){$('dateiMeldung').textContent='Kein Körper zum Exportieren.';return;}download(new Blob([CADIO.objWrite(m.tris)],{type:'text/plain'}),'koerper.obj');$('dateiMeldung').textContent='OBJ mit '+m.tris.length+' Dreiecken geschrieben.';});
 $('objImport').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const tris=CADIO.objRead(rd.result);importBodies([{type:'stl',op:'add',pos:[0,0,0],tris,name:'OBJ: '+f.name}],f.name);$('dateiMeldung').textContent=f.name+': '+tris.length+' Dreiecke geladen.';}catch(err){$('dateiMeldung').textContent='Die Datei ließ sich nicht lesen: '+err.message;}e.target.value='';};rd.readAsText(f);});
 $('jsonExport').addEventListener('click',()=>{download(new Blob([JSON.stringify({format:'tzlab-bauliste',bodies:TZ.state.bodies,rho:TZ.state.rho})],{type:'application/json'}),'bauliste.json');});
