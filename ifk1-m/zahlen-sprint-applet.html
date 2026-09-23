@@ -27,11 +27,14 @@
   Komma, Punkt bei grossen Zahlen und Ordnungszahlen, der dritte, der zwanzigste.
 
   Sprechen (Zahl, Ordnungszahl, Uhrzeit, Datum, Bruch, Rechnung) nutzt die
-  Spracherkennung des Browsers (Chrome/Safari; meist ueber das Internet, neuere
-  Chrome-Versionen auf dem Geraet). Nur die Erkennung entscheidet, drei Versuche je
-  Aufgabe; einen Selbstvergleich gibt es absichtlich nicht. Ohne Erkennung entfallen die
-  Sprechaufgaben. Hoeren nutzt die Sprachausgabe des Geraets (deutsche Stimme); fehlt
-  sie, entfallen die Hoeraufgaben. Teilen ueber die Teilen-Funktion des
+  Spracherkennung des Browsers (Chrome, Edge, Safari; braucht Internet). Nur die
+  Erkennung entscheidet, drei Versuche je Aufgabe; einen Selbstvergleich gibt es
+  absichtlich nicht. Die Startseite hat einen Mikrofontest (holt die Erlaubnis vor dem
+  Spiel, zeigt Fehlercodes) und einen Schalter, der Sprechaufgaben ausschaltet. Der
+  Aufnahmestart ohne Fingertipp darf scheitern (iPhone verlangt eine Nutzergeste);
+  technische Fehler nach einem Fingertipp werden erklaert und kosten keinen Punkt, beim
+  zweiten Mal entfallen die Sprechaufgaben fuer die Runde. Hoeren nutzt die
+  Sprachausgabe des Geraets (deutsche Stimme); fehlt sie, entfallen die Hoeraufgaben. Teilen ueber die Teilen-Funktion des
   Handys (Web Share API) mit Bild, sonst Text kopieren.
 
   Quelle: Jahresplanungen/kurse/ifk1-m/zahlen-sprint-applet.html; Bildbausteine in
@@ -68,6 +71,7 @@
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { border: 2px solid var(--stahl); color: var(--stahl); background: #fff; padding: 8px 14px; border-radius: 999px; font-size: 16px; }
   .chip.an { background: var(--stahl); color: #fff; }
+  .chip.aktiv { background: var(--corten); border-color: var(--corten); color: #fff; animation: puls 1s infinite; }
   .gross { display: block; width: 100%; font-size: 22px; font-weight: 700; padding: 16px; margin-top: 20px;
            background: var(--rot); color: #fff; border: none; border-radius: 14px; }
   .gross:active { transform: scale(.98); }
@@ -229,7 +233,10 @@
     </ol>
     <div class="chips" style="margin-top:14px">
       <button class="chip an" id="soundChip">🔔 Ton an</button>
+      <button class="chip an" id="sprechChip">🎤 Sprechen an</button>
+      <button class="chip" id="mikroTest">🎤 Mikrofon testen</button>
     </div>
+    <p class="klein" id="mikroErgebnis"></p>
     <p class="klein" id="hinweisTechnik"></p>
   </div>
   <footer>Kaspschak · IFK1 M · Zahlen-Sprint</footer>
@@ -757,7 +764,7 @@ const GENERATOREN = [
   [gGleichungWortSymbol, 2, 'rechnen'], [gGleichungSymbolWort, 2, 'rechnen'], [gWahrFalsch, 2, 'rechnen'], [gFachwort, 2, 'rechnen'], [gHoerenRechnung, 1.5, 'rechnen', 'tts'], [gSprechenRechnung, 1, 'rechnen', 'sr'],
   [gZeichenWort, 2, 'zeichen'], [gWortZeichen, 2, 'zeichen'], [gVergleich, 1.5, 'zeichen'], [gPaareZeichen, 1, 'zeichen']
 ];
-const kannSprechen = () => !!SR && !S.srKaputt;
+const kannSprechen = () => !!SR && S.sprechen && !S.srKaputt;
 function naechsteAufgabe() {
   const pool = GENERATOREN.filter(g => S.themen.has(g[2]) && (g[3] !== 'tts' || kannHoeren()) && (g[3] !== 'sr' || kannSprechen()));
   let a = null;
@@ -792,10 +799,33 @@ function sprich(text) {
   try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'de-DE'; const v = deutscheStimme(); if (v) u.voice = v; u.rate = 0.85; speechSynthesis.speak(u); } catch (e) { }
 }
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+function fehlerText(f) {
+  return {
+    'not-allowed': 'Das Mikrofon ist für diese Seite gesperrt. Erlaube es über das Schloss-Symbol neben der Adresse (iPhone: Einstellungen › Safari › Mikrofon) und versuche es noch mal.',
+    'service-not-allowed': 'Dieser Browser lässt die Spracherkennung nicht zu. Öffne die Seite direkt in Chrome oder Safari, nicht in der Vorschau einer anderen App.',
+    'audio-capture': 'Kein Mikrofon gefunden.',
+    'network': 'Keine Verbindung zur Spracherkennung. Sie braucht Internet.',
+    'language-not-supported': 'Die Spracherkennung dieses Browsers kann kein Deutsch.',
+    'kein': 'Die Spracherkennung konnte nicht starten.', 'start': 'Die Spracherkennung konnte nicht starten.'
+  }[f] || 'Fehler der Spracherkennung.';
+}
+// Mikrofontest auf der Startseite: holt die Erlaubnis vor dem Spiel und zeigt, was die Erkennung versteht
+function mikroTest() {
+  const b = $('#mikroTest'), e = $('#mikroErgebnis');
+  if (b.classList.contains('aktiv')) return;
+  b.classList.add('aktiv'); b.textContent = '… ich höre zu'; e.textContent = 'Sag jetzt: „dreiundzwanzig“';
+  S.erkenner = erkennen((alt, fehler) => {
+    S.erkenner = null; b.classList.remove('aktiv'); b.textContent = '🎤 Mikrofon testen';
+    if (!alt) { S.mikroOk = false; e.innerHTML = (fehler === 'no-speech' || fehler === 'nichts' ? 'Nichts gehört. Noch mal, lauter und näher am Handy.' : esc(fehlerText(fehler))) + ' <span class="klein">(' + esc(fehler) + ')</span>'; return; }
+    S.mikroOk = true;
+    const ok = sprachTreffer({ art: 'zahl', wert: 23, akzeptiert: [...wortVarianten(23)] }, alt);
+    e.innerHTML = 'Verstanden: „' + esc(alt[0]) + '“ ' + (ok ? '✓ Das Mikrofon funktioniert.' : '– das war nicht „dreiundzwanzig“, aber das Mikrofon funktioniert.');
+  });
+}
 function erkennen(cb) {
+  if (S.erkenner) { try { S.erkenner.abort(); } catch (e) { } S.erkenner = null; } // nie zwei Erkenner zugleich, sonst "already started"
   let r; try { r = new SR(); } catch (e) { cb(null, 'kein'); return null; }
   r.lang = 'de-DE'; r.interimResults = false; r.maxAlternatives = 5; r.continuous = false;
-  if (S.lokal) { try { r.processLocally = true; } catch (e) { } } // Erkennung auf dem Geraet, wo Chrome sie anbietet
   let fertig = false;
   r.onaudiostart = () => { S.mikroOk = true; };
   r.onresult = e => { fertig = true; const alt = []; const res = e.results[0]; for (let i = 0; i < res.length; i++) alt.push(res[i].transcript); cb(alt, null); };
@@ -852,7 +882,7 @@ function sprachTreffer(a, transkripte) {
 }
 
 // ======================= Zustand und Ablauf =======================
-const S = { dauer: 120, themen: new Set(THEMEN.map(t => t[0])), sound: true, laeuft: false, richtig: 0, falsch: 0, fehler: [], tEnde: 0, aktuell: null, gesperrt: false, timer: null, letzterTyp: null, letzteSek: -1, weiter: null, erkenner: null, karteDatei: null, mikroOk: false, srKaputt: null, lokal: false };
+const S = { dauer: 120, themen: new Set(THEMEN.map(t => t[0])), sound: true, laeuft: false, richtig: 0, falsch: 0, fehler: [], tEnde: 0, aktuell: null, gesperrt: false, timer: null, letzterTyp: null, letzteSek: -1, weiter: null, erkenner: null, karteDatei: null, mikroOk: false, srKaputt: null, srFehler: 0, sprechen: true };
 function speichern(k, v) { try { localStorage.setItem('zahlensprint.' + k, JSON.stringify(v)); } catch (e) { } }
 function laden(k, std) { try { const v = localStorage.getItem('zahlensprint.' + k); return v === null ? std : JSON.parse(v); } catch (e) { return std; } }
 const mmss = s => Math.floor(s / 60) + ':' + zz(s % 60);
@@ -863,15 +893,17 @@ function zeigeStart() {
   const best = laden('best' + S.dauer, 0);
   $('#rekordStart').innerHTML = best ? `Dein Rekord (${dauerText(S.dauer)}): <b>${best}</b>` : `Noch kein Rekord für ${dauerText(S.dauer)}.`;
   const t = [];
-  if (!SR) t.push('Sprechen: Dein Browser hat keine Spracherkennung, Sprechaufgaben entfallen. Chrome (Android) und Safari (iPhone) können es.');
-  else t.push('Sprechen: Beim ersten Mal fragt das Handy nach dem Mikrofon. ' + (S.lokal ? 'Die Erkennung läuft auf dem Gerät.' : 'Die Erkennung braucht Internet.'));
+  if (!SR) t.push('Sprechen: Dieser Browser hat keine Spracherkennung, Sprechaufgaben entfallen. Chrome, Edge (PC, Android) und Safari (iPhone) können es.');
+  else if (!S.sprechen) t.push('Sprechen ist ausgeschaltet, es gibt keine Sprechaufgaben.');
+  else t.push('Sprechen: Die Erkennung braucht Internet. Beim ersten Mal fragt der Browser nach dem Mikrofon; am besten vorher einmal testen.');
+  $('#mikroTest').hidden = !SR || !S.sprechen;
   if (!kannHoeren()) t.push('Hören: Keine deutsche Stimme gefunden, Höraufgaben entfallen.');
   $('#hinweisTechnik').textContent = t.join(' ');
 }
 function start() {
   tonAn();
   try { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) { }
-  S.richtig = 0; S.falsch = 0; S.fehler = []; S.laeuft = true; S.letzterTyp = null; S.letzteSek = -1; S.karteDatei = null; S.srKaputt = null;
+  S.richtig = 0; S.falsch = 0; S.fehler = []; S.laeuft = true; S.letzterTyp = null; S.letzteSek = -1; S.karteDatei = null; S.srKaputt = null; S.srFehler = 0;
   S.tEnde = performance.now() + S.dauer * 1000;
   $('#pRichtig').textContent = '0'; $('#pFalsch').textContent = '0';
   $('#start').hidden = true; $('#ende').hidden = true; $('#spiel').hidden = false;
@@ -982,21 +1014,23 @@ const RENDER = {
     const zusatz = document.createElement('div'); zusatz.className = 'zusatz'; $('#reiz').appendChild(zusatz);
     const m = document.createElement('button'); m.className = 'mikro'; m.textContent = '🎤 Aufnehmen';
     const u = document.createElement('button'); u.className = 'neben'; u.textContent = 'Überspringen';
-    const MAX = 3; let versuche = 0;
-    const hoeren = () => {
+    const MAX = 3; let versuche = 0, technisch = false;
+    const hoeren = auto => {
       if (S.gesperrt || S.aktuell !== a || m.classList.contains('aktiv')) return;
       m.classList.add('aktiv'); m.textContent = '… ich höre zu'; zusatz.textContent = 'Sprich jetzt.';
       S.erkenner = erkennen((alt, fehler) => {
         S.erkenner = null; m.classList.remove('aktiv'); m.textContent = '🎤 Noch mal';
         if (!S.laeuft || S.aktuell !== a) return;
         if (!alt) {
-          if (['not-allowed', 'service-not-allowed', 'audio-capture', 'network', 'kein', 'start'].includes(fehler)) {
-            S.srKaputt = fehler; m.hidden = true; u.textContent = 'Weiter';
-            zusatz.textContent = fehler === 'network' ? 'Keine Verbindung zur Spracherkennung. Sprechaufgaben entfallen in dieser Runde.' : 'Kein Mikrofon. Sprechaufgaben entfallen in dieser Runde.';
-          } else { m.textContent = '🎤 Noch mal'; zusatz.textContent = 'Nichts gehört. Tippe auf den Knopf und sprich laut.'; }
+          if (fehler === 'no-speech' || fehler === 'nichts' || fehler === 'aborted') { zusatz.textContent = 'Nichts gehört. Tippe auf den Knopf und sprich laut.'; return; }
+          if (auto) { S.mikroOk = false; m.textContent = '🎤 Aufnehmen'; zusatz.textContent = 'Tippe auf Aufnehmen und sprich.'; return; } // Start ohne Fingertipp darf scheitern (iPhone)
+          // technischer Fehler nach einem Fingertipp: erklaeren, Weiter ohne Wertung; beim zweiten Mal Sprechaufgaben fuer die Runde aus
+          technisch = true; S.srFehler++; u.textContent = 'Weiter';
+          zusatz.innerHTML = esc(fehlerText(fehler)) + ' <span class="klein">(' + esc(fehler) + ')</span>';
+          if (S.srFehler >= 2) { S.srKaputt = fehler; m.hidden = true; zusatz.innerHTML += ' Sprechaufgaben entfallen in dieser Runde.'; }
           return;
         }
-        S.mikroOk = true;
+        S.mikroOk = true; technisch = false; u.textContent = 'Überspringen';
         const gehoert = 'Verstanden: „' + esc(alt[0]) + '“';
         if (sprachTreffer(a, alt)) { zusatz.innerHTML = gehoert; zusatz.classList.add('gut'); bewerten(true); return; }
         versuche++;
@@ -1004,15 +1038,15 @@ const RENDER = {
         zusatz.innerHTML = gehoert + ' – das passt nicht. Versuch ' + (versuche + 1) + ' von ' + MAX + '.'; m.textContent = '🎤 Noch mal';
       });
     };
-    m.addEventListener('click', hoeren);
+    m.addEventListener('click', () => hoeren(false));
     u.addEventListener('click', () => {
       if (S.gesperrt || S.aktuell !== a) return;
       if (S.erkenner) { try { S.erkenner.abort(); } catch (e) { } S.erkenner = null; }
-      if (S.srKaputt) naechste(); else bewerten(false);
+      if (S.srKaputt || technisch) naechste(); else bewerten(false); // nach technischem Fehler ohne Wertung weiter
     });
     box.appendChild(m); box.appendChild(u); ant.appendChild(box);
     zusatz.textContent = S.mikroOk ? 'Das Mikrofon startet gleich.' : 'Tippe auf Aufnehmen und sprich.';
-    if (S.mikroOk) setTimeout(hoeren, 400); // nach der ersten Erlaubnis startet die Aufnahme von selbst
+    if (S.mikroOk) setTimeout(() => hoeren(true), 400); // nach der ersten Erlaubnis startet die Aufnahme von selbst
   },
   tapobj(a, ant) {
     $('#reiz').querySelectorAll('button.obj').forEach(b => b.addEventListener('click', () => {
@@ -1152,7 +1186,7 @@ async function teilen() {
 
 // ======================= Startseite: Einstellungen =======================
 function initStart() {
-  S.dauer = laden('dauer', 120); S.sound = laden('sound', true);
+  S.dauer = laden('dauer', 120); S.sound = laden('sound', true); S.sprechen = laden('sprechen', true) !== false;
   const th = laden('themen', null); if (Array.isArray(th) && th.length) S.themen = new Set(th.filter(t => THEMEN.some(x => x[0] === t)));
   if (!S.themen.size) S.themen = new Set(THEMEN.map(t => t[0]));
   const zc = $('#zeitChips');
@@ -1172,8 +1206,9 @@ function initStart() {
   if (BILDER.stoppuhr) { const i = $('#bildStoppuhr'); i.src = BILDER.stoppuhr; i.hidden = false; }
   if (BILDER.pokal) { const i = $('#bildPokal'); i.src = BILDER.pokal; i.hidden = false; }
   try { speechSynthesis.getVoices(); speechSynthesis.addEventListener('voiceschanged', () => { if (!$('#start').hidden) zeigeStart(); }); } catch (e) { }
-  // Neuere Chrome-Versionen koennen Deutsch auf dem Geraet erkennen (ohne Internet); wenn ja, wird das genutzt
-  try { if (SR && typeof SR.available === 'function') SR.available({ langs: ['de-DE'], processLocally: true }).then(v => { S.lokal = v === 'available'; if (!$('#start').hidden) zeigeStart(); }).catch(() => { }); } catch (e) { }
+  const sp = $('#sprechChip'); const sprechZeigen = () => { sp.classList.toggle('an', S.sprechen); sp.textContent = S.sprechen ? '🎤 Sprechen an' : '🎤 Sprechen aus'; }; sprechZeigen();
+  sp.addEventListener('click', () => { S.sprechen = !S.sprechen; speichern('sprechen', S.sprechen); sprechZeigen(); zeigeStart(); });
+  $('#mikroTest').addEventListener('click', mikroTest);
   zeigeStart();
 }
 initStart();
