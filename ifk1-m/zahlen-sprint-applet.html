@@ -760,14 +760,17 @@ const GENERATOREN = [
 const kannSprechen = () => !!SR && !S.srKaputt;
 function naechsteAufgabe() {
   const pool = GENERATOREN.filter(g => S.themen.has(g[2]) && (g[3] !== 'tts' || kannHoeren()) && (g[3] !== 'sr' || kannSprechen()));
+  let a = null;
   for (let versuch = 0; versuch < 8; versuch++) {
     let summe = 0; pool.forEach(g => summe += g[1]);
     let r = Math.random() * summe, g = pool[pool.length - 1];
     for (const k of pool) { r -= k[1]; if (r <= 0) { g = k; break; } }
-    let a; try { a = g[0](); } catch (e) { console.error(g[0].name, e); continue; }
-    if (a.typ !== S.letzterTyp || pool.length < 3) { S.letzterTyp = a.typ; return a; }
+    try { a = g[0](); } catch (e) { console.error(g[0].name, e); continue; }
+    if (a.typ !== S.letzterTyp || pool.length < 3) break; // sonst noch einmal ziehen, damit sich der Typ nicht wiederholt
   }
-  return gZahlWort();
+  if (!a) a = gZahlWort();
+  S.letzterTyp = a.typ;
+  return a;
 }
 
 // ======================= Ton =======================
