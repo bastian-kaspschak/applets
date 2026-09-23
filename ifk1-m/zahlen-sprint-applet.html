@@ -26,9 +26,12 @@
   Lexikon (10.09.2026): plus, minus, mal, geteilt durch, ist gleich, ist kleiner als,
   Komma, Punkt bei grossen Zahlen und Ordnungszahlen, der dritte, der zwanzigste.
 
-  Sprechen nutzt die Spracherkennung des Browsers (Chrome/Safari, braucht Internet);
-  ohne sie vergleicht man selbst. Hoeren nutzt die Sprachausgabe des Geraets (deutsche
-  Stimme); fehlt sie, entfallen die Hoeraufgaben. Teilen ueber die Teilen-Funktion des
+  Sprechen (Zahl, Ordnungszahl, Uhrzeit, Datum, Bruch, Rechnung) nutzt die
+  Spracherkennung des Browsers (Chrome/Safari; meist ueber das Internet, neuere
+  Chrome-Versionen auf dem Geraet). Nur die Erkennung entscheidet, drei Versuche je
+  Aufgabe; einen Selbstvergleich gibt es absichtlich nicht. Ohne Erkennung entfallen die
+  Sprechaufgaben. Hoeren nutzt die Sprachausgabe des Geraets (deutsche Stimme); fehlt
+  sie, entfallen die Hoeraufgaben. Teilen ueber die Teilen-Funktion des
   Handys (Web Share API) mit Bild, sonst Text kopieren.
 
   Quelle: Jahresplanungen/kurse/ifk1-m/zahlen-sprint-applet.html; Bildbausteine in
@@ -494,9 +497,40 @@ function gSchreiben() {
   const ok = wortVarianten(n);
   return { typ: 'schreiben', thema: 'zahlen', frage: 'Schreibe die Zahl als Wort.', ico: '⌨️', reiz: `<div class="zahl">${n}</div>`, merk: String(n), modus: 'text', loesung: zahlwort(n), pruefen: e => ok.has(norm(e)) };
 }
-function gSprechen() {
-  const n = chance(0.5) ? rnd(13, 99) : rnd(100, 999);
-  return { typ: 'sprechen', thema: 'zahlen', frage: 'Sprich die Zahl laut.', ico: '🎤', reiz: `<div class="zahl">${n}</div>`, merk: String(n) + ' (gesprochen)', modus: 'sprechen', n, loesung: zahlwort(n) };
+// --- Sprechen (nur mit Spracherkennung; es gibt keinen Selbstvergleich, sonst liesse sich schummeln) ---
+// akzeptiert: Fassungen nach normSprache(); wert: ganze Zahl fuer den Ziffern- und Zahlwort-Abgleich
+function sprechAufgabe(o) { return Object.assign({ modus: 'sprechen', ico: '🎤' }, o); }
+function gSprechenZahl(zVorgabe) {
+  const z = zVorgabe || (chance(0.75) ? zufallsZahl(true) : zufallsZahl());
+  const a = sprechAufgabe({ typ: 'sprechenZahl', thema: 'zahlen', art: 'zahl', frage: 'Sprich die Zahl laut.', reiz: `<div class="zahl">${z.anzeige}</div>`, merk: z.anzeige + ' (gesprochen)', loesung: z.wort, akzeptiert: [normSprache(z.wort, 'zahl')] });
+  if (z.art === 'ganz') { a.wert = z.n; a.akzeptiert = [...wortVarianten(z.n)]; }
+  return a;
+}
+function gSprechenOrdinal(nVorgabe) {
+  const n = nVorgabe || pick([rnd(1, 12), rnd(1, 31), pick([20, 21, 30])]);
+  return sprechAufgabe({ typ: 'sprechenOrdinal', thema: 'ordnung', art: 'ordinal', n, frage: 'Sprich die Ordnungszahl laut: der …', reiz: `<div class="zahl">${n}.</div>`, merk: n + '. (gesprochen)', loesung: 'der ' + ordinal(n), akzeptiert: [ordinal(n), ordinal(n) + 'r', ordinal(n) + 'n'].map(v => normSprache(v, 'ordinal')) });
+}
+function gSprechenUhr(uVorgabe) {
+  const u = uVorgabe || uhrZufall(), w = uhrWorte(u.h, u.m);
+  const varianten = [w, uhrFormal(u.h, u.m), uhrFormal(u.h % 12 + 12, u.m), uhrFormal(u.h % 12, u.m), 'eins Uhr' + (u.m ? ' ' + zahlwort(u.m) : '')];
+  return sprechAufgabe({ typ: 'sprechenUhr', thema: 'uhr', art: 'uhr', u, frage: 'Sprich die Uhrzeit laut.', reiz: uhrSVG(u.h, u.m, 170), merk: 'Uhr: ' + w + ' (gesprochen)', loesung: w + ' (' + uhrFormal(u.h, u.m) + ')', akzeptiert: varianten.map(v => normSprache(v, 'uhr')) });
+}
+function gSprechenRechnung(xVorgabe) {
+  const x = xVorgabe || rechnung();
+  const ops = [['plus', 'und'], ['minus', 'weniger'], ['mal', 'multipliziert mit'], ['geteilt durch', 'durch', 'dividiert durch']][x.o];
+  const enden = ['ist gleich', 'ist', 'gleich', 'macht', 'ergibt', ''];
+  const akzeptiert = [];
+  ops.forEach(op => enden.forEach(e => akzeptiert.push(normSprache(`${zahlwort(x.a)} ${op} ${zahlwort(x.b)} ${e} ${zahlwort(x.r)}`, 'rechnung'))));
+  return sprechAufgabe({ typ: 'sprechenRechnung', thema: 'rechnen', art: 'rechnung', x, frage: 'Sprich die Rechnung laut.', reiz: `<div class="zahl mittel">${symbolisch(x)}</div>`, merk: symbolisch(x) + ' (gesprochen)', loesung: inWorten(x), akzeptiert });
+}
+function gSprechenDatum(dVorgabe, moVorgabe) {
+  const d = dVorgabe || rnd(1, 28), mo = moVorgabe || rnd(1, 12), o = ordinal(d), mon = MONATE[mo - 1];
+  return sprechAufgabe({ typ: 'sprechenDatum', thema: 'datum', art: 'datum', d, mo, frage: 'Sprich das Datum laut: der …', reiz: `<div class="zahl">${zz(d)}.${zz(mo)}.</div>`, merk: zz(d) + '.' + zz(mo) + '. (gesprochen)', loesung: 'der ' + o + ' ' + mon, akzeptiert: [o + ' ' + mon, o + 'r ' + mon, o + 'n ' + mon].map(v => normSprache(v, 'datum')) });
+}
+function gSprechenBruch(bVorgabe) {
+  const b = bVorgabe || pick(BRUECHE);
+  const varianten = [b[2]]; if (b[1] === 2 && b[0] === 1) varianten.push('einhalb', 'halb', 'die Hälfte');
+  return sprechAufgabe({ typ: 'sprechenBruch', thema: 'bruch', art: 'bruch', b, frage: 'Sprich den Bruch laut.', reiz: `<div class="zahl">${bruchHtml(b[0], b[1])}</div>`, merk: b[0] + '/' + b[1] + ' (gesprochen)', loesung: b[2], akzeptiert: varianten.map(v => normSprache(v, 'bruch')) });
 }
 function gZaehlen() {
   const k = pick(OBJ_ALLE), n = rnd(3, 12);
@@ -714,17 +748,18 @@ function gVergleich() {
 // ======================= Aufgabenpool =======================
 const THEMEN = [['zahlen', 'Zahlen'], ['ordnung', 'Ordnungszahlen'], ['uhr', 'Uhrzeit'], ['datum', 'Datum'], ['bruch', 'Brüche'], ['rechnen', 'Rechnen'], ['zeichen', 'Zeichen']];
 const GENERATOREN = [
-  [gZahlWort, 3, 'zahlen'], [gWortZahl, 3, 'zahlen'], [gWortTippen, 3, 'zahlen'], [gHoeren, 2, 'zahlen', 'tts'], [gSchreiben, 1.5, 'zahlen'], [gSprechen, 1.5, 'zahlen'],
+  [gZahlWort, 3, 'zahlen'], [gWortZahl, 3, 'zahlen'], [gWortTippen, 3, 'zahlen'], [gHoeren, 2, 'zahlen', 'tts'], [gSchreiben, 1.5, 'zahlen'], [gSprechenZahl, 2, 'zahlen', 'sr'],
   [gZaehlen, 2, 'zahlen'], [gReihe, 1.5, 'zahlen'], [gOrdnen, 1.5, 'zahlen'], [gPaareZahlen, 1.5, 'zahlen'],
-  [gOrdinalTippen, 2, 'ordnung'], [gOrdinalMarkiert, 2, 'ordnung'], [gOrdinalZahl, 2, 'ordnung'], [gReiheOrdinal, 1.5, 'ordnung'],
-  [gUhrLesen, 2, 'uhr'], [gUhrDigital, 1.5, 'uhr'], [gUhrTippen, 1.5, 'uhr'],
-  [gDatum, 2, 'datum'], [gDatumTippen, 1, 'datum'],
-  [gBruchBild, 2, 'bruch'], [gBruchWort, 1.5, 'bruch'], [gBruchTippen, 1, 'bruch'],
-  [gGleichungWortSymbol, 2, 'rechnen'], [gGleichungSymbolWort, 2, 'rechnen'], [gWahrFalsch, 2, 'rechnen'], [gFachwort, 2, 'rechnen'], [gHoerenRechnung, 1.5, 'rechnen', 'tts'],
+  [gOrdinalTippen, 2, 'ordnung'], [gOrdinalMarkiert, 2, 'ordnung'], [gOrdinalZahl, 2, 'ordnung'], [gReiheOrdinal, 1.5, 'ordnung'], [gSprechenOrdinal, 1, 'ordnung', 'sr'],
+  [gUhrLesen, 2, 'uhr'], [gUhrDigital, 1.5, 'uhr'], [gUhrTippen, 1.5, 'uhr'], [gSprechenUhr, 1, 'uhr', 'sr'],
+  [gDatum, 2, 'datum'], [gDatumTippen, 1, 'datum'], [gSprechenDatum, 1, 'datum', 'sr'],
+  [gBruchBild, 2, 'bruch'], [gBruchWort, 1.5, 'bruch'], [gBruchTippen, 1, 'bruch'], [gSprechenBruch, 1, 'bruch', 'sr'],
+  [gGleichungWortSymbol, 2, 'rechnen'], [gGleichungSymbolWort, 2, 'rechnen'], [gWahrFalsch, 2, 'rechnen'], [gFachwort, 2, 'rechnen'], [gHoerenRechnung, 1.5, 'rechnen', 'tts'], [gSprechenRechnung, 1, 'rechnen', 'sr'],
   [gZeichenWort, 2, 'zeichen'], [gWortZeichen, 2, 'zeichen'], [gVergleich, 1.5, 'zeichen'], [gPaareZeichen, 1, 'zeichen']
 ];
+const kannSprechen = () => !!SR && !S.srKaputt;
 function naechsteAufgabe() {
-  const pool = GENERATOREN.filter(g => S.themen.has(g[2]) && (g[3] !== 'tts' || kannHoeren()));
+  const pool = GENERATOREN.filter(g => S.themen.has(g[2]) && (g[3] !== 'tts' || kannHoeren()) && (g[3] !== 'sr' || kannSprechen()));
   for (let versuch = 0; versuch < 8; versuch++) {
     let summe = 0; pool.forEach(g => summe += g[1]);
     let r = Math.random() * summe, g = pool[pool.length - 1];
@@ -757,22 +792,64 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
 function erkennen(cb) {
   let r; try { r = new SR(); } catch (e) { cb(null, 'kein'); return null; }
   r.lang = 'de-DE'; r.interimResults = false; r.maxAlternatives = 5; r.continuous = false;
+  if (S.lokal) { try { r.processLocally = true; } catch (e) { } } // Erkennung auf dem Geraet, wo Chrome sie anbietet
   let fertig = false;
+  r.onaudiostart = () => { S.mikroOk = true; };
   r.onresult = e => { fertig = true; const alt = []; const res = e.results[0]; for (let i = 0; i < res.length; i++) alt.push(res[i].transcript); cb(alt, null); };
   r.onerror = e => { if (!fertig) { fertig = true; cb(null, e.error || 'fehler'); } };
   r.onend = () => { if (!fertig) { fertig = true; cb(null, 'nichts'); } };
   try { r.start(); } catch (e) { fertig = true; cb(null, 'start'); }
   return r;
 }
-function erkanntAlsZahl(t, n) {
-  const s = String(t).toLowerCase().replace(/[.,\s\-‑–!?]/g, '');
-  if (/^\d+$/.test(s)) return parseInt(s, 10) === n;
-  const w = s.replace(/\d+/g, m => zahlwort(parseInt(m, 10)));
-  return wortVarianten(n).has(norm(w));
+// Was die Erkennung liefert, ist unvorhersehbar: "385", "3 85", "dreihundertfünfundachtzig",
+// "halb 4", "15:30", "7 + 8 = 15", "der 12. Mai", "3/4". normSprache bringt Transkript und
+// erlaubte Fassungen auf dieselbe Form: Kleinbuchstaben, Ziffern und Zeichen zu Woertern,
+// nur Buchstaben. art steuert, welche Regeln gelten (Uhrzeit, Ordnungszahl, Bruch, Rechnung).
+// Fuellwoerter, die Erkenner oder Sprecher dazusetzen ("es ist halb vier", "der siebte", "die Hälfte")
+const FUELL = new Set(['es', 'ist', 'das', 'die', 'der', 'den', 'dem', 'am', 'um', 'jetzt', 'uhrzeit', 'zahl', 'bruch', 'datum', 'rechnung', 'heute', 'ich', 'sage', 'also', 'ähm', 'äh', 'gleich']);
+function normSprache(t, art) {
+  let s = ' ' + String(t).toLowerCase() + ' ';
+  s = s.replace(/(\d)\.(\d{3})(?!\d)/g, '$1$2');                                                       // 1.250 → 1250
+  if (art === 'bruch') s = s.replace(/(\d+)\s*\/\s*(\d+)/g, (m, z, n) => ' ' + bruchWort(+z, +n) + ' ');   // 3/4 → drei Viertel
+  if (art === 'uhr') s = s.replace(/(\d{1,2})[:.](\d{2})(?!\d)(\s*uhr)?/g, (m, h, mi) => ' ' + uhrFormal(+h, +mi) + ' '); // 15:30 (Uhr) → fünfzehn Uhr dreißig
+  if (art === 'ordinal' || art === 'datum') s = s.replace(/(\d+)\.(?=\s)/g, (m, n) => ' ' + ordinal(+n) + ' '); // 12. → zwölfte
+  s = s.replace(/(\d+),(\d+)/g, '$1 komma $2').replace(/(\d+)\s*%/g, '$1 prozent');
+  if (art === 'rechnung') s = s.replace(/\+/g, ' plus ').replace(/\s-\s|[−–]/g, ' minus ').replace(/[×*]|\sx\s/g, ' mal ').replace(/[÷:\/]/g, ' geteilt durch ').replace(/=/g, ' ist gleich ');
+  s = s.replace(/\d+/g, m => ' ' + zahlwort(+m) + ' ');
+  s = s.toLowerCase().replace(/ß/g, 'ss').replace(/[^a-zäöü]+/g, ' ');
+  return s.trim().split(' ').filter(w => w && !FUELL.has(w)).join('');
+}
+function bruchWort(z, n) { const b = BRUECHE.find(x => x[0] === z && x[1] === n); return b ? b[2] : zahlwort(z) + ' ' + (n === 2 ? 'halb' : bruchName(n)); }
+// Zahlwort → Zahl: gierig von links die laengsten bekannten Bausteine abtrennen; null bei fremden Woertern
+const WORTE = (() => {
+  const l = []; for (let i = 0; i < 20; i++) l.push([EINER[i], i]); for (let z = 2; z <= 9; z++) l.push([ZEHNER[z], z * 10]);
+  l.push(['ein', 1], ['zwo', 2], ['hundert', 100], ['tausend', 1000], ['und', -1]);
+  return l.map(([w, v]) => [w.replace(/ß/g, 'ss'), v]).sort((a, b) => b[0].length - a[0].length);
+})();
+function wortZuZahl(s) {
+  let i = 0, summe = 0, block = 0; if (!s) return null;
+  while (i < s.length) {
+    const tok = WORTE.find(([w]) => s.startsWith(w, i)); if (!tok) return null;
+    i += tok[0].length; const v = tok[1];
+    if (v === -1) continue;
+    if (v === 100) block = (block || 1) * 100; else if (v === 1000) { summe += (block || 1) * 1000; block = 0; } else block += v;
+  }
+  return summe + block;
+}
+function sprachTreffer(a, transkripte) {
+  return transkripte.some(t => {
+    const s = normSprache(t, a.art);
+    if (a.art === 'zahl' && a.wert !== undefined) {
+      const ziffern = String(t).replace(/(\d)\.(\d{3})(?!\d)/g, '$1$2').replace(/(\d)\s+(?=\d)/g, '$1').match(/\d+/g);
+      if (ziffern && ziffern.some(z => parseInt(z, 10) === a.wert)) return true;
+      if (wortZuZahl(s) === a.wert) return true;
+    }
+    return a.akzeptiert.includes(s); // gleich, nicht enthalten: "ein Uhr fünf" darf nicht als "ein Uhr" gelten
+  });
 }
 
 // ======================= Zustand und Ablauf =======================
-const S = { dauer: 120, themen: new Set(THEMEN.map(t => t[0])), sound: true, laeuft: false, richtig: 0, falsch: 0, fehler: [], tEnde: 0, aktuell: null, gesperrt: false, timer: null, letzterTyp: null, letzteSek: -1, weiter: null, erkenner: null, karteDatei: null };
+const S = { dauer: 120, themen: new Set(THEMEN.map(t => t[0])), sound: true, laeuft: false, richtig: 0, falsch: 0, fehler: [], tEnde: 0, aktuell: null, gesperrt: false, timer: null, letzterTyp: null, letzteSek: -1, weiter: null, erkenner: null, karteDatei: null, mikroOk: false, srKaputt: null, lokal: false };
 function speichern(k, v) { try { localStorage.setItem('zahlensprint.' + k, JSON.stringify(v)); } catch (e) { } }
 function laden(k, std) { try { const v = localStorage.getItem('zahlensprint.' + k); return v === null ? std : JSON.parse(v); } catch (e) { return std; } }
 const mmss = s => Math.floor(s / 60) + ':' + zz(s % 60);
@@ -783,14 +860,15 @@ function zeigeStart() {
   const best = laden('best' + S.dauer, 0);
   $('#rekordStart').innerHTML = best ? `Dein Rekord (${dauerText(S.dauer)}): <b>${best}</b>` : `Noch kein Rekord für ${dauerText(S.dauer)}.`;
   const t = [];
-  if (!SR) t.push('Sprechen: Dein Browser hat keine Spracherkennung, du vergleichst selbst.');
+  if (!SR) t.push('Sprechen: Dein Browser hat keine Spracherkennung, Sprechaufgaben entfallen. Chrome (Android) und Safari (iPhone) können es.');
+  else t.push('Sprechen: Beim ersten Mal fragt das Handy nach dem Mikrofon. ' + (S.lokal ? 'Die Erkennung läuft auf dem Gerät.' : 'Die Erkennung braucht Internet.'));
   if (!kannHoeren()) t.push('Hören: Keine deutsche Stimme gefunden, Höraufgaben entfallen.');
   $('#hinweisTechnik').textContent = t.join(' ');
 }
 function start() {
   tonAn();
   try { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) { }
-  S.richtig = 0; S.falsch = 0; S.fehler = []; S.laeuft = true; S.letzterTyp = null; S.letzteSek = -1; S.karteDatei = null;
+  S.richtig = 0; S.falsch = 0; S.fehler = []; S.laeuft = true; S.letzterTyp = null; S.letzteSek = -1; S.karteDatei = null; S.srKaputt = null;
   S.tEnde = performance.now() + S.dauer * 1000;
   $('#pRichtig').textContent = '0'; $('#pFalsch').textContent = '0';
   $('#start').hidden = true; $('#ende').hidden = true; $('#spiel').hidden = false;
@@ -894,45 +972,44 @@ const RENDER = {
     setTimeout(() => { inp.focus(); }, 50);
   },
   sprechen(a, ant) {
+    // Nur die Spracherkennung entscheidet. Drei Versuche je Aufgabe (die Erkennung verhoert sich),
+    // dann zaehlt die Aufgabe als falsch. Ueberspringen zaehlt als falsch. Faellt Mikrofon oder
+    // Erkennung aus, entfallen die Sprechaufgaben fuer diese Runde, ohne Wertung.
     const box = document.createElement('div'); box.className = 'sprech';
     const zusatz = document.createElement('div'); zusatz.className = 'zusatz'; $('#reiz').appendChild(zusatz);
-    const selbst = () => { // ohne Erkennung: Wort zeigen, selbst vergleichen
-      box.innerHTML = ''; zusatz.innerHTML = `So sagt man: <b>${a.loesung}</b>`; zusatz.classList.add('gut');
-      const s = document.createElement('div'); s.className = 'selbst';
-      const nein = document.createElement('button'); nein.className = 'neben'; nein.textContent = 'Ich habe es anders gesagt'; nein.style.color = '#B01A15'; nein.style.borderColor = '#B01A15';
-      const ja = document.createElement('button'); ja.className = 'neben'; ja.textContent = 'So habe ich es gesagt'; ja.style.color = '#3d8a4a'; ja.style.borderColor = '#3d8a4a';
-      nein.addEventListener('click', () => { if (!S.gesperrt) bewerten(false); }); ja.addEventListener('click', () => { if (!S.gesperrt) bewerten(true); });
-      s.appendChild(nein); s.appendChild(ja); box.appendChild(s);
-    };
-    if (!SR) {
-      const z = document.createElement('button'); z.className = 'mikro'; z.textContent = 'Ich habe es gesagt: Zeigen';
-      z.addEventListener('click', selbst); box.appendChild(z);
-      zusatz.textContent = 'Sprich laut, dann tippe auf Zeigen und vergleiche.';
-    } else {
-      const m = document.createElement('button'); m.className = 'mikro'; m.textContent = '🎤 Aufnehmen';
-      const o = document.createElement('button'); o.className = 'neben'; o.textContent = 'Ohne Mikrofon vergleichen';
-      m.addEventListener('click', () => {
-        if (S.gesperrt || m.classList.contains('aktiv')) return;
-        m.classList.add('aktiv'); m.textContent = '… ich höre zu'; zusatz.textContent = 'Sprich jetzt.';
-        S.erkenner = erkennen((alt, fehler) => {
-          S.erkenner = null; m.classList.remove('aktiv'); m.textContent = '🎤 Noch mal';
-          if (!S.laeuft) return;
-          if (!alt) {
-            if (fehler === 'not-allowed' || fehler === 'service-not-allowed' || fehler === 'kein' || fehler === 'start') { zusatz.textContent = 'Kein Mikrofon. Vergleiche selbst.'; selbst(); }
-            else if (fehler === 'network') { zusatz.textContent = 'Keine Verbindung zur Spracherkennung. Vergleiche selbst.'; selbst(); }
-            else zusatz.textContent = 'Nichts verstanden. Versuch es noch mal oder vergleiche selbst.';
-            return;
-          }
-          const gut = alt.some(t => erkanntAlsZahl(t, a.n));
-          zusatz.innerHTML = 'Verstanden: „' + esc(alt[0]) + '“';
-          bewerten(gut);
-        });
+    const m = document.createElement('button'); m.className = 'mikro'; m.textContent = '🎤 Aufnehmen';
+    const u = document.createElement('button'); u.className = 'neben'; u.textContent = 'Überspringen';
+    const MAX = 3; let versuche = 0;
+    const hoeren = () => {
+      if (S.gesperrt || S.aktuell !== a || m.classList.contains('aktiv')) return;
+      m.classList.add('aktiv'); m.textContent = '… ich höre zu'; zusatz.textContent = 'Sprich jetzt.';
+      S.erkenner = erkennen((alt, fehler) => {
+        S.erkenner = null; m.classList.remove('aktiv'); m.textContent = '🎤 Noch mal';
+        if (!S.laeuft || S.aktuell !== a) return;
+        if (!alt) {
+          if (['not-allowed', 'service-not-allowed', 'audio-capture', 'network', 'kein', 'start'].includes(fehler)) {
+            S.srKaputt = fehler; m.hidden = true; u.textContent = 'Weiter';
+            zusatz.textContent = fehler === 'network' ? 'Keine Verbindung zur Spracherkennung. Sprechaufgaben entfallen in dieser Runde.' : 'Kein Mikrofon. Sprechaufgaben entfallen in dieser Runde.';
+          } else { m.textContent = '🎤 Noch mal'; zusatz.textContent = 'Nichts gehört. Tippe auf den Knopf und sprich laut.'; }
+          return;
+        }
+        S.mikroOk = true;
+        const gehoert = 'Verstanden: „' + esc(alt[0]) + '“';
+        if (sprachTreffer(a, alt)) { zusatz.innerHTML = gehoert; zusatz.classList.add('gut'); bewerten(true); return; }
+        versuche++;
+        if (versuche >= MAX) { zusatz.innerHTML = gehoert; bewerten(false); return; }
+        zusatz.innerHTML = gehoert + ' – das passt nicht. Versuch ' + (versuche + 1) + ' von ' + MAX + '.'; m.textContent = '🎤 Noch mal';
       });
-      o.addEventListener('click', () => { if (S.erkenner) { try { S.erkenner.abort(); } catch (e) { } } selbst(); });
-      box.appendChild(m); box.appendChild(o);
-      zusatz.textContent = 'Tippe auf Aufnehmen und sprich die Zahl.';
-    }
-    ant.appendChild(box);
+    };
+    m.addEventListener('click', hoeren);
+    u.addEventListener('click', () => {
+      if (S.gesperrt || S.aktuell !== a) return;
+      if (S.erkenner) { try { S.erkenner.abort(); } catch (e) { } S.erkenner = null; }
+      if (S.srKaputt) naechste(); else bewerten(false);
+    });
+    box.appendChild(m); box.appendChild(u); ant.appendChild(box);
+    zusatz.textContent = S.mikroOk ? 'Das Mikrofon startet gleich.' : 'Tippe auf Aufnehmen und sprich.';
+    if (S.mikroOk) setTimeout(hoeren, 400); // nach der ersten Erlaubnis startet die Aufnahme von selbst
   },
   tapobj(a, ant) {
     $('#reiz').querySelectorAll('button.obj').forEach(b => b.addEventListener('click', () => {
@@ -1092,6 +1169,8 @@ function initStart() {
   if (BILDER.stoppuhr) { const i = $('#bildStoppuhr'); i.src = BILDER.stoppuhr; i.hidden = false; }
   if (BILDER.pokal) { const i = $('#bildPokal'); i.src = BILDER.pokal; i.hidden = false; }
   try { speechSynthesis.getVoices(); speechSynthesis.addEventListener('voiceschanged', () => { if (!$('#start').hidden) zeigeStart(); }); } catch (e) { }
+  // Neuere Chrome-Versionen koennen Deutsch auf dem Geraet erkennen (ohne Internet); wenn ja, wird das genutzt
+  try { if (SR && typeof SR.available === 'function') SR.available({ langs: ['de-DE'], processLocally: true }).then(v => { S.lokal = v === 'available'; if (!$('#start').hidden) zeigeStart(); }).catch(() => { }); } catch (e) { }
   zeigeStart();
 }
 initStart();
