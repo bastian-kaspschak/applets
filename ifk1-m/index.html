@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Applets IFK1 M · Kaspschak</title>
+<!--
+  Einstiegsseite des Kurses IFK1 M: listet nur die Applets dieses Kurses.
+  Die Adresse dieser Seite (…/applets/ifk1-m/) ist der Link, den die Klasse
+  bekommt. Keine externen Ressourcen, damit die Seite offline funktioniert.
+-->
+<style>
+  :root { --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.45; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex; flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 760px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 18px; }
+  ul.liste { list-style: none; padding: 0; margin: 0; }
+  ul.liste li { border: 1px solid var(--grau); background: var(--hell); padding: 12px 14px; margin: 0 0 10px; }
+  ul.liste a { color: var(--stahl); font-weight: 600; font-size: 17px; text-decoration: none; }
+  ul.liste a:hover { text-decoration: underline; }
+  ul.liste .meta { display: block; color: #777; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 2px; }
+  ul.liste .was { display: block; margin-top: 4px; font-size: 14px; }
+  .hinweis { margin-top: 22px; font-size: 13px; color: #555; border-top: 1px solid #ddd; padding-top: 10px; }
+  .hinweis a { color: var(--stahl); }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Kurs</span>IFK1 M · Mathematik</div>
+  <div><span class="k">Lehrer</span>Kaspschak</div>
+  <div><span class="k">Schule</span>Lore-Lorentz-Schule</div>
+</header>
+<main>
+  <h1>Applets IFK1 M</h1>
+  <p class="lead">Kleine Seiten zum Üben am Handy. Jedes Applet ist eine Datei, läuft im Browser
+    und braucht nach dem Laden kein Internet. Es wird nichts gesendet; dein Rekord bleibt auf
+    deinem Handy.</p>
+
+  <ul class="liste">
+    <li>
+      <span class="meta">Mathe als Sprache</span>
+      <a href="zahlen-sprint-applet.html">Zahlen-Sprint</a>
+      <span class="was">Die Zeit läuft (1, 2 oder 3 Minuten). Löse so viele Aufgaben wie möglich:
+        Zahlwörter lesen, schreiben, hören und sprechen, Zählen, Reihen, Ordnungszahlen (das dritte
+        Auto, der siebte), Uhrzeit, Datum, Brüche, Rechnungen in Worten und Zeichen, richtig oder
+        falsch, Summe und Differenz, Rechen- und Vergleichszeichen. Bei einem Fehler siehst du die
+        richtige Antwort; am Ende steht, was du noch übst. Teile deinen Rekord mit der Klasse.</span>
+    </li>
+  </ul>
+
+  <p class="hinweis">Zum Speichern für unterwegs: Applet öffnen, dann mit „Seite speichern“ als
+    „Webseite, nur HTML“ sichern. Die Datei funktioniert danach auch ohne Verbindung.<br>
+    Applets der anderen Kurse: <a href="../">Übersicht</a>.</p>
+</main>
+<footer>Kaspschak · applets · ifk1-m</footer>
+</body>
+</html>

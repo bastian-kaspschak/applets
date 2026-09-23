@@ -16,6 +16,7 @@ Pages:
 | `11nf-pht/nonius-applet.html` | 11NF PHT-Pr, Messen und Messfehler (September 2026) | Messschieber von vorn (Schiene, Schieber mit Nonius und Schnabel, Werkstück), Nonius 1/10, 1/20 oder 1/50 mm; Schieber ziehen oder Zufallswert, ablesen, eintippen, prüfen; Lupe folgt dem Finger, Anzeige markiert den passenden Noniusstrich; Aufgaben 1 bis 4 und die drei Schritte des Messens |
 | `11wi2-m/zwei-punkte-applet.html` | 11WI2 M, Von Daten zu Funktionen I (September 2026) | Zwei Punkte im Koordinatensystem ziehen (Raster 1 oder 0,5) oder zufällig setzen, Graph mit Steigungsdreieck ein- und ausblenden, Funktionsgleichung eingeben und prüfen; die Eingabe wird als Term gelesen (2x + 3, 3 + 2x, y = 2x + 3, 2/3x − 1), gerundete Dezimalzahlen gelten als „fast richtig“; nach dem Prüfen der Rechenweg in vier Schritten mit Probe und ein Hinweis auf den Schritt, an dem es hängt |
 | `12pe1-m/extrempunkte-applet.html` | 12PE1 M, Extremwertprobleme (September 2026) | Sechs Beispielfunktionen; f, f′ und f″ untereinander mit ziehbarem Punkt und Tangente, f′ und f″ ausblendbar; Rechenweg zu den Extrempunkten in vier Schritten (notwendige und hinreichende Bedingung), jeder Schritt in den Graphen markiert |
+| `ifk1-m/zahlen-sprint-applet.html` | IFK1 M, Mathe als Sprache (September 2026) | Übungsspiel fürs Handy mit ablaufender Zeit (1, 2 oder 3 Minuten): kurze Aufgaben in zufälliger Reihenfolge, gezählt werden die richtigen Antworten. Zahlwörter wählen, tippen, schreiben, hören (Sprachausgabe) und sprechen (Spracherkennung, sonst Selbstvergleich), Zählen an Bildern, Reihen, Ordnen, Paare; Ordnungszahlen, Uhrzeit, Datum, Brüche, Rechnungen in Worten und Zeichen, richtig/falsch, Summe/Differenz/Produkt/Quotient, Rechen- und Vergleichszeichen; Themen abwählbar, Fehlerliste am Ende, Rekord im Browser, Teilen als Bild oder Text |
 
 `index.html` an der Wurzel ist nur die Liste der Kurse. Die Applets selbst stehen auf der
 `index.html` des jeweiligen Kursordners.
@@ -65,7 +66,9 @@ Stunde, hier `Jahresplanungen/stunden/11nf-ph/2026-09-04-organisation/material/`
 `Jahresplanungen/stunden/11nf-ph/2026-09-08-physikalische-grossen/material/`,
 `Jahresplanungen/stunden/11nf-ph/2026-09-11-ubung-zehnerpotenzen-vorsilben-grossenordnungen/material/`,
 `Jahresplanungen/stunden/11wi2-m/2026-09-14-ubung-geradengleichungen-aufstellen-und-deuten/material/`
-und `Jahresplanungen/stunden/12pe1-m/2026-09-04-wiederholung/material/`. Dieses Repo enthält nur
+und `Jahresplanungen/stunden/12pe1-m/2026-09-04-wiederholung/material/`. Ein Applet, das keiner
+einzelnen Stunde gehört, liegt im Kursordner des Planungsrepositories, hier
+`Jahresplanungen/kurse/ifk1-m/` (Zahlen-Sprint, Bildbausteine in `bilder/`). Dieses Repo enthält nur
 Kopien für die Veröffentlichung; im Workspace ist es als `applets/` neben `Vault/` und
 `Jahresplanungen/` ausgecheckt. Nach einer Änderung an der Quelle:
 
