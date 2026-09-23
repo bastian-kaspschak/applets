@@ -26,15 +26,18 @@
   Lexikon (10.09.2026): plus, minus, mal, geteilt durch, ist gleich, ist kleiner als,
   Komma, Punkt bei grossen Zahlen und Ordnungszahlen, der dritte, der zwanzigste.
 
-  Sprechen (Zahl, Ordnungszahl, Uhrzeit, Datum, Bruch, Rechnung) nutzt die
-  Spracherkennung des Browsers (Chrome, Edge, Safari; braucht Internet). Nur die
-  Erkennung entscheidet, drei Versuche je Aufgabe; einen Selbstvergleich gibt es
-  absichtlich nicht. Die Startseite hat einen Mikrofontest (holt die Erlaubnis vor dem
-  Spiel, zeigt Fehlercodes) und einen Schalter, der Sprechaufgaben ausschaltet. Der
-  Aufnahmestart ohne Fingertipp darf scheitern (iPhone verlangt eine Nutzergeste);
-  technische Fehler nach einem Fingertipp werden erklaert und kosten keinen Punkt, beim
-  zweiten Mal entfallen die Sprechaufgaben fuer die Runde. Hoeren nutzt die
-  Sprachausgabe des Geraets (deutsche Stimme); fehlt sie, entfallen die Hoeraufgaben. Teilen ueber die Teilen-Funktion des
+  Sprechen (Zahl, Ordnungszahl, Uhrzeit, Datum, Bruch, Rechnung) nutzt einen eigenen
+  Erkenner im Browser (Vosk als WebAssembly, deutsches Modell, 46 MB, Apache 2.0), der
+  neben dem Applet in stt/ liegt und erst beim Start einer Runde oder beim Mikrofontest
+  geladen wird; er bleibt im Cache-Speicher des Geraets. Das ist die eine Ausnahme von
+  "eine Datei, nichts nachladen": Die Erkennungsdienste der Browser (Google, Microsoft)
+  fielen auf den Geraeten der Klasse aus, und ein Modell dieser Groesse passt nicht in
+  die Datei. Ohne die Dateien (gespeicherte Kopie, kein Netz) entfallen die
+  Sprechaufgaben. Nur die Erkennung entscheidet, drei Versuche je Aufgabe, jede Aufgabe
+  mit eigener Grammatik (Wortschatz); einen Selbstvergleich gibt es absichtlich nicht.
+  Die Startseite hat einen Mikrofontest und einen Schalter, der Sprechaufgaben
+  ausschaltet. Hoeren nutzt die Sprachausgabe des Geraets (deutsche Stimme); fehlt sie,
+  entfallen die Hoeraufgaben. Teilen ueber die Teilen-Funktion des
   Handys (Web Share API) mit Bild, sonst Text kopieren.
 
   Quelle: Jahresplanungen/kurse/ifk1-m/zahlen-sprint-applet.html; Bildbausteine in
@@ -764,7 +767,7 @@ const GENERATOREN = [
   [gGleichungWortSymbol, 2, 'rechnen'], [gGleichungSymbolWort, 2, 'rechnen'], [gWahrFalsch, 2, 'rechnen'], [gFachwort, 2, 'rechnen'], [gHoerenRechnung, 1.5, 'rechnen', 'tts'], [gSprechenRechnung, 1, 'rechnen', 'sr'],
   [gZeichenWort, 2, 'zeichen'], [gWortZeichen, 2, 'zeichen'], [gVergleich, 1.5, 'zeichen'], [gPaareZeichen, 1, 'zeichen']
 ];
-const kannSprechen = () => !!SR && S.sprechen && !S.srKaputt;
+const kannSprechen = () => S.sprechen && !S.srKaputt && STT.status === 'bereit' && !!STT.strom && STT.strom.active;
 function naechsteAufgabe() {
   const pool = GENERATOREN.filter(g => S.themen.has(g[2]) && (g[3] !== 'tts' || kannHoeren()) && (g[3] !== 'sr' || kannSprechen()));
   let a = null;
@@ -798,41 +801,134 @@ function kannHoeren() { return 'speechSynthesis' in window && !!deutscheStimme()
 function sprich(text) {
   try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = 'de-DE'; const v = deutscheStimme(); if (v) u.voice = v; u.rate = 0.85; speechSynthesis.speak(u); } catch (e) { }
 }
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
-function fehlerText(f) {
+// ======================= Spracherkennung im Browser (Vosk, WebAssembly) =======================
+// Der Erkenner laeuft auf dem Geraet: vosk-browser (Apache 2.0) und das deutsche Vosk-Modell
+// "small-de-0.15" (Apache 2.0, 46 MB) liegen als stt/vosk.js und stt/model-de.tar.gz neben dem
+// Applet und werden erst geladen, wenn Sprechen an ist und eine Runde oder der Mikrofontest
+// beginnt. Das Modell wandert in den Cache-Speicher des Browsers und bleibt dort. Jede
+// Sprechaufgabe bekommt eine Grammatik, also den kleinen Wortschatz, der fuer sie in Frage
+// kommt; das macht die Erkennung treffsicher und unabhaengig von Google- oder Microsoft-Diensten.
+const STT = { basis: new URL('stt/', location.href).href, status: 'aus', fehler: '', modell: null, ladung: null, ctx: null, strom: null, quelle: null, proc: null, rec: null, fortschritt: null };
+const SR = null; // kein Browser-Dienst mehr; der Name bleibt fuer aeltere Stellen im Code
+const GRAMMATIK = (() => {
+  const zahlen = ['null', ...EINER.slice(1), ...ZEHNER.slice(2), 'ein', 'und', 'hundert', 'tausend', 'einhundert', 'eintausend'];
+  for (let z = 2; z <= 9; z++) for (let e = 1; e <= 9; e++) zahlen.push((e === 1 ? 'ein' : EINER[e]) + 'und' + ZEHNER[z]);
+  for (let h = 2; h <= 9; h++) zahlen.push(EINER[h] + 'hundert', EINER[h] + 'tausend');
+  const ordinale = ['der', 'den', 'am']; for (let n = 1; n <= 31; n++) { const o = ordinal(n); ordinale.push(o, o + 'n', o + 'r'); }
+  const stunden = ['ein', 'eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun', 'zehn', 'elf', 'zwölf', 'dreizehn', 'vierzehn', 'fünfzehn', 'sechzehn', 'siebzehn', 'achtzehn', 'neunzehn', 'zwanzig', 'einundzwanzig', 'zweiundzwanzig', 'dreiundzwanzig', 'null'];
+  const minuten = []; for (let m = 1; m < 60; m++) minuten.push(zahlwort(m));
   return {
-    'not-allowed': 'Das Mikrofon ist für diese Seite gesperrt. Erlaube es über das Schloss-Symbol neben der Adresse (iPhone: Einstellungen › Safari › Mikrofon) und versuche es noch mal.',
-    'service-not-allowed': 'Dieser Browser lässt die Spracherkennung nicht zu. Öffne die Seite direkt in Chrome oder Safari, nicht in der Vorschau einer anderen App.',
-    'audio-capture': 'Kein Mikrofon gefunden.',
-    'network': 'Keine Verbindung zur Spracherkennung. Sie braucht Internet.',
-    'language-not-supported': 'Die Spracherkennung dieses Browsers kann kein Deutsch.',
-    'kein': 'Die Spracherkennung konnte nicht starten.', 'start': 'Die Spracherkennung konnte nicht starten.'
-  }[f] || 'Fehler der Spracherkennung.';
+    zahl: [...zahlen, 'komma', 'prozent'],
+    ordinal: ordinale,
+    datum: [...ordinale, ...MONATE.map(m => m.toLowerCase())],
+    uhr: ['es', 'ist', 'uhr', 'halb', 'viertel', 'nach', 'vor', ...stunden, ...minuten],
+    bruch: ['ein', 'eins', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun', 'halb', 'halbes', 'die', 'hälfte', 'drittel', 'viertel', 'fünftel', 'sechstel', 'siebtel', 'achtel', 'neuntel', 'zehntel'],
+    rechnung: [...zahlen, 'plus', 'minus', 'weniger', 'mal', 'multipliziert', 'mit', 'geteilt', 'dividiert', 'durch', 'ist', 'gleich', 'macht', 'ergibt']
+  };
+})();
+function skriptLaden(url) {
+  return new Promise((ok, nein) => { if (window.Vosk) return ok(); const s = document.createElement('script'); s.src = url; s.onload = () => ok(); s.onerror = () => nein(new Error('Erkenner nicht gefunden: ' + url)); document.head.appendChild(s); });
 }
-// Mikrofontest auf der Startseite: holt die Erlaubnis vor dem Spiel und zeigt, was die Erkennung versteht
-function mikroTest() {
+// Datei holen, im Cache-Speicher ablegen, Fortschritt melden; liefert eine blob:-Adresse fuer den Worker
+async function dateiMitCache(url, melde) {
+  let res = null, cache = null;
+  try { cache = await caches.open('zahlen-sprint-stt'); res = await cache.match(url); } catch (e) { cache = null; }
+  if (!res) {
+    res = await fetch(url, { cache: 'no-store' }); if (!res.ok) throw new Error('HTTP ' + res.status + ' für ' + url.split('/').pop());
+    if (cache) { try { await cache.put(url, res.clone()); } catch (e) { } }
+  }
+  const gesamt = +res.headers.get('content-length') || 0, leser = res.body.getReader(), teile = []; let geladen = 0;
+  for (;;) { const { done, value } = await leser.read(); if (done) break; teile.push(value); geladen += value.length; if (melde) melde(geladen, gesamt); }
+  return URL.createObjectURL(new Blob(teile));
+}
+async function sttLaden(melde) {
+  if (STT.modell) return STT.modell;
+  if (STT.ladung) return STT.ladung;
+  if (!/^https?:$/.test(location.protocol)) { STT.status = 'fehler'; STT.fehler = 'Die Sprechaufgaben brauchen die Seite im Netz (nicht als gespeicherte Datei).'; throw new Error(STT.fehler); }
+  STT.status = 'laedt';
+  STT.ladung = (async () => {
+    await skriptLaden(STT.basis + 'vosk.js');
+    const adresse = await dateiMitCache(STT.basis + 'model-de.tar.gz', melde);
+    STT.modell = await Vosk.createModel(adresse);
+    STT.status = 'bereit'; return STT.modell;
+  })();
+  try { return await STT.ladung; } catch (e) { STT.status = 'fehler'; STT.fehler = (e && e.message) || String(e); STT.ladung = null; throw e; }
+}
+function mikroFehlerText(e) {
+  const n = e && e.name;
+  if (n === 'NotAllowedError' || n === 'SecurityError') return 'Das Mikrofon ist für diese Seite gesperrt. Erlaube es über das Schloss-Symbol neben der Adresse (iPhone: Einstellungen › Safari › Mikrofon).';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'Kein Mikrofon gefunden.';
+  if (n === 'NotReadableError') return 'Das Mikrofon ist gerade von einer anderen App belegt.';
+  return 'Das Mikrofon konnte nicht geöffnet werden (' + (n || e) + ').';
+}
+async function mikroOeffnen() {
+  if (STT.strom && STT.strom.active) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw { name: 'kein' };
+  const strom = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
+  if (!STT.ctx) STT.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (STT.ctx.state === 'suspended') { try { await STT.ctx.resume(); } catch (e) { } }
+  STT.strom = strom; STT.quelle = STT.ctx.createMediaStreamSource(strom);
+  STT.proc = STT.ctx.createScriptProcessor(4096, 1, 1);
+  STT.proc.onaudioprocess = e => { if (STT.rec) { try { STT.rec.acceptWaveform(e.inputBuffer); } catch (err) { } } };
+  STT.quelle.connect(STT.proc); STT.proc.connect(STT.ctx.destination); // Ausgang bleibt stumm (der Puffer wird nicht beschrieben); ohne Verbindung liefe der Prozessor nicht
+}
+function mikroSchliessen() {
+  if (STT.rec) { try { STT.rec.remove(); } catch (e) { } STT.rec = null; }
+  try { if (STT.proc) { STT.proc.disconnect(); STT.proc.onaudioprocess = null; } if (STT.quelle) STT.quelle.disconnect(); } catch (e) { }
+  if (STT.strom) STT.strom.getTracks().forEach(t => t.stop());
+  STT.strom = null; STT.quelle = null; STT.proc = null;
+}
+// Eine Aeusserung erkennen: cb(transkripte|null, fehler); teil(text) liefert Zwischenstaende.
+// Ergebnis kommt, sobald Vosk eine Pause hoert; nach 7 s ohne Ergebnis wird abgeschlossen.
+function erkennen(art, cb, teil) {
+  if (!STT.modell || !STT.strom || !STT.strom.active || !STT.ctx) { setTimeout(() => cb(null, 'kein'), 0); return null; }
+  if (STT.rec) { try { STT.rec.remove(); } catch (e) { } STT.rec = null; }
+  let rec; try { rec = new STT.modell.KaldiRecognizer(STT.ctx.sampleRate, JSON.stringify((GRAMMATIK[art] || GRAMMATIK.zahl).concat('[unk]'))); } catch (e) { setTimeout(() => cb(null, 'kein'), 0); return null; }
+  let fertig = false, timer = null, nachlauf = null;
+  const ende = (t, f) => { if (fertig) return; fertig = true; clearTimeout(timer); clearTimeout(nachlauf); if (STT.rec === rec) STT.rec = null; try { rec.remove(); } catch (e) { } cb(t, f); };
+  rec.on('result', m => { const t = ((m.result && m.result.text) || '').trim(); if (t && t !== '[unk]') ende([t], null); else if (t === '[unk]') ende(['[unverständlich]'], null); });
+  rec.on('partialresult', m => { if (teil && !fertig) teil((m.result && m.result.partial) || ''); });
+  rec.on('error', () => ende(null, 'kein'));
+  STT.rec = rec;
+  timer = setTimeout(() => { try { rec.retrieveFinalResult(); } catch (e) { } nachlauf = setTimeout(() => ende(null, 'nichts'), 600); }, 7000);
+  return { abort() { ende(null, 'aborted'); } };
+}
+function browserName() {
+  const u = navigator.userAgent;
+  if (navigator.brave) return 'Brave';
+  if (/Edg\//.test(u)) return 'Edge'; if (/SamsungBrowser/.test(u)) return 'Samsung Internet'; if (/OPR\//.test(u)) return 'Opera';
+  if (/; wv\)/.test(u) || (/Android/.test(u) && /Version\/\d/.test(u))) return 'App-Vorschau (WebView)';
+  if (/Firefox/.test(u)) return 'Firefox'; if (/CriOS/.test(u)) return 'Chrome (iOS)'; if (/Chrome\//.test(u)) return 'Chrome';
+  if (/Safari\//.test(u)) return 'Safari'; return 'unbekannt';
+}
+const mb = n => (n / 1048576).toFixed(0);
+// Sprechen vorbereiten (Start und Mikrofontest): Modell laden, Mikrofon oeffnen. Meldet Text ueber melde(text).
+async function sttStarten(melde) {
+  melde = melde || (() => { });
+  try {
+    await sttLaden((g, ges) => melde('Sprachmodell wird geladen … ' + mb(g) + (ges ? ' von ' + mb(ges) : '') + ' MB'));
+  } catch (e) { S.srKaputt = 'modell'; melde('Sprechaufgaben entfallen: ' + STT.fehler); return false; }
+  melde('Mikrofon …');
+  try { await mikroOeffnen(); } catch (e) { S.srKaputt = 'mikro'; melde('Sprechaufgaben entfallen: ' + mikroFehlerText(e)); return false; }
+  S.mikroOk = true; return true;
+}
+async function mikroTest() {
   const b = $('#mikroTest'), e = $('#mikroErgebnis');
   if (b.classList.contains('aktiv')) return;
-  b.classList.add('aktiv'); b.textContent = '… ich höre zu'; e.textContent = 'Sag jetzt: „dreiundzwanzig“';
-  S.erkenner = erkennen((alt, fehler) => {
-    S.erkenner = null; b.classList.remove('aktiv'); b.textContent = '🎤 Mikrofon testen';
-    if (!alt) { S.mikroOk = false; e.innerHTML = (fehler === 'no-speech' || fehler === 'nichts' ? 'Nichts gehört. Noch mal, lauter und näher am Handy.' : esc(fehlerText(fehler))) + ' <span class="klein">(' + esc(fehler) + ')</span>'; return; }
-    S.mikroOk = true;
-    const ok = sprachTreffer({ art: 'zahl', wert: 23, akzeptiert: [...wortVarianten(23)] }, alt);
-    e.innerHTML = 'Verstanden: „' + esc(alt[0]) + '“ ' + (ok ? '✓ Das Mikrofon funktioniert.' : '– das war nicht „dreiundzwanzig“, aber das Mikrofon funktioniert.');
-  });
-}
-function erkennen(cb) {
-  if (S.erkenner) { try { S.erkenner.abort(); } catch (e) { } S.erkenner = null; } // nie zwei Erkenner zugleich, sonst "already started"
-  let r; try { r = new SR(); } catch (e) { cb(null, 'kein'); return null; }
-  r.lang = 'de-DE'; r.interimResults = false; r.maxAlternatives = 5; r.continuous = false;
-  let fertig = false;
-  r.onaudiostart = () => { S.mikroOk = true; };
-  r.onresult = e => { fertig = true; const alt = []; const res = e.results[0]; for (let i = 0; i < res.length; i++) alt.push(res[i].transcript); cb(alt, null); };
-  r.onerror = e => { if (!fertig) { fertig = true; cb(null, e.error || 'fehler'); } };
-  r.onend = () => { if (!fertig) { fertig = true; cb(null, 'nichts'); } };
-  try { r.start(); } catch (e) { fertig = true; cb(null, 'start'); }
-  return r;
+  b.classList.add('aktiv'); b.textContent = '… bitte warten';
+  const zeilen = ['Browser: ' + browserName()]; const zeig = (t) => { e.textContent = zeilen.concat(t ? [t] : []).join('\n'); };
+  zeig('Sprachmodell wird geladen …');
+  S.srKaputt = null;
+  const ok = await sttStarten(t => zeig(t));
+  if (!ok) { b.classList.remove('aktiv'); b.textContent = '🎤 Mikrofon testen'; zeig(S.srKaputt === 'mikro' ? e.textContent.split('\n').pop() : 'Sprachmodell: ' + STT.fehler); return; }
+  zeilen.push('Sprachmodell: geladen ✓ (bleibt gespeichert)', 'Mikrofon: erlaubt ✓');
+  zeig('Sag jetzt: „dreiundzwanzig“'); b.textContent = '… ich höre zu';
+  S.erkenner = erkennen('zahl', (alt, fehler) => {
+    S.erkenner = null; b.classList.remove('aktiv'); b.textContent = '🎤 Mikrofon testen'; mikroSchliessen();
+    if (!alt) { zeig('Erkennung: nichts gehört. Noch mal, lauter und näher am Handy. (' + fehler + ')'); return; }
+    const gut = sprachTreffer({ art: 'zahl', wert: 23, akzeptiert: [...wortVarianten(23)] }, alt);
+    zeig('Erkennung: verstanden „' + alt[0] + '“ ' + (gut ? '✓ Alles bereit.' : '– das war nicht „dreiundzwanzig“, aber die Erkennung läuft.'));
+  }, t => { if (t) zeig('… ' + t); });
 }
 // Was die Erkennung liefert, ist unvorhersehbar: "385", "3 85", "dreihundertfünfundachtzig",
 // "halb 4", "15:30", "7 + 8 = 15", "der 12. Mai", "3/4". normSprache bringt Transkript und
@@ -860,14 +956,18 @@ const WORTE = (() => {
   return l.map(([w, v]) => [w.replace(/ß/g, 'ss'), v]).sort((a, b) => b[0].length - a[0].length);
 })();
 function wortZuZahl(s) {
-  let i = 0, summe = 0, block = 0; if (!s) return null;
+  // Reihenfolge streng: "vierzig fünf" oder "fünf vierzig" ist keine Zahl, nur "fünfundvierzig"
+  let i = 0, summe = 0, block = 0, letzter = ''; if (!s) return null;
   while (i < s.length) {
     const tok = WORTE.find(([w]) => s.startsWith(w, i)); if (!tok) return null;
     i += tok[0].length; const v = tok[1];
-    if (v === -1) continue;
-    if (v === 100) block = (block || 1) * 100; else if (v === 1000) { summe += (block || 1) * 1000; block = 0; } else block += v;
+    if (v === -1) { if (letzter !== 'einer') return null; letzter = 'und'; continue; }
+    if (v === 100) { if (letzter === 'zehner' || letzter === 'und') return null; block = (block || 1) * 100; letzter = 'hundert'; }
+    else if (v === 1000) { if (letzter === 'und') return null; summe += (block || 1) * 1000; block = 0; letzter = 'tausend'; }
+    else if (v >= 20) { if (letzter === 'einer' || letzter === 'zehner') return null; block += v; letzter = 'zehner'; }
+    else { if (letzter === 'einer' || letzter === 'zehner') return null; block += v; letzter = 'einer'; }
   }
-  return summe + block;
+  return letzter === 'und' ? null : summe + block;
 }
 function sprachTreffer(a, transkripte) {
   return transkripte.some(t => {
@@ -893,17 +993,29 @@ function zeigeStart() {
   const best = laden('best' + S.dauer, 0);
   $('#rekordStart').innerHTML = best ? `Dein Rekord (${dauerText(S.dauer)}): <b>${best}</b>` : `Noch kein Rekord für ${dauerText(S.dauer)}.`;
   const t = [];
-  if (!SR) t.push('Sprechen: Dieser Browser hat keine Spracherkennung, Sprechaufgaben entfallen. Chrome, Edge (PC, Android) und Safari (iPhone) können es.');
-  else if (!S.sprechen) t.push('Sprechen ist ausgeschaltet, es gibt keine Sprechaufgaben.');
-  else t.push('Sprechen: Die Erkennung braucht Internet. Beim ersten Mal fragt der Browser nach dem Mikrofon; am besten vorher einmal testen.');
-  $('#mikroTest').hidden = !SR || !S.sprechen;
+  if (!S.sprechen) t.push('Sprechen ist ausgeschaltet, es gibt keine Sprechaufgaben.');
+  else t.push('Sprechen: Beim ersten Start lädt das Applet einmal ein Sprachmodell (46 MB, am besten im WLAN); es bleibt auf dem Gerät. Danach fragt der Browser nach dem Mikrofon. Die Erkennung läuft auf dem Gerät.' + (STT.status === 'bereit' ? ' Sprachmodell: geladen ✓' : STT.status === 'fehler' ? ' Sprachmodell: ' + STT.fehler : ''));
+  $('#mikroTest').hidden = !S.sprechen;
   if (!kannHoeren()) t.push('Hören: Keine deutsche Stimme gefunden, Höraufgaben entfallen.');
   $('#hinweisTechnik').textContent = t.join(' ');
 }
-function start() {
+// Start: erst Sprachmodell und Mikrofon vorbereiten (Erlaubnis vor dem Timer), dann die Runde
+async function start() {
   tonAn();
   try { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) { }
-  S.richtig = 0; S.falsch = 0; S.fehler = []; S.laeuft = true; S.letzterTyp = null; S.letzteSek = -1; S.karteDatei = null; S.srKaputt = null; S.srFehler = 0;
+  S.srKaputt = null; S.srFehler = 0;
+  const k = $('#startKnopf'), n = $('#nochmal');
+  if (S.sprechen && !(STT.strom && STT.strom.active)) {
+    if (k.disabled) return;
+    k.disabled = n.disabled = true; let letzte = '';
+    const ok = await sttStarten(t => { letzte = t; k.textContent = t; n.textContent = t; });
+    k.disabled = n.disabled = false; k.textContent = 'Start'; n.textContent = 'Noch mal';
+    S.srGrund = ok ? '' : letzte; if (!ok) $('#mikroErgebnis').textContent = letzte; // Grund bleibt auf der Startseite stehen
+  }
+  startRunde();
+}
+function startRunde() {
+  S.richtig = 0; S.falsch = 0; S.fehler = []; S.laeuft = true; S.letzterTyp = null; S.letzteSek = -1; S.karteDatei = null;
   S.tEnde = performance.now() + S.dauer * 1000;
   $('#pRichtig').textContent = '0'; $('#pFalsch').textContent = '0';
   $('#start').hidden = true; $('#ende').hidden = true; $('#spiel').hidden = false;
@@ -1018,15 +1130,15 @@ const RENDER = {
     const hoeren = auto => {
       if (S.gesperrt || S.aktuell !== a || m.classList.contains('aktiv')) return;
       m.classList.add('aktiv'); m.textContent = '… ich höre zu'; zusatz.textContent = 'Sprich jetzt.';
-      S.erkenner = erkennen((alt, fehler) => {
+      S.erkenner = erkennen(a.art, (alt, fehler) => {
         S.erkenner = null; m.classList.remove('aktiv'); m.textContent = '🎤 Noch mal';
         if (!S.laeuft || S.aktuell !== a) return;
         if (!alt) {
-          if (fehler === 'no-speech' || fehler === 'nichts' || fehler === 'aborted') { zusatz.textContent = 'Nichts gehört. Tippe auf den Knopf und sprich laut.'; return; }
-          if (auto) { S.mikroOk = false; m.textContent = '🎤 Aufnehmen'; zusatz.textContent = 'Tippe auf Aufnehmen und sprich.'; return; } // Start ohne Fingertipp darf scheitern (iPhone)
-          // technischer Fehler nach einem Fingertipp: erklaeren, Weiter ohne Wertung; beim zweiten Mal Sprechaufgaben fuer die Runde aus
+          if (fehler === 'nichts' || fehler === 'aborted') { zusatz.textContent = 'Nichts gehört. Tippe auf den Knopf und sprich laut.'; return; }
+          if (auto) { S.mikroOk = false; m.textContent = '🎤 Aufnehmen'; zusatz.textContent = 'Tippe auf Aufnehmen und sprich.'; return; }
+          // technischer Fehler nach einem Fingertipp: Weiter ohne Wertung; beim zweiten Mal Sprechaufgaben fuer die Runde aus
           technisch = true; S.srFehler++; u.textContent = 'Weiter';
-          zusatz.innerHTML = esc(fehlerText(fehler)) + ' <span class="klein">(' + esc(fehler) + ')</span>';
+          zusatz.innerHTML = 'Die Erkennung ist nicht bereit. <span class="klein">(' + esc(fehler) + ')</span>';
           if (S.srFehler >= 2) { S.srKaputt = fehler; m.hidden = true; zusatz.innerHTML += ' Sprechaufgaben entfallen in dieser Runde.'; }
           return;
         }
@@ -1036,7 +1148,7 @@ const RENDER = {
         versuche++;
         if (versuche >= MAX) { zusatz.innerHTML = gehoert; bewerten(false); return; }
         zusatz.innerHTML = gehoert + ' – das passt nicht. Versuch ' + (versuche + 1) + ' von ' + MAX + '.'; m.textContent = '🎤 Noch mal';
-      });
+      }, t => { if (t && !S.gesperrt && S.aktuell === a) zusatz.textContent = '… ' + t; });
     };
     m.addEventListener('click', () => hoeren(false));
     u.addEventListener('click', () => {
@@ -1129,13 +1241,14 @@ document.addEventListener('keydown', e => { if (S.laeuft && S.aktuell && S.aktue
 function ende() {
   S.laeuft = false; if (S.timer) clearInterval(S.timer); S.timer = null; if (S.weiter) clearTimeout(S.weiter);
   if (S.erkenner) { try { S.erkenner.abort(); } catch (e) { } S.erkenner = null; }
+  mikroSchliessen();
   try { speechSynthesis.cancel(); } catch (e) { }
   ton('ende');
   const best = laden('best' + S.dauer, 0), neu = S.richtig > best;
   if (neu) speichern('best' + S.dauer, S.richtig);
   $('#eRichtig').textContent = S.richtig;
   $('#eText').textContent = (S.richtig === 1 ? 'richtige Antwort' : 'richtige Antworten') + ' in ' + dauerText(S.dauer);
-  $('#eFalsch').textContent = S.falsch ? `${S.falsch} ${S.falsch === 1 ? 'Fehler' : 'Fehler'}` : 'Kein Fehler!';
+  $('#eFalsch').textContent = (S.falsch ? `${S.falsch} Fehler` : 'Kein Fehler!') + (S.srKaputt && S.srGrund ? ' · ' + S.srGrund : '');
   $('#eNeu').textContent = neu && S.richtig > 0 ? '★ Neuer Rekord!' : '';
   $('#rekordEnde').innerHTML = `Rekord (${dauerText(S.dauer)}): <b>${Math.max(best, S.richtig)}</b>`;
   const fl = $('#fehlerliste'); fl.innerHTML = '';
