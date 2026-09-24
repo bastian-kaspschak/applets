@@ -66,11 +66,15 @@
   .box { border: 1px solid var(--grau); padding: 10px 14px; background: #fff; margin-bottom: 12px; }
   .box .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; }
   .stand { font-size: 12px; color: #777; margin-left: 6px; }
-  .r { display: grid; grid-template-columns: minmax(7.5em, auto) 1fr 5.8em auto; gap: 6px 10px;
-       align-items: center; margin: 6px 0; font-size: 14px; }
-  .r .n { white-space: nowrap; }
+  /* Je Groesse zwei Zeilen: oben Beschriftung, Zahlfeld und Einheit, darunter der Regler
+     ueber die volle Breite. So sind alle drei Regler gleich lang, egal wie breit das
+     Fenster ist und wie lang der Einheitentext. Die Reihenfolge im HTML bleibt
+     (Beschriftung, Regler, Zahlfeld, Einheit); die Plaetze vergibt das Raster. */
+  .r { display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: "n z e" "s s s";
+       gap: 2px 8px; align-items: center; margin: 4px 0 10px; font-size: 14px; }
+  .r .n { grid-area: n; white-space: nowrap; }
   /* Regler mit grossem Griff (30 px) und 44 px Hoehe, damit sie auf iPad und Handy sicher zu treffen sind */
-  .r input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; margin: 0;
+  .r input[type=range] { grid-area: s; -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; margin: 0;
                          height: 44px; background: transparent; cursor: pointer; accent-color: var(--stahl); }
   .r input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #d3d8df; }
   .r input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -11px;
@@ -78,10 +82,10 @@
   .r input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #d3d8df; }
   .r input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--stahl);
                          border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
-  .r input[type=number] { font: inherit; font-size: 16px; padding: 8px 6px; border: 1px solid var(--grau);
-                          width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
+  .r input[type=number] { grid-area: z; font: inherit; font-size: 16px; padding: 8px 6px; border: 1px solid var(--grau);
+                          width: 6em; min-width: 0; font-variant-numeric: tabular-nums; }
   .r input[type=number]:focus { outline: 2px solid var(--stahl); border-color: var(--stahl); }
-  .r .e { color: #666; font-size: 13px; white-space: nowrap; }
+  .r .e { grid-area: e; color: #666; font-size: 13px; white-space: nowrap; }
   .schritt { border-left: 3px solid var(--stahl); padding: 6px 10px; margin: 6px 0; font-size: 14px; background: #f7f9fb; }
   .schritt .t { font-weight: 600; display: block; margin-bottom: 3px; color: var(--stahl); }
   .schritt .z { display: block; margin: 2px 0 2px 8px; }
@@ -100,10 +104,6 @@
     main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
     .panel { gap: 8px 14px; padding: 8px 10px; }
     canvas { height: 260px; }
-    /* Handy: Beschriftung in eigener Zeile, darunter Regler und Zahlfeld in voller Breite */
-    .r { grid-template-columns: 1fr 5.6em; }
-    .r .n { grid-column: 1 / -1; margin-bottom: -4px; }
-    .r .e { display: none; }
   }
   @media (max-height: 520px) and (orientation: landscape) { canvas { height: 220px; } }
 </style>
