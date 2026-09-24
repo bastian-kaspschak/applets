@@ -16,7 +16,6 @@
   G(x) = (p − k_v)·x − K_f, ihre Nullstelle x₀ auf der x-Achse, links davon
   die Verlustzone, rechts die Gewinnzone, und G(0) = −K_f auf der y-Achse
   (die Verwechslung, die die Stunde angreift). Darunter die Kontrolle G(⌊x₀⌋), G(⌈x₀⌉), die das Aufrunden begruendet.
-  "Rechnung zeigen" blendet die Loesung von G(x) = 0 in vier Zeilen ein;
   "E und K einblenden" zeigt die Erloes- und die Kostengerade (fuer den 02.10.:
   ihr Schnittpunkt liegt ueber der Nullstelle von G). Regel der Lernsituation:
   erst Papier, dann Datei.
@@ -58,7 +57,7 @@
   .zwei > * { min-width: 0; }
   .graf { position: relative; }
   canvas { display: block; width: 100%; height: 340px; border: 1px solid var(--grau); background: #fff; }
-  .ablesen { margin-top: 8px; font-size: 15px; }
+  .ablesen { margin-top: 4px; font-size: 15px; }
   .ablesen .z { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin: 3px 0; }
   .ablesen .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; min-width: 7.5em; }
   .ablesen .antwort { font-weight: 600; color: var(--oliv); }
@@ -131,17 +130,11 @@
       </select>
     </label>
     <div class="schalter"><label><input type="checkbox" id="ek"> <span class="m"><i>E</i>(<i>x</i>)</span> und <span class="m"><i>K</i>(<i>x</i>)</span> einblenden</label></div>
-    <button id="rechnung">Rechnung zeigen</button>
   </div>
 
   <div class="zwei">
     <div>
       <div class="graf" id="wrap"><canvas id="c"></canvas></div>
-      <div class="ablesen">
-        <div class="z"><span class="lbl">Gewinnfunktion</span><span class="m" id="gterm"></span></div>
-        <div class="z"><span class="lbl">Gewinnschwelle</span><span class="m" id="ns"></span></div>
-        <div class="z"><span class="lbl">Kontrolle</span><span class="klein m" id="kontrolle"></span></div>
-      </div>
     </div>
 
     <div>
@@ -166,10 +159,10 @@
           <span class="e">€</span>
         </div>
       </div>
-
-      <div class="box" id="weg" hidden>
-        <div class="lbl">Rechnung · Nullstelle von <span class="m"><i>G</i>(<i>x</i>)</span></div>
-        <div id="schritte"></div>
+      <div class="ablesen">
+        <div class="z"><span class="lbl">Gewinnfunktion</span><span class="m" id="gterm"></span></div>
+        <div class="z"><span class="lbl">Gewinnschwelle</span><span class="m" id="ns"></span></div>
+        <div class="z"><span class="lbl">Kontrolle</span><span class="klein m" id="kontrolle"></span></div>
       </div>
     </div>
   </div>
@@ -320,12 +313,11 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     wiesengrund: { name: 'Hof Wiesengrund',     p: 3.2,  kv: 1.5, Kf: 800, einheit: 'Kartons', zeit: 'im Monat',    fuer: 'für den Hof Wiesengrund' },
     eigene:      { name: 'Eigene Werte',        p: 10,   kv: 4,   Kf: 300, einheit: 'Stück',   zeit: '',            fuer: '' }
   };
-  var st = { p: 14.9, kv: 6, Kf: 180, betrieb: 'wishirt', ek: false, weg: false };
+  var st = { p: 14.9, kv: 6, Kf: 180, betrieb: 'wishirt', ek: false };
 
   var cv = document.getElementById('c'), ctx = cv.getContext('2d');
   var sel = document.getElementById('betrieb'), ekBox = document.getElementById('ek');
-  var wegBtn = document.getElementById('rechnung'), weg = document.getElementById('weg');
-  var schritte = document.getElementById('schritte'), stand = document.getElementById('stand');
+  var stand = document.getElementById('stand');
   var felder = {
     p:  { r: document.getElementById('p_r'),  n: document.getElementById('p_n') },
     kv: { r: document.getElementById('kv_r'), n: document.getElementById('kv_n') },
@@ -359,12 +351,6 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
   });
   sel.addEventListener('change', function () { setzeBetrieb(sel.value); });
   ekBox.addEventListener('change', function () { st.ek = ekBox.checked; draw(); });
-  wegBtn.addEventListener('click', function () {
-    st.weg = !st.weg; weg.hidden = !st.weg;
-    wegBtn.textContent = st.weg ? 'Rechnung ausblenden' : 'Rechnung zeigen';
-    wegBtn.className = st.weg ? 'akt' : '';
-    if (st.weg) zeigeWeg();
-  });
 
   // ---- Anzeige ----
   function betrieb() { return BETRIEBE[st.betrieb]; }
@@ -380,19 +366,8 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     else ns.textContent = 'keine (für x ≥ 0)';
     ns.innerHTML = ns.textContent.replace(/x₀/g, XGS);
     document.getElementById('kontrolle').textContent = a.kontrolle;
-    if (st.weg) zeigeWeg();
     draw();
   }
-  function zeigeWeg() {
-    var b = betrieb(), r = K.rechne(st.p, st.kv, st.Kf);
-    var zeilen = K.rechenweg(r, st.p, st.kv, st.Kf, b.einheit), html = '<div class="schritt">';
-    zeilen.forEach(function (z, i) {
-      html += '<span class="z m' + (i === zeilen.length - 2 ? ' erg' : '') + '">' + esc(z[0]).replace(/x₀/g, XGS) +
-              (z[1] ? '<span class="um">' + esc(z[1]) + '</span>' : '') + '</span>';
-    });
-    schritte.innerHTML = html + '</div>';
-  }
-  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 
   // ---- Zeichnen ----
   var W = 300, H = 300, L = 54, R = 16, T = 14, B = 34;
