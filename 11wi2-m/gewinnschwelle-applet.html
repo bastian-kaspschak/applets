@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Die Gewinnschwelle als Nullstelle</title>
+<title>Die Gewinnschwelle als Nullstelle der Gewinnfunktion</title>
 <!--
-  Applet zur Stunde "Die Gewinnschwelle als Nullstelle" in 11WI2 M (25.09.2026,
+  Applet "Die Gewinnschwelle als Nullstelle der Gewinnfunktion", 11WI2 M (25.09.2026,
   Aufgabe 2 des Arbeitsblatts; EVA-Aufgaben 3 bis 5 auf der Rueckseite). Zum
   Pruefen in der Stunde und zum Wiederholen zu Hause auf iPad, Handy oder PC.
   Eine Datei, kein Internet noetig: HTML, CSS und JavaScript zusammen, keine
@@ -67,11 +67,19 @@
   .box { border: 1px solid var(--grau); padding: 10px 14px; background: #fff; margin-bottom: 12px; }
   .box .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; }
   .stand { font-size: 12px; color: #777; margin-left: 6px; }
-  .r { display: grid; grid-template-columns: minmax(7.5em, auto) 1fr 5.4em auto; gap: 6px 10px;
-       align-items: center; margin: 8px 0; font-size: 14px; }
+  .r { display: grid; grid-template-columns: minmax(7.5em, auto) 1fr 5.8em auto; gap: 6px 10px;
+       align-items: center; margin: 6px 0; font-size: 14px; }
   .r .n { white-space: nowrap; }
-  .r input[type=range] { width: 100%; min-width: 0; margin: 0; accent-color: var(--stahl); }
-  .r input[type=number] { font: inherit; font-size: 14px; padding: 4px 6px; border: 1px solid var(--grau);
+  /* Regler mit grossem Griff (30 px) und 44 px Hoehe, damit sie auf iPad und Handy sicher zu treffen sind */
+  .r input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; margin: 0;
+                         height: 44px; background: transparent; cursor: pointer; accent-color: var(--stahl); }
+  .r input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -11px;
+                         border-radius: 50%; background: var(--stahl); border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--stahl);
+                         border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=number] { font: inherit; font-size: 16px; padding: 8px 6px; border: 1px solid var(--grau);
                           width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
   .r input[type=number]:focus { outline: 2px solid var(--stahl); border-color: var(--stahl); }
   .r .e { color: #666; font-size: 13px; white-space: nowrap; }
@@ -93,7 +101,9 @@
     main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
     .panel { gap: 8px 14px; padding: 8px 10px; }
     canvas { height: 260px; }
-    .r { grid-template-columns: minmax(5.5em, auto) 1fr 5em; }
+    /* Handy: Beschriftung in eigener Zeile, darunter Regler und Zahlfeld in voller Breite */
+    .r { grid-template-columns: 1fr 5.6em; }
+    .r .n { grid-column: 1 / -1; margin-bottom: -4px; }
     .r .e { display: none; }
   }
   @media (max-height: 520px) and (orientation: landscape) { canvas { height: 220px; } }
@@ -104,12 +114,11 @@
   <div><span class="k">Fach</span>Mathematik (Kaspschak)</div>
   <div><span class="k">Kurs</span>11WI2 M</div>
   <div><span class="k">Reihe</span>Von Daten zu Funktionen I · Unser Shop „WI-Shirt“</div>
-  <div><span class="k">Thema</span>Die Gewinnschwelle als Nullstelle</div>
+  <div><span class="k">Thema</span>Die Gewinnschwelle als Nullstelle der Gewinnfunktion</div>
 </header>
 <main>
-  <h1>Die Gewinnschwelle als Nullstelle</h1>
-  <p class="lead">Stelle Preis, variable Stückkosten und Fixkosten ein. Der Graph zeigt die Gewinnfunktion
-    <span class="m"><i>G</i>(<i>x</i>)</span> und ihre Nullstelle. Erst auf Papier rechnen, dann hier prüfen.</p>
+  <h1>Die Gewinnschwelle als Nullstelle der Gewinnfunktion</h1>
+  <p class="lead">Verändere den Preis <span class="m"><i>p</i></span>, die variablen Stückkosten <span class="m"><i>k</i><sub>v</sub></span> und die Fixkosten <span class="m"><i>K</i><sub>f</sub></span> und beobachte, welchen Einfluss das auf die Gewinnfunktion <span class="m"><i>G</i>(<i>x</i>)</span> und die Gewinnschwelle <span class="m"><i>x</i><sub>GS</sub></span> hat.</p>
 
   <div class="panel">
     <label class="betrieb">Betrieb
@@ -130,7 +139,7 @@
       <div class="graf" id="wrap"><canvas id="c"></canvas></div>
       <div class="ablesen">
         <div class="z"><span class="lbl">Gewinnfunktion</span><span class="m" id="gterm"></span></div>
-        <div class="z"><span class="lbl">Nullstelle</span><span class="m" id="ns"></span></div>
+        <div class="z"><span class="lbl">Gewinnschwelle</span><span class="m" id="ns"></span></div>
         <div class="z"><span class="lbl">Kontrolle</span><span class="klein m" id="kontrolle"></span></div>
       </div>
     </div>
@@ -161,16 +170,6 @@
       <div class="box" id="weg" hidden>
         <div class="lbl">Rechnung · Nullstelle von <span class="m"><i>G</i>(<i>x</i>)</span></div>
         <div id="schritte"></div>
-      </div>
-
-      <div class="box auftrag">
-        <div class="lbl">Aufgabe 2</div>
-        <p><b>a)</b> Stelle WI-Shirt ein und vergleiche die Nullstelle mit deiner Rechnung.</p>
-        <p><b>b)</b> Verändere nacheinander <span class="m"><i>K</i><sub>f</sub></span>, <span class="m"><i>k</i><sub>v</sub></span>
-          und <span class="m"><i>p</i></span>. Beschreibe, wie sich die Gewinnschwelle ändert.</p>
-        <p><b>c)</b> Bonus: Blende <span class="m"><i>E</i>(<i>x</i>)</span> und <span class="m"><i>K</i>(<i>x</i>)</span> ein. Beschreibe, wie sich
-          <span class="m"><i>E</i>(<i>x</i>)</span> und <span class="m"><i>K</i>(<i>x</i>)</span> an der Gewinnschwelle zueinander verhalten.</p>
-        <p><b>Aufgaben 3 bis 5:</b> Stelle den Betrieb ein und prüfe deine Gewinnschwelle. Für 3 d) den Preis auf 3,20 € setzen.</p>
       </div>
     </div>
   </div>
@@ -267,12 +266,12 @@ var Kern = (function () {
     if (r.art === 'krumm' || r.art === 'ganz') {
       zeilen.push([t + ' = 0', '| + ' + fmtK(Kf)]);
       zeilen.push([db + 'x = ' + fmtK(Kf), '| : ' + db]);
-      zeilen.push(['x = ' + fmtK(Kf) + ' : ' + db + (r.art === 'ganz' ? ' = ' + r.ceil : ' ≈ ' + fmt(r.x0, 2)), '']);
-      zeilen.push([r.art === 'ganz' ? 'Gewinnschwelle bei x = ' + r.ceil + ': ab ' + r.ceil + ' ' + einheit + ' kein Verlust mehr, ab ' + (r.ceil + 1) + ' Gewinn.'
-                                     : 'Gewinnschwelle bei x ≈ ' + fmt(r.x0, 2) + ', aufrunden: Gewinn ab ' + r.ceil + ' ' + einheit + '.', '']);
+      zeilen.push(['x₀ = ' + fmtK(Kf) + ' : ' + db + (r.art === 'ganz' ? ' = ' + r.ceil : ' ≈ ' + fmt(r.x0, 2)), '']);
+      zeilen.push([r.art === 'ganz' ? 'x₀ = ' + r.ceil + ': ab ' + r.ceil + ' ' + einheit + ' kein Verlust mehr, ab ' + (r.ceil + 1) + ' Gewinn.'
+                                     : 'x₀ ≈ ' + fmt(r.x0, 2) + ', aufrunden: Gewinn ab ' + r.ceil + ' ' + einheit + '.', '']);
     } else if (r.art === 'null') {
       zeilen.push([t + ' = 0', '']);
-      zeilen.push(['x = 0: die Nullstelle liegt im Ursprung.', '']);
+      zeilen.push(['x₀ = 0: die Gewinnschwelle liegt im Ursprung.', '']);
     } else {
       zeilen.push([t + ' = 0', '']);
       zeilen.push(['p − kᵥ = ' + db + ' ≤ 0: keine Lösung mit x ≥ 0.', '']);
@@ -313,6 +312,7 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
 (function () {
   'use strict';
   var K = Kern;
+  var XGS = '<i>x</i><sub>GS</sub>';
   var BETRIEBE = {
     wishirt:     { name: 'WI-Shirt',            p: 14.9, kv: 6,   Kf: 180, einheit: 'Shirts',  zeit: 'im Monat',    fuer: 'für WI-Shirt' },
     erdbeer:     { name: 'Erdbeerhof Rheinaue', p: 3.5,  kv: 1.2, Kf: 140, einheit: 'Schalen', zeit: 'am Markttag', fuer: 'für den Erdbeerhof Rheinaue' },
@@ -378,6 +378,7 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     else if (r.art === 'ganz') ns.textContent = 'x₀ = ' + K.fmtK(st.Kf) + ' : ' + K.fmtK(r.db) + ' = ' + r.ceil;
     else if (r.art === 'null') ns.textContent = 'x₀ = 0';
     else ns.textContent = 'keine (für x ≥ 0)';
+    ns.innerHTML = ns.textContent.replace(/x₀/g, XGS);
     document.getElementById('kontrolle').textContent = a.kontrolle;
     if (st.weg) zeigeWeg();
     draw();
@@ -386,7 +387,7 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     var b = betrieb(), r = K.rechne(st.p, st.kv, st.Kf);
     var zeilen = K.rechenweg(r, st.p, st.kv, st.Kf, b.einheit), html = '<div class="schritt">';
     zeilen.forEach(function (z, i) {
-      html += '<span class="z m' + (i === zeilen.length - 2 ? ' erg' : '') + '">' + esc(z[0]) +
+      html += '<span class="z m' + (i === zeilen.length - 2 ? ' erg' : '') + '">' + esc(z[0]).replace(/x₀/g, XGS) +
               (z[1] ? '<span class="um">' + esc(z[1]) + '</span>' : '') + '</span>';
     });
     schritte.innerHTML = html + '</div>';
@@ -476,9 +477,16 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
       ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
       ctx.font = 'bold 12px "Segoe UI", Roboto, Arial, sans-serif'; ctx.textBaseline = 'bottom';
       // Beschriftung links oben neben dem Punkt: G steigt nach rechts, dort laege sie auf der Geraden
-      var t = 'x₀ ' + (r.art === 'ganz' || r.art === 'null' ? '= ' + K.fmtK(x0) : '≈ ' + K.fmt(x0, 2));
-      var links = sx(x0) - 8 - ctx.measureText(t).width > L + 4;
-      ctx.textAlign = links ? 'right' : 'left'; ctx.fillText(t, links ? sx(x0) - 8 : sx(x0) + 8, sy(0) - 7);
+      var rest = (r.art === 'ganz' || r.art === 'null' ? ' = ' + K.fmtK(x0) : ' ≈ ' + K.fmt(x0, 2));
+      var fGross = 'bold 12px "Segoe UI", Roboto, Arial, sans-serif', fKlein = 'bold 8px "Segoe UI", Roboto, Arial, sans-serif';
+      ctx.font = fGross; var wx = ctx.measureText('x').width, wr = ctx.measureText(rest).width;
+      ctx.font = fKlein; var wg = ctx.measureText('GS').width;
+      var gesamt = wx + wg + 1 + wr, links = sx(x0) - 8 - gesamt > L + 4;
+      var tx0 = links ? sx(x0) - 8 - gesamt : sx(x0) + 8, ty0 = sy(0) - 7;
+      ctx.textAlign = 'left';
+      ctx.font = fGross; ctx.fillText('x', tx0, ty0);
+      ctx.font = fKlein; ctx.fillText('GS', tx0 + wx + 1, ty0 + 3);
+      ctx.font = fGross; ctx.fillText(rest, tx0 + wx + wg + 1, ty0);
     }
   }
 
