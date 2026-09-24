@@ -15,8 +15,7 @@
   Fixkosten K_f mit den Reglern einstellen. Der Graph zeigt die Gewinnfunktion
   G(x) = (p − k_v)·x − K_f, ihre Nullstelle x₀ auf der x-Achse, links davon
   den Verlust-, rechts den Gewinnbereich, und G(0) = −K_f auf der y-Achse
-  (die Verwechslung, die die Stunde angreift). Darunter der Antwortsatz mit
-  Stueckzahl und die Kontrolle G(⌊x₀⌋), G(⌈x₀⌉), die das Aufrunden begruendet.
+  (die Verwechslung, die die Stunde angreift). Darunter die Kontrolle G(⌊x₀⌋), G(⌈x₀⌉), die das Aufrunden begruendet.
   "Rechnung zeigen" blendet die Loesung von G(x) = 0 in vier Zeilen ein;
   "E und K einblenden" zeigt die Erloes- und die Kostengerade (fuer den 02.10.:
   ihr Schnittpunkt liegt ueber der Nullstelle von G). Regel der Lernsituation:
@@ -110,7 +109,7 @@
 <main>
   <h1>Die Gewinnschwelle als Nullstelle</h1>
   <p class="lead">Stelle Preis, variable Stückkosten und Fixkosten ein. Der Graph zeigt die Gewinnfunktion
-    <span class="m"><i>G</i></span> und ihre Nullstelle. Erst auf Papier rechnen, dann hier prüfen.</p>
+    <span class="m"><i>G</i>(<i>x</i>)</span> und ihre Nullstelle. Erst auf Papier rechnen, dann hier prüfen.</p>
 
   <div class="panel">
     <label class="betrieb">Betrieb
@@ -122,7 +121,7 @@
         <option value="eigene">Eigene Werte</option>
       </select>
     </label>
-    <div class="schalter"><label><input type="checkbox" id="ek"> <span class="m"><i>E</i></span> und <span class="m"><i>K</i></span> einblenden</label></div>
+    <div class="schalter"><label><input type="checkbox" id="ek"> <span class="m"><i>E</i>(<i>x</i>)</span> und <span class="m"><i>K</i>(<i>x</i>)</span> einblenden</label></div>
     <button id="rechnung">Rechnung zeigen</button>
   </div>
 
@@ -132,7 +131,6 @@
       <div class="ablesen">
         <div class="z"><span class="lbl">Gewinnfunktion</span><span class="m" id="gterm"></span></div>
         <div class="z"><span class="lbl">Nullstelle</span><span class="m" id="ns"></span></div>
-        <div class="z"><span class="lbl">Antwort</span><span class="antwort" id="antwort"></span></div>
         <div class="z"><span class="lbl">Kontrolle</span><span class="klein m" id="kontrolle"></span></div>
       </div>
     </div>
@@ -161,7 +159,7 @@
       </div>
 
       <div class="box" id="weg" hidden>
-        <div class="lbl">Rechnung · Nullstelle von <span class="m"><i>G</i></span></div>
+        <div class="lbl">Rechnung · Nullstelle von <span class="m"><i>G</i>(<i>x</i>)</span></div>
         <div id="schritte"></div>
       </div>
 
@@ -170,25 +168,11 @@
         <p><b>a)</b> Stelle WI-Shirt ein und vergleiche die Nullstelle mit deiner Rechnung.</p>
         <p><b>b)</b> Verändere nacheinander <span class="m"><i>K</i><sub>f</sub></span>, <span class="m"><i>k</i><sub>v</sub></span>
           und <span class="m"><i>p</i></span>. Beschreibe, wie sich die Gewinnschwelle ändert.</p>
-        <p><b>c)</b> Bonus: Blende <span class="m"><i>E</i></span> und <span class="m"><i>K</i></span> ein. Beschreibe, wie sich
+        <p><b>c)</b> Bonus: Blende <span class="m"><i>E</i>(<i>x</i>)</span> und <span class="m"><i>K</i>(<i>x</i>)</span> ein. Beschreibe, wie sich
           <span class="m"><i>E</i>(<i>x</i>)</span> und <span class="m"><i>K</i>(<i>x</i>)</span> an der Gewinnschwelle zueinander verhalten.</p>
         <p><b>Aufgaben 3 bis 5:</b> Stelle den Betrieb ein und prüfe deine Gewinnschwelle. Für 3 d) den Preis auf 3,20 € setzen.</p>
       </div>
     </div>
-  </div>
-
-  <div class="merk">
-    <span class="lbl">Merke</span>
-    <ul>
-      <li><b>Nullstelle</b> einer Funktion <span class="m"><i>f</i></span>: der <span class="m"><i>x</i></span>-Wert, für den
-        <span class="m"><i>f</i>(<i>x</i>) = 0</span> gilt. Der Graph schneidet dort die <span class="m"><i>x</i></span>-Achse.</li>
-      <li><b>Gewinnschwelle</b> = Nullstelle von <span class="m"><i>G</i></span>: die Gleichung <span class="m"><i>G</i>(<i>x</i>) = 0</span> lösen.
-        Geht <span class="m"><i>x</i></span> nicht auf, bringt erst die nächste ganze Stückzahl Gewinn: aufrunden.</li>
-      <li><b>Nicht verwechseln:</b> <span class="m"><i>G</i>(0) = −<i>K</i><sub>f</sub></span> ist der Schnitt mit der
-        <span class="m"><i>y</i></span>-Achse, der Verlust ohne Verkauf.</li>
-      <li><b>Antwortsatz</b> als ganzer Satz: „Die Gewinnschwelle für … liegt bei <span class="m"><i>x</i> = …</span>, das heißt ab einer
-        Stückzahl von … Stück macht das Unternehmen Gewinn bzw. keinen Verlust mehr.“</li>
-    </ul>
   </div>
 </main>
 <footer>Kaspschak · gewinnschwelle-applet.html · 11WI2 M</footer>
@@ -394,8 +378,6 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     else if (r.art === 'ganz') ns.textContent = 'x₀ = ' + K.fmtK(st.Kf) + ' : ' + K.fmtK(r.db) + ' = ' + r.ceil;
     else if (r.art === 'null') ns.textContent = 'x₀ = 0';
     else ns.textContent = 'keine (für x ≥ 0)';
-    var an = document.getElementById('antwort');
-    an.textContent = a.satz; an.className = 'antwort' + (a.warn ? ' warn' : '');
     document.getElementById('kontrolle').textContent = a.kontrolle;
     if (st.weg) zeigeWeg();
     draw();
@@ -482,8 +464,8 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     // Beschriftung der Graphen am rechten Rand
     ctx.font = 'bold 13px "Segoe UI", Roboto, Arial, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
     function lab(txt, farbe, yv) { var yy = Math.max(T + 12, Math.min(sy(yv) - 3, H - B - 2)); ctx.fillStyle = farbe; ctx.fillText(txt, sx(br.xmax) - 3, yy); }
-    lab('G', '#B01A15', K.G(p, kv, Kf, br.xmax));
-    if (st.ek) { lab('E', '#71803C', p * br.xmax); lab('K', '#35638A', kv * br.xmax + Kf); }
+    lab('G(x)', '#B01A15', K.G(p, kv, Kf, br.xmax));
+    if (st.ek) { lab('E(x)', '#71803C', p * br.xmax); lab('K(x)', '#35638A', kv * br.xmax + Kf); }
     // G(0) auf der y-Achse
     ctx.fillStyle = '#35638A'; ctx.fillRect(sx(0) - 4, sy(-Kf) - 4, 8, 8);
     ctx.font = '12px "Segoe UI", Roboto, Arial, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
