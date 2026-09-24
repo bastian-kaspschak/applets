@@ -186,6 +186,8 @@
         Geht <span class="m"><i>x</i></span> nicht auf, bringt erst die nächste ganze Stückzahl Gewinn: aufrunden.</li>
       <li><b>Nicht verwechseln:</b> <span class="m"><i>G</i>(0) = −<i>K</i><sub>f</sub></span> ist der Schnitt mit der
         <span class="m"><i>y</i></span>-Achse, der Verlust ohne Verkauf.</li>
+      <li><b>Antwortsatz</b> als ganzer Satz: „Die Gewinnschwelle für … liegt bei <span class="m"><i>x</i> = …</span>, das heißt ab einer
+        Stückzahl von … Stück macht das Unternehmen Gewinn bzw. keinen Verlust mehr.“</li>
     </ul>
   </div>
 </main>
@@ -243,29 +245,33 @@ var Kern = (function () {
     return r;
   }
 
-  // Antwortsatz und Kontrollzeile in Worten
-  function antwort(r, p, kv, Kf, einheit, zeit) {
-    var z = zeit ? ' ' + zeit : '';
+  // Antwortsatz als ganzer Satz nach dem Muster der Stunde ("Die Gewinnschwelle
+  // fuer ... liegt bei x = ..., das heisst ab einer Stueckzahl von ... macht das
+  // Unternehmen Gewinn bzw. keinen Verlust mehr") und Kontrollzeile
+  function antwort(r, p, kv, Kf, einheit, zeit, fuer) {
+    var z = zeit ? ' ' + zeit : '', f = fuer ? ' ' + fuer : '';
+    var kopf = 'Die Gewinnschwelle' + f + ' liegt bei x ';
     switch (r.art) {
       case 'krumm':
-        return { satz: 'Ab ' + r.ceil + ' ' + einheit + z + ' Gewinn; die Gewinnschwelle liegt bei ' + r.ceil + ' ' + einheit + '.',
+        return { satz: kopf + '≈ ' + fmt(r.x0, 2) + ', das heißt ab einer Stückzahl von ' + r.ceil + ' ' + einheit + z + ' macht das Unternehmen Gewinn.',
                  kontrolle: 'G(' + r.floor + ') = ' + geld(G(p, kv, Kf, r.floor)) + ' (noch Verlust), G(' + r.ceil + ') = ' + geld(G(p, kv, Kf, r.ceil)),
                  warn: false };
       case 'ganz':
-        return { satz: 'Bei ' + r.ceil + ' ' + einheit + z + ' ist der Gewinn 0 €, ab ' + (r.ceil + 1) + ' Gewinn; die Gewinnschwelle liegt bei ' + r.ceil + ' ' + einheit + '.',
+        return { satz: kopf + '= ' + r.ceil + ', das heißt ab einer Stückzahl von ' + r.ceil + ' ' + einheit + z + ' macht das Unternehmen keinen Verlust mehr; ab ' + (r.ceil + 1) + ' ' + einheit + ' macht es Gewinn.',
                  kontrolle: 'G(' + r.ceil + ') = ' + geld(0) + ', G(' + (r.ceil + 1) + ') = ' + geld(G(p, kv, Kf, r.ceil + 1)),
                  warn: false };
       case 'null':
-        return { satz: r.db > 0 ? 'Keine Fixkosten: schon das erste Stück bringt Gewinn.' : 'Keine Fixkosten, aber der Preis deckt die Stückkosten nicht: kein Gewinn möglich.',
+        return { satz: r.db > 0 ? kopf + '= 0, das heißt ohne Fixkosten macht das Unternehmen ab dem ersten Stück Gewinn.'
+                                : 'Es gibt keine Gewinnschwelle: Der Preis deckt die Stückkosten nicht, das Unternehmen macht mit keiner Stückzahl Gewinn.',
                  kontrolle: 'G(0) = ' + geld(0) + ', G(1) = ' + geld(G(p, kv, Kf, 1)), warn: r.db <= 0 };
       case 'parallel':
-        return { satz: 'p = kᵥ: jedes Stück bringt genau seine Kosten ein, der Verlust bleibt ' + geld(Kf) + '. Keine Nullstelle.',
+        return { satz: 'Es gibt keine Gewinnschwelle: Bei p = kᵥ bringt jedes Stück genau seine Kosten ein, der Verlust bleibt bei ' + geld(Kf) + '.',
                  kontrolle: 'G(x) = ' + MINUS + fmtK(Kf) + ' für jedes x', warn: true };
       case 'nullfunktion':
-        return { satz: 'p = kᵥ und keine Fixkosten: G(x) = 0 für jedes x, weder Gewinn noch Verlust.',
+        return { satz: 'Bei p = kᵥ ohne Fixkosten gilt G(x) = 0 für jede Stückzahl: Das Unternehmen macht weder Gewinn noch Verlust.',
                  kontrolle: '', warn: true };
       default:
-        return { satz: 'Keine Nullstelle für x ≥ 0: der Preis deckt die Stückkosten nicht (p − kᵥ = ' + fmtK(r.db) + ' €). Jedes verkaufte Stück vergrößert den Verlust.',
+        return { satz: 'Es gibt keine Gewinnschwelle: Der Preis deckt die Stückkosten nicht (p − kᵥ = ' + fmtK(r.db) + ' €), jedes verkaufte Stück vergrößert den Verlust.',
                  kontrolle: 'G(0) = ' + geld(-Kf) + ', G(10) = ' + geld(G(p, kv, Kf, 10)), warn: true };
     }
   }
@@ -278,8 +284,8 @@ var Kern = (function () {
       zeilen.push([t + ' = 0', '| + ' + fmtK(Kf)]);
       zeilen.push([db + 'x = ' + fmtK(Kf), '| : ' + db]);
       zeilen.push(['x = ' + fmtK(Kf) + ' : ' + db + (r.art === 'ganz' ? ' = ' + r.ceil : ' ≈ ' + fmt(r.x0, 2)), '']);
-      zeilen.push([r.art === 'ganz' ? 'Geht auf: Gewinnschwelle ' + r.ceil + ' ' + einheit + ', ab ' + (r.ceil + 1) + ' Gewinn.'
-                                     : 'Aufrunden: ab ' + r.ceil + ' ' + einheit + ' Gewinn.', '']);
+      zeilen.push([r.art === 'ganz' ? 'Gewinnschwelle bei x = ' + r.ceil + ': ab ' + r.ceil + ' ' + einheit + ' kein Verlust mehr, ab ' + (r.ceil + 1) + ' Gewinn.'
+                                     : 'Gewinnschwelle bei x ≈ ' + fmt(r.x0, 2) + ', aufrunden: Gewinn ab ' + r.ceil + ' ' + einheit + '.', '']);
     } else if (r.art === 'null') {
       zeilen.push([t + ' = 0', '']);
       zeilen.push(['x = 0: die Nullstelle liegt im Ursprung.', '']);
@@ -324,11 +330,11 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
   'use strict';
   var K = Kern;
   var BETRIEBE = {
-    wishirt:     { name: 'WI-Shirt',            p: 14.9, kv: 6,   Kf: 180, einheit: 'Shirts',  zeit: 'im Monat' },
-    erdbeer:     { name: 'Erdbeerhof Rheinaue', p: 3.5,  kv: 1.2, Kf: 140, einheit: 'Schalen', zeit: 'am Markttag' },
-    huellen:     { name: 'Hüllenkiste',         p: 9.5,  kv: 4,   Kf: 220, einheit: 'Hüllen',  zeit: 'im Monat' },
-    wiesengrund: { name: 'Hof Wiesengrund',     p: 3.2,  kv: 1.5, Kf: 800, einheit: 'Kartons', zeit: 'im Monat' },
-    eigene:      { name: 'Eigene Werte',        p: 10,   kv: 4,   Kf: 300, einheit: 'Stück',   zeit: '' }
+    wishirt:     { name: 'WI-Shirt',            p: 14.9, kv: 6,   Kf: 180, einheit: 'Shirts',  zeit: 'im Monat',    fuer: 'für WI-Shirt' },
+    erdbeer:     { name: 'Erdbeerhof Rheinaue', p: 3.5,  kv: 1.2, Kf: 140, einheit: 'Schalen', zeit: 'am Markttag', fuer: 'für den Erdbeerhof Rheinaue' },
+    huellen:     { name: 'Hüllenkiste',         p: 9.5,  kv: 4,   Kf: 220, einheit: 'Hüllen',  zeit: 'im Monat',    fuer: 'für die Hüllenkiste' },
+    wiesengrund: { name: 'Hof Wiesengrund',     p: 3.2,  kv: 1.5, Kf: 800, einheit: 'Kartons', zeit: 'im Monat',    fuer: 'für den Hof Wiesengrund' },
+    eigene:      { name: 'Eigene Werte',        p: 10,   kv: 4,   Kf: 300, einheit: 'Stück',   zeit: '',            fuer: '' }
   };
   var st = { p: 14.9, kv: 6, Kf: 180, betrieb: 'wishirt', ek: false, weg: false };
 
@@ -380,7 +386,7 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
   function betrieb() { return BETRIEBE[st.betrieb]; }
   function unveraendert() { var b = betrieb(); return st.p === b.p && st.kv === b.kv && st.Kf === b.Kf; }
   function alles() {
-    var b = betrieb(), r = K.rechne(st.p, st.kv, st.Kf), a = K.antwort(r, st.p, st.kv, st.Kf, b.einheit, b.zeit);
+    var b = betrieb(), r = K.rechne(st.p, st.kv, st.Kf), a = K.antwort(r, st.p, st.kv, st.Kf, b.einheit, b.zeit, b.fuer);
     stand.textContent = b.name + (st.betrieb !== 'eigene' && !unveraendert() ? ' · verändert' : '');
     document.getElementById('gterm').textContent = 'G(x) = ' + K.term(st.p, st.kv, st.Kf);
     var ns = document.getElementById('ns');
