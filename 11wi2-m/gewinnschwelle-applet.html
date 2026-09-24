@@ -14,7 +14,7 @@
   Bedienung: Betrieb waehlen oder Preis p, variable Stueckkosten k_v und
   Fixkosten K_f mit den Reglern einstellen. Der Graph zeigt die Gewinnfunktion
   G(x) = (p − k_v)·x − K_f, ihre Nullstelle x₀ auf der x-Achse, links davon
-  den Verlust-, rechts den Gewinnbereich, und G(0) = −K_f auf der y-Achse
+  die Verlustzone, rechts die Gewinnzone, und G(0) = −K_f auf der y-Achse
   (die Verwechslung, die die Stunde angreift). Darunter die Kontrolle G(⌊x₀⌋), G(⌈x₀⌉), die das Aufrunden begruendet.
   "Rechnung zeigen" blendet die Loesung von G(x) = 0 in vier Zeilen ein;
   "E und K einblenden" zeigt die Erloes- und die Kostengerade (fuer den 02.10.:
@@ -414,7 +414,7 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     var x, y;
     for (x = 0; x <= br.xmax + 1e-9; x += br.xs) { ctx.beginPath(); ctx.moveTo(sx(x), sy(br.ymin)); ctx.lineTo(sx(x), sy(br.ymax)); ctx.stroke(); }
     for (y = br.ymin; y <= br.ymax + 1e-9; y += br.ys) { ctx.beginPath(); ctx.moveTo(sx(0), sy(y)); ctx.lineTo(sx(br.xmax), sy(y)); ctx.stroke(); }
-    // Verlust-/Gewinnbereich auf der x-Achse
+    // Verlust-/Gewinnzone auf der x-Achse
     var x0 = r.x0, hatNs = (r.art === 'krumm' || r.art === 'ganz' || r.art === 'null');
     var grenze = hatNs ? Math.min(x0, br.xmax) : br.xmax;
     ctx.lineWidth = 5; ctx.lineCap = 'butt';
@@ -444,8 +444,8 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     ctx.font = '11px "Segoe UI", Roboto, Arial, sans-serif'; ctx.fillStyle = '#555';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillText(betrieb().einheit, sx(0) + 4, sy(0) + 5 + 12);
-    if (grenze > 0) { ctx.fillStyle = '#B01A15'; ctx.textAlign = 'center'; ctx.fillText('Verlust', sx(grenze / 2), sy(0) + 5 + 12); }
-    if (hatNs && x0 < br.xmax && r.db > 0) { ctx.fillStyle = '#71803C'; ctx.textAlign = 'center'; ctx.fillText('Gewinn', sx((x0 + br.xmax) / 2), sy(0) + 5 + 12); }
+    if (grenze > 0) { ctx.fillStyle = '#B01A15'; ctx.textAlign = 'center'; ctx.fillText('Verlustzone', sx(grenze / 2), sy(0) + 5 + 12); }
+    if (hatNs && x0 < br.xmax && r.db > 0) { ctx.fillStyle = '#71803C'; ctx.textAlign = 'center'; ctx.fillText('Gewinnzone', sx((x0 + br.xmax) / 2), sy(0) + 5 + 12); }
     // Graphen (auf die Zeichenflaeche begrenzt)
     ctx.save(); ctx.beginPath(); ctx.rect(L - 2, T - 2, pw + 4, ph + 4); ctx.clip();
     ctx.lineWidth = 2;
