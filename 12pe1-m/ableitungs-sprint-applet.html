@@ -683,7 +683,10 @@ const HS = (() => {
     const groesste = Math.max(...bb.map(b => Math.max(b.w, b.h)));
     const lineH = Math.max(groesste, 0.5 * (opt.lineH || 0)) || 1;
     const pad = 0.04 * lineH;
-    const hochKandidat = (b, a) => b.x1 > a.cx && b.y2 < a.y1 + 0.6 * a.h && b.h < 0.8 * a.h && a.h > 0.3 * lineH;
+    // Hochzahl-Kandidat: beginnt rechts der Mitte des Grundzeichens und endet ueber dessen unteren 40 %.
+    // Keine Groessenbedingung: ein x ist oft nur so hoch wie die Hochzahl (Kleinbuchstabenhoehe), die Lage entscheidet.
+    // Zusatz: ragt rechts ueber das Grundzeichen hinaus (der Querstrich einer 7 bleibt innen und wird nicht abgetrennt).
+    const hochKandidat = (b, a) => b.x1 > a.cx - 0.15 * a.w && b.x2 > a.x2 + 0.05 * a.w && b.y2 < a.y1 + 0.75 * a.h && a.h > 0.3 * lineH;
     const beruehren = (p, q) => { // kleinster Punktabstand zweier Striche unter 0,07 Zeilenhoehe: die Striche beruehren sich (x aus zwei Boegen)
       const g = 0.07 * lineH; let min = Infinity;
       for (let i = 0; i < p.length; i += 2) for (let j = 0; j < q.length; j += 2) { const d = Math.hypot(p[i].x - q[j].x, p[i].y - q[j].y); if (d < min) min = d; if (min < g) return true; }
@@ -757,8 +760,17 @@ const HS = (() => {
     }
     // Hochzahlen und Punkte: von links nach rechts, bezogen auf das letzte Grundzeichen
     let basis = null, vorher = null;
+    const traeger = s => s && (s.ch === 'x' || s.ch === ')'); // nur nach x oder ) gibt es Hochzahlen
+    const hochLage = (b, a) => b.x1 > a.cx - 0.1 * a.w && (b.y2 < a.y1 + 0.75 * a.h || b.cy < a.y1 + 0.35 * a.h); // angehoben, rechts vom Traeger
     for (const sym of symbole) {
       const b = sym.bbox;
+      if (sym.typ === 'punkt' && !(opt.korrekturen && opt.korrekturen.get(sym.key))) {
+        // winziger Strich in Hochzahl-Lage: das ist eine kleine Hochzahl (meist 1), kein Punkt
+        if (opt.sup !== false && traeger(basis) && hochLage(b, basis.bbox)) {
+          const strokes = sym.idx.map(i => st[i].pts), kand = klassifiziere(strokes, opt.alphabet.filter(c => /^[0-9]$/.test(c)));
+          if (kand.length) { sym.typ = 'zeichen'; sym.kandidaten = kand; sym.ch = kand[0].ch; sym.d = kand[0].d; sym.unsicher = kand[0].d > UNSICHER; }
+        }
+      }
       if (sym.typ === 'punkt') {
         if (!(opt.korrekturen && opt.korrekturen.get(sym.key))) {
           const refTop = basis ? basis.bbox.y1 : (opt.baseline != null ? opt.baseline - (opt.lineH || lineH) : b.y1), refH = basis ? basis.bbox.h : (opt.lineH || lineH);
@@ -769,8 +781,9 @@ const HS = (() => {
       let sup = false;
       if (opt.sup !== false && basis && sym.typ === 'zeichen' && /^[0-9]$/.test(sym.ch)) {
         const a = basis.bbox;
-        if (vorher && vorher.sup && Math.abs(b.cy - vorher.bbox.cy) < 0.35 * a.h) sup = true;
-        else if ((basis.ch === 'x' || basis.ch === ')') && b.cy < a.y1 + 0.38 * a.h && b.y2 < a.y1 + 0.8 * a.h && b.h < 0.85 * a.h) sup = true;
+        // Lage entscheidet, nicht die Groesse: mit der Maus geschriebene Hochzahlen sind oft so gross wie das x
+        if (vorher && vorher.sup && Math.abs(b.cy - vorher.bbox.cy) < 0.5 * Math.max(a.h, vorher.bbox.h)) sup = true;
+        else if (traeger(basis) && hochLage(b, a)) sup = true;
       }
       if (sym.supFest != null) sup = sym.supFest;
       sym.sup = sup; if (!sup) basis = sym; vorher = sym;
