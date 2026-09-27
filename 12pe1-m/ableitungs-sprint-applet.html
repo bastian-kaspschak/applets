@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#35638A">
+<title>Ableitungs-Sprint</title>
+<!--
+  Ableitungs-Sprint: Uebungs-Applet fuer 12PE1 M (Differenzialrechnung), zum Ueben am
+  Handy, iPad oder PC. Eine Datei, kein Internet noetig: HTML, CSS und JavaScript stecken
+  zusammen in dieser Datei. Es wird nichts gesendet; Rekord, Einstellungen und gelernte
+  Handschrift-Zeichen bleiben im Browser (localStorage).
+
+  Spielidee wie beim Zahlen-Sprint (IFK1 M): Eine Zeit laeuft ab (2, 3 oder 5 Minuten,
+  oder ohne Zeit). Zu jeder zufaellig erzeugten Funktion sind f'(x) und f''(x) zu bilden
+  (einstellbar: nur f', bis f'' oder bis f'''). Jede richtige Ableitung zaehlt einen
+  Punkt. Bei einem Fehler bleibt die Eingabe stehen und wird verbessert, oder man laesst
+  sich die Loesung zeigen; am Ende steht die Liste "Das uebst du noch".
+
+  Funktionstypen (Registry TYPEN, erweiterbar): vorerst nur ganzrationale Funktionen,
+  Grad 2 bis 5 waehlbar, ganzzahlige Koeffizienten, auf Wunsch auch Brueche wie 1/4 x^4.
+  Weitere Typen (e-Funktion, Ketten- und Produktregel, ...) kommen als weitere Eintraege
+  in TYPEN dazu: ein Erzeuger, der die Funktion und ihre Ableitungen als Anzeige (HTML)
+  und als Wertfunktion liefert, dazu das Alphabet fuer die Handschrift und die Tasten.
+
+  Pruefung: Die Eingabe wird als Term gelesen (6x^2-4x+3, 6x²−4x+3, 6·x²−4·x+3, 3−4x+6x²,
+  1/2x, 0,5x; x2 gilt als x², damit Scribble auf dem iPad in ein Textfeld schreiben kann)
+  und an acht Stellen mit der richtigen Ableitung verglichen. Reihenfolge der Summanden
+  ist egal; mehr Summanden als noetig heisst "stimmt, aber fasse zusammen".
+
+  Eingabe: Tasten (eigene Tastatur mit x, ², ³, ⁴, Brueche; am PC auch die Tastatur) oder
+  Stift (Handschrift). Die Handschrift-Erkennung laeuft im Geraet, ohne Dienst und ohne
+  Bibliothek: Striche werden nach waagerechter Ueberdeckung zu Zeichen gruppiert,
+  Hochzahlen an der Lage rechts oben erkannt, Bruchstriche an Strichen darueber und
+  darunter; jedes Zeichen wird als Punktwolke ($P-Erkenner, Vatavu/Anthony/Wobbrock 2012)
+  mit eingebauten Vorlagen fuer 0-9, x, +, −, / verglichen, kleine Striche sind Komma
+  oder Malpunkt. Unter dem Schreibfeld steht, was gelesen wurde; ein Tipp auf ein falsch
+  gelesenes Zeichen oeffnet die Auswahl, und das gewaehlte Zeichen wird mit dem eigenen
+  Strich als Vorlage gemerkt (localStorage), so passt sich die Erkennung der Handschrift an.
+
+  Quelle: Jahresplanungen/kurse/12pe1-m/ableitungs-sprint-applet.html.
+  Kopie fuer die Klasse im Repo applets/12pe1-m/.
+-->
+<style>
+  :root {
+    --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A; --grau: #B5B5B5;
+    --text: #222; --hell: #f5f5f2; --gruen: #3d8a4a; --hellblau: #eaf0f4;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--text);
+         background: #fff; line-height: 1.35; overscroll-behavior: none; }
+  #app { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; max-width: 620px; margin: 0 auto; }
+  @media (min-width: 660px) { #app { border-left: 1px solid #e5e5e5; border-right: 1px solid #e5e5e5; } }
+  section { flex: 1; display: flex; flex-direction: column; }
+  [hidden] { display: none !important; }
+  button { font: inherit; cursor: pointer; }
+  i { font-family: "Times New Roman", Times, serif; font-style: italic; }
+  sup { font-size: .62em; vertical-align: super; line-height: 0; }
+
+  /* Kopfzeile wie auf dem Arbeitsblatt */
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  footer { font-size: 11px; color: #777; padding: 8px 18px 12px; }
+
+  /* Startseite */
+  .inhalt { padding: 14px 18px 24px; }
+  h1 { font-size: 26px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: #777; margin: 18px 0 8px; }
+  p.lead { margin: 10px 0 12px; font-size: 16px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { border: 2px solid var(--stahl); color: var(--stahl); background: #fff; padding: 8px 14px; border-radius: 999px; font-size: 16px; min-height: 44px; }
+  .chip.an { background: var(--stahl); color: #fff; }
+  .gross { display: block; width: 100%; font-size: 22px; font-weight: 700; padding: 16px; margin-top: 20px;
+           background: var(--rot); color: #fff; border: none; border-radius: 14px; }
+  .gross:active { transform: scale(.98); }
+  .zweit { display: block; width: 100%; font-size: 18px; font-weight: 600; padding: 12px; margin-top: 10px;
+           background: #fff; color: var(--stahl); border: 2px solid var(--stahl); border-radius: 14px; }
+  .rekord { margin-top: 12px; font-size: 15px; color: #555; }
+  .rekord b { color: var(--rot); font-size: 18px; }
+  ol.schritte { margin: 4px 0 0 20px; padding: 0; font-size: 15px; }
+  ol.schritte li { margin: 4px 0; }
+  .klein { font-size: 13px; color: #777; }
+  .klein button.link { background: none; border: none; color: var(--stahl); text-decoration: underline; padding: 0; font-size: 13px; }
+  .beispiel { font-size: 18px; margin: 4px 0 0; }
+
+  /* Spiel */
+  .leiste { height: 8px; background: #e5e5e5; }
+  .leiste > div { height: 100%; background: var(--stahl); width: 100%; }
+  .leiste.knapp > div { background: var(--rot); }
+  .kopf { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px 0; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .kopf .zeit { font-weight: 700; font-size: 22px; }
+  .kopf .knapp { color: var(--rot); }
+  .kopf .punkte { position: relative; }
+  .kopf .punkte b { color: var(--gruen); font-size: 20px; }
+  .kopf .punkte .f { color: var(--rot); margin-left: 10px; }
+  .kopf .beenden { font-size: 14px; border: 1px solid var(--grau); background: #fff; border-radius: 8px; padding: 4px 10px; margin-left: 10px; min-height: 32px; }
+  .plus { position: absolute; right: 0; top: -4px; color: var(--gruen); font-weight: 700; font-size: 20px; animation: hoch .7s ease-out forwards; pointer-events: none; }
+  @keyframes hoch { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-28px); } }
+  .frage { padding: 10px 16px 0; font-size: 19px; font-weight: 700; }
+  .reiz { padding: 8px 16px 4px; text-align: center; }
+  .reiz .fx { font-size: 30px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+  .reiz .fx.vor { font-size: 20px; font-weight: 400; color: #555; margin-top: 4px; }
+  .melden { min-height: 34px; padding: 4px 16px; text-align: center; font-weight: 700; font-size: 17px; line-height: 1.3; }
+  .melden.ok { color: var(--gruen); }
+  .melden.nein { color: var(--rot); }
+  .melden.fast { color: var(--corten); }
+  .melden .gelesen { font-weight: 400; color: #555; font-size: 15px; display: block; }
+  .melden .loesung { display: block; font-size: 22px; color: var(--gruen); margin-top: 2px; }
+  .antwort { padding: 4px 12px 14px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  .eingabe { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px; font-size: 26px; min-height: 48px;
+             border-bottom: 2px solid var(--stahl); margin: 0 4px 8px; padding: 2px 6px; text-align: center; }
+  .eingabe .fn { color: #555; white-space: nowrap; }
+  .eingabe .cursor { display: inline-block; width: 2px; height: 1.1em; background: var(--stahl); animation: blink 1s steps(2) infinite; vertical-align: text-bottom; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .eingabe input { font: inherit; font-size: 24px; flex: 1 1 120px; min-width: 0; border: none; outline: none; text-align: left; padding: 4px; background: var(--hell); border-radius: 6px; }
+  .eingabe .ph { color: #aaa; font-size: 17px; }
+  .keypad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .keypad button { min-height: 48px; font-size: 22px; border: 1px solid var(--grau); border-radius: 10px; background: var(--hell); padding: 0; }
+  .keypad button:active { background: var(--hellblau); }
+  .keypad button.op { background: #fff; color: var(--stahl); border-color: var(--stahl); }
+  .ok { display: block; width: 100%; margin-top: 8px; min-height: 50px; font-size: 19px; font-weight: 700; background: var(--stahl); color: #fff; border: none; border-radius: 10px; }
+  .ok:disabled { opacity: .5; }
+  .nebenzeile { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; min-height: 32px; }
+  .nebenzeile button { background: none; border: none; color: #777; font-size: 14px; text-decoration: underline; padding: 6px 4px; min-height: 32px; }
+  .nebenzeile button.weiter { color: var(--stahl); font-weight: 700; text-decoration: none; font-size: 16px; }
+
+  /* Stift */
+  .erkannt { display: flex; align-items: center; flex-wrap: wrap; gap: 1px; min-height: 48px; font-size: 24px; margin: 0 4px 6px; padding: 2px 6px; border-bottom: 2px solid var(--stahl); }
+  .erkannt .fn { color: #555; white-space: nowrap; margin-right: 4px; }
+  .erkannt .ph { color: #aaa; font-size: 15px; }
+  .erkannt .sym { font: inherit; font-size: 24px; min-width: 24px; min-height: 40px; padding: 0 3px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--text); }
+  .erkannt .sym:hover, .erkannt .sym:active { border-color: var(--grau); background: var(--hell); }
+  .erkannt .sym.hoch { font-size: 15px; align-self: flex-start; min-height: 26px; margin-top: 2px; margin-left: -3px; }
+  .erkannt .sym.unsicher { color: var(--corten); }
+  .erkannt .sym.gewaehlt { border-color: var(--stahl); background: var(--hellblau); }
+  .erkannt .sym .br { font-size: 17px; }
+  #schreib { display: block; width: 100%; height: 30vh; min-height: 150px; max-height: 250px; touch-action: none; border: 2px solid var(--stahl); border-radius: 10px; background: #fff; cursor: crosshair; }
+  @media (max-height: 640px) { #schreib { height: 24vh; min-height: 130px; } }
+  .stiftknoepfe { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 8px; margin-top: 8px; }
+  .stiftknoepfe button { min-height: 50px; font-size: 17px; border-radius: 10px; border: 2px solid var(--stahl); background: #fff; color: var(--stahl); }
+  .stiftknoepfe button.ok { margin: 0; font-size: 19px; }
+  .br { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1.05; margin: 0 2px; font-size: .78em; }
+  .br .z { border-bottom: 2px solid currentColor; padding: 0 4px; }
+  .br .n { padding: 0 4px; }
+
+  /* Zeichenauswahl */
+  #palette { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 2px solid var(--stahl); box-shadow: 0 -4px 16px rgba(0,0,0,.15);
+             padding: 10px 14px; padding-bottom: max(12px, env(safe-area-inset-bottom)); z-index: 20; max-width: 620px; margin: 0 auto; }
+  #palette h3 { margin: 0 0 8px; font-size: 15px; }
+  #palette .zeichen { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  #palette .zeichen button { min-height: 48px; font-size: 22px; border: 1px solid var(--grau); border-radius: 10px; background: var(--hell); }
+  #palette .zeichen button.kand { border-color: var(--stahl); background: var(--hellblau); font-weight: 700; }
+  #palette .zeile { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 8px; }
+  #palette .zeile button { min-height: 44px; font-size: 15px; border: 2px solid var(--stahl); border-radius: 10px; background: #fff; color: var(--stahl); }
+  #palette .zeile button.an { background: var(--stahl); color: #fff; }
+  #schleier { position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 19; }
+
+  /* Ende */
+  .ergebnis { text-align: center; padding: 10px 0 4px; }
+  .ergebnis .gross-zahl { font-size: 72px; font-weight: 700; color: var(--rot); line-height: 1; }
+  .ergebnis .neu { color: var(--gruen); font-weight: 700; font-size: 18px; }
+  .fehlerliste { border: 1px solid var(--grau); background: var(--hell); padding: 8px 12px; margin-top: 6px; font-size: 16px; }
+  .fehlerliste div { padding: 6px 0; border-bottom: 1px solid #e3e3e3; display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+  .fehlerliste div:last-child { border-bottom: none; }
+  .fehlerliste .l { color: var(--gruen); font-weight: 600; text-align: right; }
+  .teilbild { margin-top: 10px; text-align: center; }
+  .teilbild img { max-width: 60%; border: 1px solid var(--grau); }
+  textarea.kopie { width: 100%; font: inherit; font-size: 14px; margin-top: 8px; height: 70px; }
+
+  @media (max-height: 560px) {
+    .reiz .fx { font-size: 24px; } .reiz .fx.vor { font-size: 17px; }
+    .keypad button { min-height: 40px; font-size: 19px; } .frage { font-size: 17px; padding-top: 6px; } .melden { min-height: 28px; }
+    .eingabe, .erkannt { min-height: 40px; }
+  }
+  @media (max-width: 360px) { .reiz .fx { font-size: 26px; } .keypad button { font-size: 19px; } }
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ================= Start ================= -->
+<section id="start">
+  <header>
+    <div><span class="k">Fach</span>Mathematik (Kaspschak)</div>
+    <div><span class="k">Kurs</span>12PE1 M</div>
+    <div><span class="k">Reihe</span>Differenzialrechnung</div>
+  </header>
+  <div class="inhalt">
+    <h1>Ableitungs-Sprint</h1>
+    <p class="lead">Die Zeit läuft. Bilde zu jeder Funktion <i>f</i>′(<i>x</i>) und <i>f</i>″(<i>x</i>).
+      Jede richtige Ableitung zählt einen Punkt.</p>
+
+    <h2>Zeit</h2>
+    <div class="chips" id="zeitChips">
+      <button class="chip" data-s="120">2 Minuten</button>
+      <button class="chip an" data-s="180">3 Minuten</button>
+      <button class="chip" data-s="300">5 Minuten</button>
+      <button class="chip" data-s="0">Ohne Zeit</button>
+    </div>
+
+    <h2>Funktionen</h2>
+    <div class="chips" id="typChips"></div>
+    <div class="chips" id="gradChips" style="margin-top:8px">
+      <button class="chip" data-g="2">Grad 2</button>
+      <button class="chip" data-g="3">Grad 3</button>
+      <button class="chip" data-g="4">Grad 4</button>
+      <button class="chip" data-g="5">Grad 5</button>
+    </div>
+    <div class="chips" style="margin-top:8px">
+      <button class="chip" id="bruchChip">Auch Brüche wie <span class="br"><span class="z">1</span><span class="n">4</span></span><i>x</i>⁴</button>
+    </div>
+
+    <h2>Ableitungen</h2>
+    <div class="chips" id="ablChips">
+      <button class="chip" data-a="1">nur <i>f</i>′</button>
+      <button class="chip an" data-a="2"><i>f</i>′ und <i>f</i>″</button>
+      <button class="chip" data-a="3"><i>f</i>′, <i>f</i>″ und <i>f</i>‴</button>
+    </div>
+
+    <h2>Eingabe</h2>
+    <div class="chips" id="eingabeChips">
+      <button class="chip" data-e="tasten">⌨ Tasten</button>
+      <button class="chip" data-e="stift">✍ Stift (Handschrift)</button>
+    </div>
+    <p class="klein" id="stiftHinweis">Stift: Schreibe zwischen die Linien, Hochzahlen klein und rechts oben. Unter dem Feld steht,
+      was das Applet liest. Tippe auf ein falsch gelesenes Zeichen und wähle das richtige; das Applet merkt sich
+      deine Schreibweise. <span id="gelerntInfo"></span></p>
+
+    <button class="gross" id="startKnopf">Start</button>
+    <div class="rekord" id="rekordStart"></div>
+
+    <h2>So geht es</h2>
+    <ol class="schritte">
+      <li>Wähle Zeit, Grad und Eingabe.</li>
+      <li>Tippe auf Start. Bilde <i>f</i>′(<i>x</i>); nach „Richtig“ folgt <i>f</i>″(<i>x</i>) derselben Funktion.</li>
+      <li>Schreibe den Term wie ins Heft, zum Beispiel 6<i>x</i>² − 4<i>x</i> + 3. Die Reihenfolge der Summanden ist egal. Fasse zusammen.</li>
+      <li>Bei einem Fehler bleibt deine Eingabe stehen: Verbessere sie oder tippe auf „Lösung zeigen“.</li>
+      <li>Am Ende steht, was du noch übst.</li>
+    </ol>
+    <div class="chips" style="margin-top:14px">
+      <button class="chip an" id="soundChip">🔔 Ton an</button>
+    </div>
+  </div>
+  <footer>Kaspschak · 12PE1 M · Ableitungs-Sprint</footer>
+</section>
+
+<!-- ================= Spiel ================= -->
+<section id="spiel" hidden>
+  <div class="leiste" id="leiste"><div></div></div>
+  <div class="kopf">
+    <div><span class="zeit" id="zeit">3:00</span><button class="beenden" id="beenden" hidden>Beenden</button></div>
+    <div class="punkte"><b id="pRichtig">0</b> richtig <span class="f">✕ <span id="pFalsch">0</span></span></div>
+  </div>
+  <div class="frage" id="frage"></div>
+  <div class="reiz" id="reiz"></div>
+  <div class="melden" id="melden"></div>
+  <div class="antwort" id="antwort"></div>
+</section>
+
+<!-- ================= Ende ================= -->
+<section id="ende" hidden>
+  <div class="inhalt">
+    <div class="ergebnis">
+      <div class="gross-zahl" id="eRichtig">0</div>
+      <div id="eText">richtige Ableitungen in 3 Minuten</div>
+      <div id="eFalsch" class="klein"></div>
+      <div id="eNeu" class="neu"></div>
+      <div class="rekord" id="rekordEnde"></div>
+    </div>
+    <button class="gross" id="nochmal">Noch mal</button>
+    <button class="zweit" id="teilen">Rekord teilen</button>
+    <button class="zweit" id="zurueck">Zum Start</button>
+    <div id="teilFallback" hidden></div>
+    <h2 id="fehlerTitel">Das übst du noch</h2>
+    <div class="fehlerliste" id="fehlerliste"></div>
+  </div>
+  <footer>Kaspschak · 12PE1 M · Ableitungs-Sprint</footer>
+</section>
+
+</div>
+<div id="schleier" hidden></div>
+<div id="palette" hidden>
+  <h3>Welches Zeichen ist gemeint?</h3>
+  <div class="zeichen" id="paletteZeichen"></div>
+  <div class="zeile">
+    <button id="palHoch">Hochzahl</button>
+    <button id="palWeg">Zeichen entfernen</button>
+    <button id="palZu">Abbrechen</button>
+  </div>
+</div>
+<canvas id="karte" hidden></canvas>
+
+<script id="kern">
+'use strict';
+// ======================= Kern (ohne DOM, testbar in Node) =======================
+
+// ----------------------- Brueche und Polynome -----------------------
+function ggT(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { [a, b] = [b, a % b]; } return a || 1; }
+class Bruch {
+  constructor(z, n = 1) { if (n === 0) throw new Error('Nenner 0'); if (n < 0) { z = -z; n = -n; } const g = ggT(z, n); this.z = z / g; this.n = n / g; }
+  static von(v) { return v instanceof Bruch ? v : new Bruch(v, 1); }
+  mal(k) { k = Bruch.von(k); return new Bruch(this.z * k.z, this.n * k.n); }
+  plus(k) { k = Bruch.von(k); return new Bruch(this.z * k.n + k.z * this.n, this.n * k.n); }
+  get wert() { return this.z / this.n; }
+  get istNull() { return this.z === 0; }
+  get istGanz() { return this.n === 1; }
+  abs() { return new Bruch(Math.abs(this.z), this.n); }
+  html() { return this.istGanz ? String(this.z) : `<span class="br"><span class="z">${this.z}</span><span class="n">${this.n}</span></span>`; }
+  text() { return this.istGanz ? String(this.z) : `${this.z}/${this.n}`; }
+}
+const HOCH = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+const hoch = k => String(k).split('').map(d => HOCH[+d]).join('');
+// Polynom = Koeffizientenliste k[i] (Bruch) zu x^i
+function polyAbleitung(k) { const a = []; for (let i = 1; i < k.length; i++) a.push(k[i].mal(i)); return a.length ? a : [new Bruch(0)]; }
+function polyTerme(k) { return Math.max(1, k.filter(c => !c.istNull).length); }
+function polyWert(k, x) { let s = 0; for (let i = k.length - 1; i >= 0; i--) s = s * x + k[i].wert; return s; }
+function polyForm(k, art) { // art: 'html' | 'text' | 'ascii'
+  const teile = [];
+  for (let i = k.length - 1; i >= 0; i--) {
+    const c = k[i]; if (c.istNull) continue;
+    const neg = c.z < 0, a = c.abs();
+    const vz = teile.length === 0 ? (neg ? (art === 'ascii' ? '-' : '−') : '') : (neg ? (art === 'ascii' ? '-' : ' − ') : (art === 'ascii' ? '+' : ' + '));
+    let ko = '';
+    if (i === 0 || !(a.istGanz && a.z === 1)) ko = art === 'html' ? a.html() : a.text();
+    let xs = '';
+    if (i === 1) xs = art === 'html' ? '<i>x</i>' : 'x';
+    else if (i > 1) xs = art === 'html' ? '<i>x</i>' + hoch(i) : art === 'text' ? 'x' + hoch(i) : 'x^' + i;
+    if (art === 'text' && ko && !a.istGanz && xs) ko += ' ';
+    teile.push(vz + ko + xs);
+  }
+  return teile.length ? teile.join('') : '0';
+}
+
+// ----------------------- Zufall -----------------------
+const zufall = (rnd, a, b) => a + Math.floor(rnd() * (b - a + 1));
+const wahl = (rnd, arr) => arr[Math.floor(rnd() * arr.length)];
+
+// ----------------------- Erzeuger: ganzrationale Funktionen -----------------------
+function erzeugeGanzrational(einst, rnd = Math.random) {
+  const grade = einst.grade && einst.grade.length ? einst.grade : [2, 3];
+  for (let versuch = 0; versuch < 60; versuch++) {
+    const n = wahl(rnd, grade), k = [];
+    for (let i = 0; i <= n; i++) {
+      let c;
+      if (i === n) c = zufall(rnd, 1, n >= 4 ? 3 : 5) * (rnd() < 0.3 ? -1 : 1);
+      else if (rnd() < (i === 0 ? 0.25 : 0.3)) c = 0;
+      else c = zufall(rnd, 1, 9) * (rnd() < 0.5 ? -1 : 1);
+      k.push(new Bruch(c));
+    }
+    if (einst.brueche && rnd() < 0.65) { // ein Term x^i (i >= 2) bekommt einen Bruch, meist mit Nenner i, damit f' ganzzahlig wird
+      const kand = []; for (let i = 2; i <= n; i++) if (!k[i].istNull) kand.push(i);
+      if (kand.length) {
+        const i = wahl(rnd, kand), z = wahl(rnd, [1, 1, 1, 2, 3, -1, -1, -2]), nn = rnd() < 0.7 ? i : wahl(rnd, [2, 3, 4]);
+        const b = new Bruch(z, nn); if (!b.istGanz) k[i] = b;
+      }
+    }
+    if (k.filter(c => !c.istNull).length < 2) continue;
+    return k;
+  }
+  return [new Bruch(1), new Bruch(2), new Bruch(3)];
+}
+function aufgabeGanzrational(einst, rnd = Math.random) {
+  const k = erzeugeGanzrational(einst, rnd), abl = [];
+  let cur = k;
+  for (let j = 0; j < 3; j++) {
+    const a = polyAbleitung(cur); cur = a;
+    abl.push({ html: polyForm(a, 'html'), text: polyForm(a, 'text'), ascii: polyForm(a, 'ascii'), wert: x => polyWert(a, x), terme: polyTerme(a) });
+  }
+  return { typ: 'ganzrational', html: polyForm(k, 'html'), text: polyForm(k, 'text'), ascii: polyForm(k, 'ascii'), ableitungen: abl };
+}
+
+// Registry der Funktionstypen. Ein neuer Typ braucht: name, erzeuge(einst, rnd) -> Aufgabe
+// {html, text, ascii, ableitungen:[{html, text, ascii, wert(x), terme}]}, alphabet(einst) fuer
+// die Handschrift, tasten(einst) fuer die Tastatur.
+const ZIFFERN = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const TYPEN = {
+  ganzrational: {
+    name: 'Ganzrational', beschreibung: 'ganzrationale Funktionen',
+    erzeuge: aufgabeGanzrational,
+    alphabet: einst => ZIFFERN.concat(['x', '+', '-', '·', ',']).concat(einst.brueche ? ['/'] : []),
+    tasten: () => ['7', '8', '9', '+', 'x', '4', '5', '6', '−', '²', '1', '2', '3', '·', '³', '0', ',', '/', '⁴', '⌫'],
+  },
+};
+
+// ----------------------- Term-Parser -----------------------
+const SUPER = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁻': '-' };
+function normText(s) {
+  s = String(s).replace(/[′″‴]/g, m => ({ '′': "'", '″': "''", '‴': "'''" }[m])).replace(/[−–—]/g, '-').replace(/[·×∙⋅•]/g, '*')
+    .replace(/,/g, '.').replace(/\s+/g, '');
+  s = s.replace(/^(f'*|y'*|f'*\(x\))=/, '');
+  s = s.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+/g, m => '^' + [...m].map(c => SUPER[c]).join(''));
+  return s;
+}
+function tokens(s) {
+  const t = []; let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (/[0-9.]/.test(c)) {
+      let j = i; while (j < s.length && /[0-9.]/.test(s[j])) j++;
+      const v = s.slice(i, j); if (!/^(\d+(\.\d+)?|\.\d+)$/.test(v)) throw { pos: i, msg: 'Zahl nicht lesbar' };
+      t.push({ t: 'num', v: parseFloat(v), pos: i }); i = j; continue;
+    }
+    if (c === 'x') {
+      t.push({ t: 'x', pos: i }); i++;
+      if (/[0-9]/.test(s[i] || '')) { let j = i; while (/[0-9]/.test(s[j] || '')) j++; t.push({ t: '^', pos: i }); t.push({ t: 'num', v: parseInt(s.slice(i, j), 10), pos: i }); i = j; } // x2 = x^2 (Scribble)
+      continue;
+    }
+    if ('+-*/^()'.includes(c)) { t.push({ t: c, pos: i }); i++; continue; }
+    const m = /^(sin|cos|tan|ln|sqrt|√|e)/.exec(s.slice(i));
+    if (m) { t.push({ t: 'id', v: m[1] === '√' ? 'sqrt' : m[1], pos: i }); i += m[1].length; continue; }
+    throw { pos: i, msg: 'Zeichen „' + c + '“ nicht lesbar' };
+  }
+  return t;
+}
+// liefert {ast, terme} (terme = Summanden auf oberster Ebene) oder null bei leerer Eingabe; wirft {pos, msg}
+function parse(text) {
+  const s = normText(text); if (!s) return null;
+  const tk = tokens(s); let p = 0;
+  const peek = () => tk[p], next = () => tk[p++];
+  const err = (msg, pos) => { throw { pos, msg }; };
+  function expr() {
+    let terme = 1, a = term();
+    while (peek() && (peek().t === '+' || peek().t === '-')) { const op = next().t; const b = term(); a = { t: op === '+' ? 'add' : 'sub', a, b }; terme++; }
+    return { ast: a, terme };
+  }
+  function term() {
+    let a = faktor();
+    for (;;) {
+      const q = peek(); if (!q) break;
+      if (q.t === '*' || q.t === '/') { next(); const b = faktor(); a = { t: q.t === '*' ? 'mul' : 'div', a, b }; continue; }
+      if (q.t === 'x' || q.t === '(' || q.t === 'id' || q.t === 'num') { const b = faktor(); a = { t: 'mul', a, b }; continue; }
+      break;
+    }
+    return a;
+  }
+  function faktor() {
+    const q = peek(); if (!q) err('Term unvollständig', s.length);
+    if (q.t === '-') { next(); return { t: 'neg', a: faktor() }; }
+    if (q.t === '+') { next(); return faktor(); }
+    return potenz();
+  }
+  function potenz() {
+    const a = atom();
+    if (peek() && peek().t === '^') { next(); const b = faktor(); return { t: 'pow', a, b }; }
+    return a;
+  }
+  function atom() {
+    const q = next(); if (!q) err('Term unvollständig', s.length);
+    if (q.t === 'num') return { t: 'num', v: q.v };
+    if (q.t === 'x') return { t: 'x' };
+    if (q.t === '(') { const e = expr(); if (!peek() || peek().t !== ')') err('Klammer fehlt', q.pos); next(); return e.ast; }
+    if (q.t === 'id') { if (q.v === 'e') return { t: 'e' }; return { t: 'fn', f: q.v, a: potenz() }; }
+    err('Unerwartetes Zeichen', q.pos);
+  }
+  const e = expr();
+  if (p < tk.length) err('Unerwartetes Zeichen', tk[p].pos);
+  return e;
+}
+function wert(n, x) {
+  switch (n.t) {
+    case 'num': return n.v; case 'x': return x; case 'e': return Math.E;
+    case 'neg': return -wert(n.a, x);
+    case 'add': return wert(n.a, x) + wert(n.b, x); case 'sub': return wert(n.a, x) - wert(n.b, x);
+    case 'mul': return wert(n.a, x) * wert(n.b, x); case 'div': return wert(n.a, x) / wert(n.b, x);
+    case 'pow': return Math.pow(wert(n.a, x), wert(n.b, x));
+    case 'fn': { const v = wert(n.a, x); return n.f === 'sin' ? Math.sin(v) : n.f === 'cos' ? Math.cos(v) : n.f === 'tan' ? Math.tan(v) : n.f === 'ln' ? Math.log(v) : Math.sqrt(v); }
+  }
+  return NaN;
+}
+const zahlText = v => String(v).replace('.', ',');
+// Anzeige des gelesenen Terms als HTML (so, wie das Applet ihn verstanden hat)
+function astHTML(n) {
+  const klammer = (m, wenn) => wenn ? '(' + astHTML(m) + ')' : astHTML(m);
+  const istSumme = m => m.t === 'add' || m.t === 'sub';
+  switch (n.t) {
+    case 'num': return zahlText(n.v); case 'x': return '<i>x</i>'; case 'e': return '<i>e</i>';
+    case 'neg': return '−' + klammer(n.a, istSumme(n.a));
+    case 'add': return astHTML(n.a) + ' + ' + klammer(n.b, n.b.t === 'neg');
+    case 'sub': return astHTML(n.a) + ' − ' + klammer(n.b, istSumme(n.b) || n.b.t === 'neg');
+    case 'mul': {
+      const l = klammer(n.a, istSumme(n.a)), r = klammer(n.b, istSumme(n.b) || n.b.t === 'neg');
+      const koeff = m => m.t === 'num' || m.t === 'div' || (m.t === 'neg' && koeff(m.a));
+      const ohnePunkt = (koeff(n.a) || n.a.t === 'x' || n.a.t === 'pow') && !koeff(n.b) && n.b.t !== 'neg';
+      return l + (ohnePunkt ? '' : ' · ') + r;
+    }
+    case 'div':
+      if (n.a.t === 'num' && n.b.t === 'num') return `<span class="br"><span class="z">${zahlText(n.a.v)}</span><span class="n">${zahlText(n.b.v)}</span></span>`;
+      return `<span class="br"><span class="z">${astHTML(n.a)}</span><span class="n">${astHTML(n.b)}</span></span>`;
+    case 'pow': return klammer(n.a, n.a.t !== 'x' && n.a.t !== 'num' && n.a.t !== 'e') + '<sup>' + astHTML(n.b) + '</sup>';
+    case 'fn': return (n.f === 'sqrt' ? '√' : n.f) + '(' + astHTML(n.a) + ')';
+  }
+  return '?';
+}
+const PRUEFSTELLEN = [-2.5, -1.7, -0.9, -0.3, 0.4, 1.1, 1.8, 2.6];
+function gleich(f, g) {
+  for (const x of PRUEFSTELLEN) {
+    const a = f(x), b = g(x);
+    if (!isFinite(a) || !isFinite(b)) return false;
+    if (Math.abs(a - b) > 1e-6 * Math.max(1, Math.abs(a), Math.abs(b))) return false;
+  }
+  return true;
+}
+// Ergebnis: {status: 'leer'|'unlesbar'|'falsch'|'zusammenfassen'|'richtig', html?}
+function pruefeAntwort(text, abl) {
+  if (!text || !String(text).trim()) return { status: 'leer' };
+  let p;
+  try { p = parse(text); } catch (e) { return { status: 'unlesbar', pos: e.pos, msg: e.msg || 'nicht lesbar' }; }
+  if (!p) return { status: 'leer' };
+  const html = astHTML(p.ast);
+  if (!gleich(x => wert(p.ast, x), abl.wert)) return { status: 'falsch', html };
+  if (p.terme > abl.terme) return { status: 'zusammenfassen', html };
+  return { status: 'richtig', html };
+}
+
+// ----------------------- Handschrift: $P-Erkenner und Zeilenanalyse -----------------------
+const HS = (() => {
+  const N = 32;
+  const abst = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  function pfadLaenge(pts) { let l = 0; for (let i = 1; i < pts.length; i++) if (pts[i].id === pts[i - 1].id) l += abst(pts[i - 1], pts[i]); return l; }
+  function resample(points, n) {
+    const pts = points.map(p => ({ x: p.x, y: p.y, id: p.id }));
+    const I = pfadLaenge(pts) / (n - 1);
+    if (!(I > 0)) return Array.from({ length: n }, () => ({ x: pts[0].x, y: pts[0].y, id: pts[0].id }));
+    let D = 0; const neu = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      if (pts[i].id !== pts[i - 1].id) continue;
+      const d = abst(pts[i - 1], pts[i]);
+      if (D + d >= I) {
+        const t = (I - D) / d, q = { x: pts[i - 1].x + t * (pts[i].x - pts[i - 1].x), y: pts[i - 1].y + t * (pts[i].y - pts[i - 1].y), id: pts[i].id };
+        neu.push(q); pts.splice(i, 0, q); D = 0;
+      } else D += d;
+    }
+    while (neu.length < n) neu.push({ ...pts[pts.length - 1] });
+    return neu.slice(0, n);
+  }
+  // Striche -> Punktwolke: 32 Punkte, gleichmaessig skaliert (Seitenverhaeltnis bleibt), Schwerpunkt im Ursprung
+  function normalisiere(strokes) {
+    const pts = []; strokes.forEach((s, i) => s.forEach(p => pts.push({ x: p.x, y: p.y, id: i })));
+    if (!pts.length) return [];
+    let r = resample(pts, N);
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (const p of r) { x1 = Math.min(x1, p.x); x2 = Math.max(x2, p.x); y1 = Math.min(y1, p.y); y2 = Math.max(y2, p.y); }
+    const g = Math.max(x2 - x1, y2 - y1) || 1;
+    r = r.map(p => ({ x: (p.x - x1) / g, y: (p.y - y1) / g, id: p.id }));
+    const cx = r.reduce((s, p) => s + p.x, 0) / r.length, cy = r.reduce((s, p) => s + p.y, 0) / r.length;
+    return r.map(p => ({ x: +(p.x - cx).toFixed(4), y: +(p.y - cy).toFixed(4), id: p.id }));
+  }
+  function teilAbstand(a, b, start, grenze) {
+    const n = a.length, matched = new Array(n).fill(false); let sum = 0, i = start;
+    do {
+      let min = Infinity, idx = -1;
+      for (let j = 0; j < n; j++) if (!matched[j]) { const d = abst(a[i], b[j]); if (d < min) { min = d; idx = j; } }
+      matched[idx] = true; sum += (1 - ((i - start + n) % n) / n) * min; i = (i + 1) % n;
+      if (sum > grenze) return Infinity; // schon schlechter als das bisher Beste: abbrechen
+    } while (i !== start);
+    return sum;
+  }
+  function wolkenAbstand(a, b, grenze = Infinity) {
+    const n = a.length, step = Math.max(1, Math.floor(Math.sqrt(n))); let min = grenze;
+    for (let i = 0; i < n; i += step) min = Math.min(min, teilAbstand(a, b, i, min), teilAbstand(b, a, i, min));
+    return min;
+  }
+  // Seitenverhaeltnis der Wolke (log), zum Vorfiltern: ein Strich "−" muss nicht gegen "8" gerechnet werden
+  function seitenverhaeltnis(c) {
+    if (c.ar != null) return c.ar;
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (const p of c) { x1 = Math.min(x1, p.x); x2 = Math.max(x2, p.x); y1 = Math.min(y1, p.y); y2 = Math.max(y2, p.y); }
+    return (c.ar = Math.log((x2 - x1 + 0.15) / (y2 - y1 + 0.15)));
+  }
+
+  // Vorlagen: Formen im Einheitsquadrat (y nach unten), L = Polygonzug, B = Bogen (Grad, im Uhrzeigersinn auf dem Schirm)
+  const L = (...xy) => { const s = []; for (let i = 0; i < xy.length; i += 2) s.push({ x: xy[i], y: xy[i + 1] }); return s; };
+  const B = (cx, cy, rx, ry, a0, a1, n = 24) => { const s = []; for (let i = 0; i <= n; i++) { const t = (a0 + (a1 - a0) * i / n) * Math.PI / 180; s.push({ x: cx + rx * Math.cos(t), y: cy + ry * Math.sin(t) }); } return s; };
+  const acht = () => { const s = []; for (let i = 0; i <= 48; i++) { const t = 2 * Math.PI * i / 48; s.push({ x: 0.5 + 0.3 * Math.sin(2 * t), y: 0.5 + 0.49 * Math.sin(t) }); } return s; };
+  const FORMEN = {
+    '0': [[B(0.5, 0.5, 0.3, 0.5, 0, 360)], [B(0.5, 0.5, 0.22, 0.5, 0, 360)]],
+    '1': [[L(0.5, 0, 0.5, 1)], [L(0.3, 0.22, 0.5, 0, 0.5, 1)], [L(0.25, 0.25, 0.5, 0, 0.5, 1), L(0.25, 1, 0.75, 1)], [L(0.6, 0, 0.42, 1)]],
+    '2': [[B(0.5, 0.28, 0.3, 0.28, 200, 400).concat(L(0.15, 1, 0.88, 1))], [B(0.5, 0.25, 0.27, 0.25, 190, 380).concat(L(0.1, 0.95, 0.9, 0.95))]],
+    '3': [[B(0.5, 0.26, 0.26, 0.26, 200, 450).concat(B(0.5, 0.74, 0.27, 0.27, 270, 520))], [L(0.2, 0.02, 0.8, 0.02, 0.5, 0.45).concat(B(0.5, 0.73, 0.28, 0.27, 270, 520))]],
+    '4': [[L(0.6, 0.02, 0.08, 0.62, 0.95, 0.62), L(0.72, 0, 0.72, 1)], [L(0.55, 0.02, 0.1, 0.6, 0.9, 0.6), L(0.65, 0.3, 0.65, 1)], [L(0.72, 0, 0.08, 0.66, 0.95, 0.66), L(0.72, 0, 0.72, 1)]],
+    '5': [[L(0.8, 0.02, 0.25, 0.02, 0.2, 0.45).concat(B(0.5, 0.7, 0.3, 0.3, 250, 500))], [L(0.25, 0.02, 0.85, 0.02), L(0.25, 0.02, 0.2, 0.42).concat(B(0.48, 0.7, 0.32, 0.3, 245, 500))]],
+    '6': [[L(0.8, 0, 0.55, 0.2, 0.35, 0.45, 0.24, 0.68).concat(B(0.5, 0.72, 0.28, 0.28, 180, 540))], [L(0.7, 0, 0.4, 0.3, 0.25, 0.6).concat(B(0.5, 0.75, 0.25, 0.25, 180, 540))]],
+    '7': [[L(0.08, 0.04, 0.92, 0.04, 0.38, 1)], [L(0.08, 0.04, 0.92, 0.04, 0.38, 1), L(0.28, 0.55, 0.75, 0.55)], [L(0.05, 0.1, 0.05, 0.02, 0.95, 0.02, 0.45, 1)]],
+    '8': [[acht()], [B(0.5, 0.25, 0.22, 0.25, 0, 360).concat(B(0.5, 0.73, 0.27, 0.27, 0, 360))]],
+    '9': [[B(0.5, 0.27, 0.27, 0.27, 0, 360).concat(L(0.77, 0.27, 0.62, 1))], [B(0.5, 0.27, 0.27, 0.27, 0, 360).concat(L(0.77, 0.3, 0.72, 0.7, 0.5, 1))]],
+    'x': [[L(0.05, 0.02, 0.95, 0.98), L(0.95, 0.02, 0.05, 0.98)], [B(0, 0.5, 0.5, 0.55, -60, 60), B(1, 0.5, 0.5, 0.55, 120, 240)], [L(0.1, 0.1, 0.9, 0.9), L(0.9, 0.1, 0.1, 0.9)]],
+    '+': [[L(0.5, 0.02, 0.5, 0.98), L(0.02, 0.5, 0.98, 0.5)], [L(0.5, 0.1, 0.5, 0.9), L(0.02, 0.5, 0.98, 0.5)]],
+    '-': [[L(0.02, 0.5, 0.98, 0.5)], [L(0.02, 0.55, 0.98, 0.45)]],
+    '/': [[L(0.75, 0.02, 0.25, 0.98)], [L(0.9, 0.02, 0.1, 0.98)]],
+    '(': [[B(1.05, 0.5, 0.75, 1, 150, 210)]],
+    ')': [[B(-0.05, 0.5, 0.75, 1, -30, 30)]],
+    '=': [[L(0.02, 0.32, 0.98, 0.32), L(0.02, 0.68, 0.98, 0.68)]],
+  };
+  const VORLAGEN = {}; for (const ch in FORMEN) VORLAGEN[ch] = FORMEN[ch].map(normalisiere);
+  let GELERNT = {};
+  function setzeGelernt(obj) { GELERNT = obj && typeof obj === 'object' ? obj : {}; }
+  function lerne(ch, strokes) { const c = normalisiere(strokes); if (!c.length) return; (GELERNT[ch] = GELERNT[ch] || []).push(c); if (GELERNT[ch].length > 10) GELERNT[ch].shift(); return GELERNT; }
+  function klassifiziere(strokes, alphabet) {
+    const c = normalisiere(strokes), erg = [], ar = seitenverhaeltnis(c); let global = Infinity;
+    for (const ch of alphabet) {
+      const vs = (VORLAGEN[ch] || []).concat(GELERNT[ch] || []); let best = Infinity;
+      for (const v of vs) {
+        if (v.length !== c.length || Math.abs(seitenverhaeltnis(v) - ar) > 1.0) continue;
+        const grenze = Math.min(best, Math.max(global * 2.5, global + 0.4)); // weiter entfernte Zeichen nur bis zur Schranke rechnen
+        const d = wolkenAbstand(c, v, grenze); if (d < best) best = d >= grenze ? grenze + 1e-6 : d;
+      }
+      if (best < Infinity) { erg.push({ ch, d: best }); if (best < global) global = best; }
+    }
+    erg.sort((a, b) => a.d - b.d);
+    return erg;
+  }
+
+  function bbox(pts) {
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (const p of pts) { if (p.x < x1) x1 = p.x; if (p.x > x2) x2 = p.x; if (p.y < y1) y1 = p.y; if (p.y > y2) y2 = p.y; }
+    return { x1, y1, x2, y2, w: x2 - x1, h: y2 - y1, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
+  }
+  const vereinige = bs => bbox(bs.flatMap(b => [{ x: b.x1, y: b.y1 }, { x: b.x2, y: b.y2 }]));
+  const UNSICHER = 1.6, SPALTEN = 1.5;
+
+  // strokes: [{id, pts:[{x,y}]}]; opt: {alphabet, lineH, baseline, korrekturen: Map(key -> {ch, sup}), sup}
+  // liefert {symbole: [{ch, sup, strokes:[ids], key, kandidaten, bbox, unsicher}], ascii}
+  function analysiere(strokes, opt) {
+    const st = strokes.filter(s => s.pts && s.pts.length);
+    if (!st.length) return { symbole: [], ascii: '' };
+    const bb = st.map(s => bbox(s.pts));
+    const groesste = Math.max(...bb.map(b => Math.max(b.w, b.h)));
+    const lineH = Math.max(groesste, 0.5 * (opt.lineH || 0)) || 1;
+    const pad = 0.04 * lineH;
+    const hochKandidat = (b, a) => b.x1 > a.cx && b.y2 < a.y1 + 0.6 * a.h && b.h < 0.8 * a.h && a.h > 0.3 * lineH;
+    const beruehren = (p, q) => { // kleinster Punktabstand zweier Striche unter 0,07 Zeilenhoehe: die Striche beruehren sich (x aus zwei Boegen)
+      const g = 0.07 * lineH; let min = Infinity;
+      for (let i = 0; i < p.length; i += 2) for (let j = 0; j < q.length; j += 2) { const d = Math.hypot(p[i].x - q[j].x, p[i].y - q[j].y); if (d < min) min = d; if (min < g) return true; }
+      return false;
+    };
+    const verbunden = (i, j) => {
+      const a = bb[i], b = bb[j];
+      if (hochKandidat(a, b) || hochKandidat(b, a)) return false;
+      const ov = Math.min(a.x2 + pad, b.x2 + pad) - Math.max(a.x1 - pad, b.x1 - pad);
+      const mw = Math.min(a.w, b.w) + 2 * pad;
+      if (ov >= 0.5 * mw) return true;
+      return ov > -0.03 * lineH && beruehren(st[i].pts, st[j].pts);
+    };
+    const parent = st.map((_, i) => i); const find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
+    for (let i = 0; i < st.length; i++) for (let j = i + 1; j < st.length; j++) if (verbunden(i, j)) parent[find(i)] = find(j);
+    const gruppen = new Map();
+    st.forEach((s, i) => { const r = find(i); if (!gruppen.has(r)) gruppen.set(r, []); gruppen.get(r).push(i); });
+    let symbole = [];
+    const macheSymbol = idx => {
+      const strokesIdx = idx, pts = strokesIdx.map(i => st[i].pts), box = vereinige(strokesIdx.map(i => bb[i]));
+      const key = strokesIdx.map(i => st[i].id).sort((a, b) => a - b).join(',');
+      const sym = { idx: strokesIdx, strokes: strokesIdx.map(i => st[i].id), key, bbox: box, kandidaten: [], sup: false, unsicher: false };
+      const korr = opt.korrekturen && opt.korrekturen.get(key);
+      if (Math.max(box.w, box.h) < 0.22 * lineH) { sym.typ = 'punkt'; sym.ch = '·'; }
+      else {
+        // Bruch: waagerechter Strich mit Strichen ganz darueber und ganz darunter
+        if (strokesIdx.length >= 3 && !korr) {
+          for (const i of strokesIdx) {
+            const b = bb[i]; if (!(b.h < 0.15 * lineH && b.w > 0.35 * lineH)) continue;
+            const oben = [], unten = []; let ok = true;
+            for (const j of strokesIdx) { if (j === i) continue; if (bb[j].y2 <= b.cy) oben.push(j); else if (bb[j].y1 >= b.cy) unten.push(j); else { ok = false; break; } }
+            if (!ok || !oben.length || !unten.length) continue;
+            const sub = { ...opt, sup: false, korrekturen: null, lineH: lineH * 0.6 };
+            const z = analysiere(oben.map(j => st[j]), sub), n = analysiere(unten.map(j => st[j]), sub);
+            sym.typ = 'bruch'; sym.ch = '/'; sym.zaehler = z; sym.nenner = n; sym.ascii = '(' + (z.ascii || '?') + '/' + (n.ascii || '?') + ')';
+            break;
+          }
+        }
+        if (!sym.typ) {
+          sym.typ = 'zeichen';
+          const kand = klassifiziere(pts, opt.alphabet); sym.kandidaten = kand; sym.ch = kand.length ? kand[0].ch : '?'; sym.d = kand.length ? kand[0].d : Infinity;
+          sym.unsicher = !kand.length || kand[0].d > UNSICHER;
+        }
+      }
+      if (korr) { sym.ch = korr.ch; sym.supFest = korr.sup; sym.unsicher = false; if (korr.ch === ',' || korr.ch === '·') sym.typ = 'punkt'; else if (sym.typ === 'punkt') sym.typ = 'zeichen'; }
+      return sym;
+    };
+    for (const idx of gruppen.values()) {
+      const sym = macheSymbol(idx);
+      // Gruppe mit mehreren Strichen, die schlecht passt: Trennung in zwei Zeichen versuchen
+      if (sym.typ === 'zeichen' && idx.length >= 2 && sym.d > SPALTEN && !(opt.korrekturen && opt.korrekturen.get(sym.key))) {
+        const sortiert = idx.slice().sort((a, b) => bb[a].cx - bb[b].cx); let best = null;
+        for (let k = 1; k < sortiert.length; k++) {
+          const l = macheSymbol(sortiert.slice(0, k)), r = macheSymbol(sortiert.slice(k));
+          if (l.typ !== 'zeichen' || r.typ !== 'zeichen') continue;
+          const d = Math.max(l.d, r.d) + 0.25;
+          if (d < sym.d && (!best || d < best.d)) best = { d, l, r };
+        }
+        if (best) { symbole.push(best.l, best.r); continue; }
+      }
+      symbole.push(sym);
+    }
+    symbole.sort((a, b) => a.bbox.x1 - b.bbox.x1);
+    // Zwei einzelne Nachbarstriche, die getrennt schlecht und zusammen gut passen (x aus zwei Boegen): verschmelzen
+    for (let i = 0; i + 1 < symbole.length; i++) {
+      const a = symbole[i], b = symbole[i + 1];
+      if (a.typ !== 'zeichen' || b.typ !== 'zeichen' || a.idx.length !== 1 || b.idx.length !== 1) continue;
+      if (b.bbox.x1 - a.bbox.x2 > 0.12 * lineH || (opt.korrekturen && (opt.korrekturen.get(a.key) || opt.korrekturen.get(b.key)))) continue;
+      const u = macheSymbol(a.idx.concat(b.idx));
+      if (u.typ === 'zeichen' && u.d + 0.2 < Math.max(a.d, b.d)) { symbole.splice(i, 2, u); i--; }
+    }
+    // Hochzahlen und Punkte: von links nach rechts, bezogen auf das letzte Grundzeichen
+    let basis = null, vorher = null;
+    for (const sym of symbole) {
+      const b = sym.bbox;
+      if (sym.typ === 'punkt') {
+        if (!(opt.korrekturen && opt.korrekturen.get(sym.key))) {
+          const refTop = basis ? basis.bbox.y1 : (opt.baseline != null ? opt.baseline - (opt.lineH || lineH) : b.y1), refH = basis ? basis.bbox.h : (opt.lineH || lineH);
+          sym.ch = b.cy > refTop + 0.72 * refH ? ',' : '·';
+        }
+        sym.sup = false; vorher = sym; continue;
+      }
+      let sup = false;
+      if (opt.sup !== false && basis && sym.typ === 'zeichen' && /^[0-9]$/.test(sym.ch)) {
+        const a = basis.bbox;
+        if (vorher && vorher.sup && Math.abs(b.cy - vorher.bbox.cy) < 0.35 * a.h) sup = true;
+        else if ((basis.ch === 'x' || basis.ch === ')') && b.cy < a.y1 + 0.38 * a.h && b.y2 < a.y1 + 0.8 * a.h && b.h < 0.85 * a.h) sup = true;
+      }
+      if (sym.supFest != null) sup = sym.supFest;
+      sym.sup = sup; if (!sup) basis = sym; vorher = sym;
+    }
+    let ascii = '', inSup = false;
+    for (const sym of symbole) {
+      if (sym.sup && !inSup) { ascii += '^'; inSup = true; } else if (!sym.sup) inSup = false;
+      ascii += sym.typ === 'bruch' ? sym.ascii : sym.ch === '·' ? '*' : sym.ch;
+    }
+    return { symbole, ascii };
+  }
+  return { normalisiere, wolkenAbstand, klassifiziere, analysiere, lerne, setzeGelernt, gelernt: () => GELERNT, VORLAGEN, bbox, N };
+})();
+if (typeof module !== 'undefined') module.exports = { Bruch, polyAbleitung, polyForm, polyWert, polyTerme, erzeugeGanzrational, aufgabeGanzrational, TYPEN, parse, wert, astHTML, pruefeAntwort, normText, HS };
+</script>
+<script>
+'use strict';
+// ======================= Oberflaeche =======================
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const PRIME = ['′', '″', '‴'];
+const fnHTML = i => `<i>f</i>${PRIME[i]}(<i>x</i>)`;
+const S = { dauer: 180, typen: ['ganzrational'], grade: [2, 3, 4], brueche: false, abl: 2, eingabe: 'tasten', systast: false, sound: true,
+  laeuft: false, richtig: 0, falsch: 0, fehler: [], tEnde: 0, tStart: 0, aufgabe: null, stufe: 0, gesperrt: false, timer: null, letzte: [],
+  fehlerBeiStufe: false, weiter: null, text: '', letzteSek: -1, stift: false,
+  hs: { strokes: [], erg: null, korrekturen: new Map(), naechsteId: 1, timer: null, aktiv: null, gewaehlt: -1 } };
+function speichern(k, v) { try { localStorage.setItem('ableitungssprint.' + k, JSON.stringify(v)); } catch (e) { } }
+function laden(k, std) { try { const v = localStorage.getItem('ableitungssprint.' + k); return v === null ? std : JSON.parse(v); } catch (e) { return std; } }
+const zz = n => String(n).padStart(2, '0');
+const mmss = s => Math.floor(s / 60) + ':' + zz(s % 60);
+const dauerText = d => d === 0 ? 'ohne Zeit' : d === 60 ? '1 Minute' : d % 60 === 0 ? (d / 60) + ' Minuten' : d + ' Sekunden';
+const einstellung = () => ({ grade: S.grade, brueche: S.brueche });
+const rekordKey = () => `best.${S.dauer}.${S.abl}.${S.grade.join('')}.${S.brueche ? 'b' : 'g'}`;
+const ablText = () => S.abl === 1 ? 'nur f′' : S.abl === 2 ? 'f′ und f″' : 'f′, f″ und f‴';
+
+// ----------------------- Ton -----------------------
+let audio = null;
+function tonAn() { if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; } } if (audio && audio.state === 'suspended') audio.resume(); }
+function ton(art) {
+  if (!S.sound || !audio) return;
+  const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(); o.connect(g); g.connect(audio.destination);
+  if (art === 'ok') { o.type = 'sine'; o.frequency.setValueAtTime(660, t); o.frequency.setValueAtTime(880, t + 0.08); g.gain.setValueAtTime(0.15, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.start(t); o.stop(t + 0.25); }
+  else if (art === 'nein') { o.type = 'sawtooth'; o.frequency.setValueAtTime(180, t); g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3); o.start(t); o.stop(t + 0.3); }
+  else if (art === 'tick') { o.type = 'square'; o.frequency.setValueAtTime(1000, t); g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05); o.start(t); o.stop(t + 0.05); }
+  else if (art === 'ende') { o.type = 'sine'; [523, 659, 784].forEach((f, i) => o.frequency.setValueAtTime(f, t + i * 0.15)); g.gain.setValueAtTime(0.15, t); g.gain.setValueAtTime(0.15, t + 0.4); g.gain.exponentialRampToValueAtTime(0.001, t + 0.7); o.start(t); o.stop(t + 0.7); }
+}
+
+// ----------------------- Start und Ablauf -----------------------
+function zeigeStart() {
+  $('#start').hidden = false; $('#spiel').hidden = true; $('#ende').hidden = true;
+  const best = laden(rekordKey(), 0);
+  $('#rekordStart').innerHTML = best ? `Dein Rekord (${dauerText(S.dauer)}, ${ablText()}): <b>${best}</b>` : (S.dauer ? `Noch kein Rekord für ${dauerText(S.dauer)}, ${ablText()}.` : '');
+  $('#stiftHinweis').hidden = S.eingabe !== 'stift';
+  const g = HS.gelernt(); const n = Object.values(g).reduce((s, a) => s + a.length, 0);
+  $('#gelerntInfo').innerHTML = n ? `Gemerkte Zeichen: ${n} · <button class="link" id="gelerntWeg">zurücksetzen</button>` : '';
+  const w = $('#gelerntWeg'); if (w) w.addEventListener('click', () => { HS.setzeGelernt({}); speichern('hs', {}); zeigeStart(); });
+}
+function start() { tonAn(); startRunde(); }
+function startRunde() {
+  S.richtig = 0; S.falsch = 0; S.fehler = []; S.laeuft = true; S.letzteSek = -1; S.letzte = [];
+  S.tStart = performance.now(); S.tEnde = S.tStart + S.dauer * 1000;
+  $('#pRichtig').textContent = '0'; $('#pFalsch').textContent = '0';
+  $('#start').hidden = true; $('#ende').hidden = true; $('#spiel').hidden = false;
+  $('#leiste').hidden = S.dauer === 0; $('#beenden').hidden = S.dauer !== 0;
+  window.scrollTo(0, 0);
+  baueAntwort();
+  naechsteAufgabe();
+  if (S.timer) clearInterval(S.timer);
+  S.timer = setInterval(tick, 100); // setInterval statt requestAnimationFrame: laeuft auch weiter, wenn die Seite kurz im Hintergrund ist
+  tick();
+}
+function tick() {
+  if (!S.laeuft) return;
+  if (S.dauer === 0) { $('#zeit').textContent = mmss(Math.floor((performance.now() - S.tStart) / 1000)); return; }
+  const rest = Math.max(0, S.tEnde - performance.now()), sek = Math.ceil(rest / 1000);
+  $('#zeit').textContent = mmss(sek);
+  $('#leiste > div').style.width = (rest / (S.dauer * 1000) * 100) + '%';
+  const knapp = rest < 10000 && rest > 0;
+  $('#leiste').classList.toggle('knapp', knapp); $('#zeit').classList.toggle('knapp', knapp);
+  if (sek !== S.letzteSek) { S.letzteSek = sek; if (knapp) ton('tick'); }
+  if (rest <= 0) ende();
+}
+function naechsteAufgabe() {
+  if (!S.laeuft) return;
+  const typ = TYPEN[S.typen[Math.floor(Math.random() * S.typen.length)]] || TYPEN.ganzrational;
+  let a;
+  for (let i = 0; i < 20; i++) { a = typ.erzeuge(einstellung()); if (!S.letzte.includes(a.ascii)) break; }
+  S.letzte.push(a.ascii); if (S.letzte.length > 8) S.letzte.shift();
+  S.aufgabe = a; S.stufe = 0;
+  zeigeStufe();
+}
+function zeigeStufe() {
+  const a = S.aufgabe, i = S.stufe;
+  S.gesperrt = false; S.fehlerBeiStufe = false; S.weiter = null;
+  $('#frage').innerHTML = `Bilde ${fnHTML(i)}.`;
+  let html = `<div class="fx"><i>f</i>(<i>x</i>) = ${a.html}</div>`;
+  for (let j = 0; j < i; j++) html += `<div class="fx vor">${fnHTML(j)} = ${a.ableitungen[j].html}</div>`;
+  $('#reiz').innerHTML = html;
+  melde('', '');
+  eingabeLeeren();
+  document.querySelectorAll('.fn').forEach(e => { e.innerHTML = fnHTML(i) + ' = '; });
+  $('#loesungKnopf').hidden = false; $('#weiterKnopf').hidden = true;
+}
+function melde(html, art) { const m = $('#melden'); m.innerHTML = html; m.className = 'melden' + (art ? ' ' + art : ''); }
+function punkt() {
+  S.richtig++; $('#pRichtig').textContent = S.richtig;
+  const p = document.createElement('span'); p.className = 'plus'; p.textContent = '+1'; $('.kopf .punkte').appendChild(p); setTimeout(() => p.remove(), 800);
+}
+function fehlerZaehlen() {
+  if (S.fehlerBeiStufe) return;
+  S.fehlerBeiStufe = true; S.falsch++; $('#pFalsch').textContent = S.falsch;
+  const a = S.aufgabe, i = S.stufe;
+  S.fehler.push({ frage: `<i>f</i>(<i>x</i>) = ${a.html}`, loesung: `${fnHTML(i)} = ${a.ableitungen[i].html}` });
+}
+function weiterNachStufe() {
+  if (!S.laeuft) return;
+  if (S.stufe + 1 < S.abl) { S.stufe++; zeigeStufe(); } else naechsteAufgabe();
+}
+function pruefen() {
+  if (!S.laeuft || S.gesperrt) return;
+  const text = S.eingabe === 'stift' ? stiftText() : S.text;
+  const abl = S.aufgabe.ableitungen[S.stufe];
+  const r = pruefeAntwort(text, abl);
+  if (r.status === 'leer') { melde(S.eingabe === 'stift' ? 'Schreibe zuerst den Term.' : 'Gib zuerst den Term ein.', 'nein'); return; }
+  if (r.status === 'unlesbar') { melde(`Nicht lesbar: ${esc(r.msg)}.` + (S.eingabe === 'stift' ? ' <span class="gelesen">Tippe auf ein falsches Zeichen, um es zu ändern.</span>' : ''), 'nein'); return; }
+  if (r.status === 'zusammenfassen') { melde(`Stimmt, aber fasse zusammen. <span class="gelesen">Gelesen: ${r.html}</span>`, 'fast'); return; }
+  if (r.status === 'falsch') { fehlerZaehlen(); ton('nein'); melde(`Falsch. <span class="gelesen">Gelesen: ${fnHTML(S.stufe)} = ${r.html}</span>`, 'nein'); return; }
+  ton('ok'); punkt(); S.gesperrt = true;
+  melde('Richtig ✓', 'ok');
+  S.weiter = setTimeout(weiterNachStufe, 650);
+}
+function loesungZeigen() {
+  if (!S.laeuft || S.gesperrt) return;
+  fehlerZaehlen(); S.gesperrt = true;
+  const abl = S.aufgabe.ableitungen[S.stufe];
+  melde(`Lösung: <span class="loesung">${fnHTML(S.stufe)} = ${abl.html}</span>`, 'nein');
+  $('#loesungKnopf').hidden = true; $('#weiterKnopf').hidden = false;
+  S.weiter = setTimeout(weiterNachStufe, 4000);
+}
+function weiterJetzt() { if (S.weiter) clearTimeout(S.weiter); S.weiter = null; weiterNachStufe(); }
+
+// ----------------------- Antwortbereich: Tasten -----------------------
+function baueAntwort() {
+  const typ = TYPEN[S.typen[0]] || TYPEN.ganzrational;
+  const a = $('#antwort');
+  if (S.eingabe === 'stift') {
+    a.innerHTML = `<div class="erkannt"><span class="fn"></span><span id="syms"></span></div>
+      <canvas id="schreib"></canvas>
+      <div class="stiftknoepfe"><button id="undo">↶ Strich</button><button id="clear">Löschen</button><button class="ok" id="ok">Prüfen</button></div>
+      <div class="nebenzeile"><button id="loesungKnopf">Lösung zeigen</button><button id="weiterKnopf" class="weiter" hidden>Weiter ›</button></div>`;
+    stiftInit();
+    $('#undo').addEventListener('click', stiftUndo); $('#clear').addEventListener('click', () => { stiftLeeren(); });
+  } else {
+    const tasten = typ.tasten(einstellung());
+    a.innerHTML = `<div class="eingabe"><span class="fn"></span><span id="eText"></span><span class="cursor" id="cursor"></span></div>
+      <div class="keypad" id="keypad">${tasten.map(t => `<button data-t="${esc(t)}" class="${/[0-9,]/.test(t) ? '' : 'op'}">${tasteHTML(t)}</button>`).join('')}</div>
+      <div class="nebenzeile"><button id="loesungKnopf">Lösung zeigen</button><button id="systastKnopf">${S.systast ? 'Eigene Tasten' : 'Systemtastatur'}</button><button id="weiterKnopf" class="weiter" hidden>Weiter ›</button></div>`;
+    $('#keypad').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; taste(b.dataset.t); });
+    $('#systastKnopf').addEventListener('click', () => { S.systast = !S.systast; speichern('systast', S.systast); baueAntwort(); zeigeText(); });
+    if (S.systast) systastEin();
+    a.querySelector('.ok') || a.insertAdjacentHTML('beforeend', '');
+    const ok = document.createElement('button'); ok.className = 'ok'; ok.id = 'ok'; ok.textContent = 'Prüfen';
+    a.insertBefore(ok, a.querySelector('.nebenzeile'));
+  }
+  $('#ok').addEventListener('click', pruefen);
+  $('#loesungKnopf').addEventListener('click', loesungZeigen);
+  $('#weiterKnopf').addEventListener('click', weiterJetzt);
+}
+function systastEin() { // echtes Textfeld: Systemtastatur oder Scribble auf dem iPad (x2 gilt als x²)
+  const e = $('.eingabe'); e.innerHTML = `<span class="fn"></span><input id="feld" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="6x2 - 4x + 3" aria-label="Term">`;
+  const f = $('#feld');
+  f.addEventListener('input', () => { S.text = f.value; });
+  f.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); pruefen(); } });
+  $('#keypad').hidden = true;
+}
+function eingabeLeeren() {
+  S.text = '';
+  if (S.eingabe === 'stift') stiftLeeren(); else { zeigeText(); const f = $('#feld'); if (f) { f.value = ''; f.focus(); } }
+}
+function zeigeText() {
+  const e = $('#eText'); if (!e) return;
+  let h = esc(S.text).replace(/\^(\d+)/g, '<sup>$1</sup>').replace(/x/g, '<i>x</i>');
+  e.innerHTML = h || '<span class="ph">Term eingeben</span>';
+}
+function taste(t) {
+  if (!S.laeuft || S.gesperrt) return;
+  if (t === '⌫') S.text = S.text.slice(0, -1);
+  else if (t === 'x' && /x$/.test(S.text)) S.text += '·x';
+  else if ('²³⁴'.includes(t)) S.text += (/x$/.test(S.text) ? '' : 'x') + t; // Potenztaste nach einer Zahl setzt das x mit
+  else S.text += t;
+  zeigeText();
+}
+const tasteHTML = t => '²³⁴'.includes(t) ? `<i>x</i><sup>${SUPER[t]}</sup>` : t === 'x' ? '<i>x</i>' : esc(t);
+document.addEventListener('keydown', ev => {
+  if (!S.laeuft || S.eingabe !== 'tasten' || S.systast || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  if (ev.key === 'Enter') { pruefen(); return; }
+  if (S.gesperrt) return;
+  if (ev.key === 'Backspace') { taste('⌫'); ev.preventDefault(); return; }
+  const map = { '-': '−', '*': '·', '.': ',' };
+  if (/^[0-9x+,\/^()]$/.test(ev.key)) taste(ev.key); else if (map[ev.key]) taste(map[ev.key]);
+});
+
+// ----------------------- Antwortbereich: Stift -----------------------
+let ctx = null, canvas = null;
+function stiftInit() {
+  canvas = $('#schreib'); ctx = canvas.getContext('2d');
+  const h = S.hs; h.strokes = []; h.erg = null; h.korrekturen = new Map(); h.aktiv = null;
+  const pos = ev => { const r = canvas.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
+  canvas.addEventListener('pointerdown', ev => {
+    if (!S.laeuft || S.gesperrt) return;
+    if (ev.pointerType === 'pen') S.stift = true;
+    if (S.stift && ev.pointerType === 'touch') return; // Handballen: nach dem ersten Stiftstrich zaehlen nur Stiftstriche
+    if (h.aktiv) return;
+    ev.preventDefault(); try { canvas.setPointerCapture(ev.pointerId); } catch (e) { }
+    h.aktiv = { id: h.naechsteId++, pointer: ev.pointerId, pts: [pos(ev)] };
+    h.strokes.push(h.aktiv); zeichne();
+  });
+  canvas.addEventListener('pointermove', ev => {
+    if (!h.aktiv || ev.pointerId !== h.aktiv.pointer) return;
+    ev.preventDefault();
+    let evs = ev.getCoalescedEvents ? ev.getCoalescedEvents() : null; if (!evs || !evs.length) evs = [ev];
+    for (const e of evs) h.aktiv.pts.push(pos(e));
+    zeichne();
+  });
+  const ende = ev => { if (!h.aktiv || ev.pointerId !== h.aktiv.pointer) return; h.aktiv = null; zeichne(); erkennenSpaeter(); };
+  canvas.addEventListener('pointerup', ende); canvas.addEventListener('pointercancel', ende);
+  canvas.addEventListener('lostpointercapture', ev => { if (h.aktiv && ev.pointerId === h.aktiv.pointer) ende(ev); });
+  $('#syms').addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; paletteOeffnen(+b.dataset.i); });
+  groesse(); zeichne();
+}
+function groesse() {
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, hh = canvas.clientHeight;
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(hh * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(hh * dpr); }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+const linien = () => { const hh = canvas.clientHeight; return { oben: hh * 0.3, grund: hh * 0.72, lineH: hh * 0.42 }; };
+function zeichne() {
+  if (!canvas) return; groesse();
+  const w = canvas.clientWidth, hh = canvas.clientHeight, l = linien();
+  ctx.clearRect(0, 0, w, hh);
+  ctx.strokeStyle = '#d6dde3'; ctx.lineWidth = 1; ctx.setLineDash([6, 6]);
+  ctx.beginPath(); ctx.moveTo(8, l.oben); ctx.lineTo(w - 8, l.oben); ctx.moveTo(8, l.grund); ctx.lineTo(w - 8, l.grund); ctx.stroke();
+  ctx.setLineDash([]);
+  if (!S.hs.strokes.length) { ctx.fillStyle = '#b5b5b5'; ctx.font = '15px "Segoe UI", Roboto, Arial, sans-serif'; ctx.fillText('Schreibe hier ' + (S.stufe === 0 ? "f'(x)" : S.stufe === 1 ? "f''(x)" : "f'''(x)") + ' auf die Linie', 12, l.grund + 26); }
+  const gew = S.hs.erg && S.hs.gewaehlt >= 0 ? new Set(S.hs.erg.symbole[S.hs.gewaehlt].strokes) : null;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 3;
+  for (const s of S.hs.strokes) {
+    ctx.strokeStyle = gew && gew.has(s.id) ? '#35638A' : '#222';
+    ctx.beginPath();
+    if (s.pts.length === 1) { ctx.arc(s.pts[0].x, s.pts[0].y, 1.5, 0, 7); ctx.fillStyle = ctx.strokeStyle; ctx.fill(); continue; }
+    ctx.moveTo(s.pts[0].x, s.pts[0].y); for (let i = 1; i < s.pts.length; i++) ctx.lineTo(s.pts[i].x, s.pts[i].y); ctx.stroke();
+  }
+}
+function erkennenSpaeter() { if (S.hs.timer) clearTimeout(S.hs.timer); S.hs.timer = setTimeout(erkennen, 250); }
+function erkennen() {
+  S.hs.timer = null; if (!canvas) return;
+  const typ = TYPEN[S.typen[0]] || TYPEN.ganzrational, l = linien();
+  S.hs.erg = HS.analysiere(S.hs.strokes, { alphabet: typ.alphabet(einstellung()), lineH: l.lineH, baseline: l.grund, korrekturen: S.hs.korrekturen });
+  symsZeigen();
+}
+function symHTML(sym) {
+  if (sym.typ === 'bruch') return `<span class="br"><span class="z">${esc(sym.zaehler.ascii || '?')}</span><span class="n">${esc(sym.nenner.ascii || '?')}</span></span>`;
+  return sym.ch === '-' ? '−' : sym.ch === 'x' ? '<i>x</i>' : esc(sym.ch);
+}
+function symsZeigen() {
+  const e = $('#syms'); if (!e) return;
+  const erg = S.hs.erg;
+  if (!erg || !erg.symbole.length) { e.innerHTML = '<span class="ph">Was das Applet liest, steht hier</span>'; return; }
+  e.innerHTML = erg.symbole.map((s, i) => `<button class="sym${s.sup ? ' hoch' : ''}${s.unsicher ? ' unsicher' : ''}${i === S.hs.gewaehlt ? ' gewaehlt' : ''}" data-i="${i}" title="Zeichen ändern">${symHTML(s)}</button>`).join('');
+}
+function stiftText() { if (S.hs.timer) { clearTimeout(S.hs.timer); erkennen(); } return S.hs.erg ? S.hs.erg.ascii : ''; }
+function stiftLeeren() { const h = S.hs; h.strokes = []; h.erg = null; h.korrekturen = new Map(); h.aktiv = null; h.gewaehlt = -1; if (h.timer) clearTimeout(h.timer); h.timer = null; zeichne(); symsZeigen(); }
+function stiftUndo() {
+  if (!S.laeuft || S.gesperrt) return;
+  const h = S.hs; const s = h.strokes.pop(); if (!s) return;
+  for (const k of [...h.korrekturen.keys()]) if (k.split(',').includes(String(s.id))) h.korrekturen.delete(k);
+  h.gewaehlt = -1; zeichne(); erkennen();
+}
+window.addEventListener('resize', () => { if (canvas) zeichne(); });
+
+// Zeichenauswahl: falsch gelesenes Zeichen antippen, richtiges waehlen, Strich als Vorlage merken
+function paletteOeffnen(i) {
+  if (!S.laeuft || S.gesperrt || !S.hs.erg) return;
+  const sym = S.hs.erg.symbole[i]; if (!sym) return;
+  S.hs.gewaehlt = i; symsZeigen(); zeichne();
+  const typ = TYPEN[S.typen[0]] || TYPEN.ganzrational, alphabet = typ.alphabet(einstellung());
+  const kand = new Set(sym.kandidaten.slice(0, 3).map(k => k.ch));
+  $('#paletteZeichen').innerHTML = alphabet.map(ch => `<button data-ch="${esc(ch)}" class="${kand.has(ch) ? 'kand' : ''}">${ch === '-' ? '−' : ch === 'x' ? '<i>x</i>' : esc(ch)}</button>`).join('');
+  $('#palHoch').classList.toggle('an', !!sym.sup); $('#palHoch').hidden = sym.typ === 'bruch' || sym.typ === 'punkt';
+  $('#palette').hidden = false; $('#schleier').hidden = false;
+}
+function paletteZu() { $('#palette').hidden = true; $('#schleier').hidden = true; S.hs.gewaehlt = -1; symsZeigen(); zeichne(); }
+function paletteWahl(ch, supToggle) {
+  const h = S.hs, sym = h.erg && h.erg.symbole[h.gewaehlt]; if (!sym) return;
+  const alt = h.korrekturen.get(sym.key) || { ch: sym.ch, sup: sym.sup };
+  const neu = supToggle ? { ch: alt.ch, sup: !alt.sup } : { ch, sup: alt.sup };
+  if (!supToggle && ch !== sym.ch && sym.typ === 'zeichen' && ch !== ',' && ch !== '·') {
+    const strokes = sym.strokes.map(id => h.strokes.find(s => s.id === id)).filter(Boolean).map(s => s.pts);
+    speichern('hs', HS.lerne(ch, strokes) || {});
+  }
+  if (neu.ch === sym.ch && neu.sup === sym.sup && !supToggle) { paletteZu(); return; }
+  h.korrekturen.set(sym.key, neu);
+  paletteZu(); erkennen();
+}
+function paletteEntfernen() {
+  const h = S.hs, sym = h.erg && h.erg.symbole[h.gewaehlt]; if (!sym) return;
+  const weg = new Set(sym.strokes); h.strokes = h.strokes.filter(s => !weg.has(s.id));
+  for (const k of [...h.korrekturen.keys()]) if (k.split(',').some(id => weg.has(+id))) h.korrekturen.delete(k);
+  paletteZu(); erkennen();
+}
+$('#paletteZeichen').addEventListener('click', ev => { const b = ev.target.closest('button'); if (b) paletteWahl(b.dataset.ch, false); });
+$('#palHoch').addEventListener('click', () => paletteWahl(null, true));
+$('#palWeg').addEventListener('click', paletteEntfernen);
+$('#palZu').addEventListener('click', paletteZu);
+$('#schleier').addEventListener('click', paletteZu);
+
+// ----------------------- Ende, Rekord, Teilen -----------------------
+function ende() {
+  S.laeuft = false; if (S.timer) clearInterval(S.timer); S.timer = null; if (S.weiter) clearTimeout(S.weiter);
+  paletteZu();
+  ton('ende');
+  const best = laden(rekordKey(), 0), neu = S.dauer > 0 && S.richtig > best;
+  if (neu) speichern(rekordKey(), S.richtig);
+  $('#eRichtig').textContent = S.richtig;
+  $('#eText').textContent = (S.richtig === 1 ? 'richtige Ableitung' : 'richtige Ableitungen') + (S.dauer ? ' in ' + dauerText(S.dauer) : ' in ' + mmss(Math.floor((performance.now() - S.tStart) / 1000)) + ' min');
+  $('#eFalsch').textContent = S.falsch ? `${S.falsch} Fehler` : 'Kein Fehler!';
+  $('#eNeu').textContent = neu && S.richtig > 0 ? '★ Neuer Rekord!' : '';
+  $('#rekordEnde').innerHTML = S.dauer ? `Rekord (${dauerText(S.dauer)}, ${ablText()}): <b>${Math.max(best, S.richtig)}</b>` : '';
+  const fl = $('#fehlerliste'); fl.innerHTML = '';
+  $('#fehlerTitel').hidden = fl.hidden = S.fehler.length === 0;
+  S.fehler.slice(0, 15).forEach(f => { const d = document.createElement('div'); d.innerHTML = `<span>${f.frage}</span><span class="l">${f.loesung}</span>`; fl.appendChild(d); });
+  if (S.fehler.length > 15) { const d = document.createElement('div'); d.textContent = `… und ${S.fehler.length - 15} weitere`; fl.appendChild(d); }
+  $('#teilFallback').hidden = true; $('#teilFallback').innerHTML = '';
+  $('#spiel').hidden = true; $('#ende').hidden = false; window.scrollTo(0, 0);
+}
+function karteZeichnen() {
+  const c = $('#karte'); c.width = 1080; c.height = 1350; const g = c.getContext('2d');
+  g.fillStyle = '#f5f5f2'; g.fillRect(0, 0, 1080, 1350);
+  g.fillStyle = '#35638A'; g.fillRect(0, 0, 1080, 300);
+  g.fillStyle = '#fff'; g.font = 'bold 92px "Segoe UI", Roboto, Arial, sans-serif'; g.textAlign = 'center'; g.fillText('Ableitungs-Sprint', 540, 150);
+  g.font = '40px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText('12PE1 M · Differenzialrechnung', 540, 230);
+  g.fillStyle = '#222'; g.font = 'italic 150px "Times New Roman", Times, serif'; g.fillText("f′(x)", 540, 560);
+  g.fillStyle = '#B01A15'; g.font = 'bold 260px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText(String(S.richtig), 540, 950);
+  g.fillStyle = '#222'; g.font = 'bold 52px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText((S.richtig === 1 ? 'richtige Ableitung' : 'richtige Ableitungen') + (S.dauer ? ' in ' + dauerText(S.dauer) : ''), 540, 1050);
+  g.fillStyle = '#555'; g.font = '38px "Segoe UI", Roboto, Arial, sans-serif';
+  g.fillText(ablText() + ' · Grad ' + S.grade.join(', ') + (S.brueche ? ' · mit Brüchen' : ''), 540, 1120);
+  g.fillText(new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' · Schaffst du mehr?', 540, 1190);
+  g.fillStyle = '#777'; g.font = '30px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText('Kaspschak · Lore-Lorentz-Schule', 540, 1290);
+  return c;
+}
+function teilText() {
+  const url = /^https?:/.test(location.href) ? ' ' + location.href.split('#')[0] : '';
+  return `Ableitungs-Sprint: ${S.richtig} ${S.richtig === 1 ? 'richtige Ableitung' : 'richtige Ableitungen'}${S.dauer ? ' in ' + dauerText(S.dauer) : ''} (${ablText()})! Schaffst du mehr?${url}`;
+}
+async function teilen() {
+  const text = teilText();
+  let datei = null;
+  try { const b = await new Promise(res => karteZeichnen().toBlob(res, 'image/png')); if (b) datei = new File([b], 'ableitungs-sprint.png', { type: 'image/png' }); } catch (e) { }
+  if (navigator.share) {
+    try {
+      if (datei && navigator.canShare && navigator.canShare({ files: [datei] })) { await navigator.share({ files: [datei], text, title: 'Ableitungs-Sprint' }); return; }
+      await navigator.share({ text, title: 'Ableitungs-Sprint' }); return;
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  const f = $('#teilFallback'); f.hidden = false;
+  const c = karteZeichnen(), url = c.toDataURL('image/png');
+  f.innerHTML = `<div class="teilbild"><img src="${url}" alt="Rekordkarte"><div class="klein">Bild gedrückt halten oder <a download="ableitungs-sprint.png" href="${url}">herunterladen</a>, dann teilen.</div></div><textarea class="kopie" readonly>${esc(text)}</textarea><button class="zweit" id="kopieren">Text kopieren</button>`;
+  $('#kopieren').addEventListener('click', async () => { try { await navigator.clipboard.writeText(text); $('#kopieren').textContent = 'Kopiert ✓'; } catch (e) { const t = f.querySelector('textarea'); t.focus(); t.select(); } });
+}
+
+// ----------------------- Startseite: Einstellungen -----------------------
+function initStart() {
+  S.dauer = laden('dauer', 180); S.sound = laden('sound', true); S.brueche = !!laden('brueche', false); S.abl = laden('abl', 2); S.systast = !!laden('systast', false);
+  const gr = laden('grade', null); if (Array.isArray(gr) && gr.length) S.grade = gr.filter(g => [2, 3, 4, 5].includes(g)); if (!S.grade.length) S.grade = [2, 3, 4];
+  const feinzeiger = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  S.eingabe = laden('eingabe', feinzeiger ? 'stift' : 'tasten'); if (S.eingabe !== 'stift' && S.eingabe !== 'tasten') S.eingabe = 'tasten';
+  const ty = laden('typen', null); if (Array.isArray(ty) && ty.length) S.typen = ty.filter(t => TYPEN[t]); if (!S.typen.length) S.typen = Object.keys(TYPEN);
+  HS.setzeGelernt(laden('hs', {}));
+  const einzel = (sel, attr, get, set) => {
+    const box = $(sel);
+    box.querySelectorAll('.chip').forEach(b => {
+      const v = b.dataset[attr];
+      b.classList.toggle('an', v === String(get()));
+      b.addEventListener('click', () => { set(v); box.querySelectorAll('.chip').forEach(x => x.classList.toggle('an', x === b)); zeigeStart(); });
+    });
+  };
+  einzel('#zeitChips', 's', () => S.dauer, v => { S.dauer = parseInt(v, 10); speichern('dauer', S.dauer); });
+  einzel('#ablChips', 'a', () => S.abl, v => { S.abl = parseInt(v, 10); speichern('abl', S.abl); });
+  einzel('#eingabeChips', 'e', () => S.eingabe, v => { S.eingabe = v; speichern('eingabe', v); });
+  const gc = $('#gradChips');
+  gc.querySelectorAll('.chip').forEach(b => {
+    const g = parseInt(b.dataset.g, 10); b.classList.toggle('an', S.grade.includes(g));
+    b.addEventListener('click', () => { if (S.grade.includes(g)) { if (S.grade.length === 1) return; S.grade = S.grade.filter(x => x !== g); } else S.grade = S.grade.concat([g]).sort(); b.classList.toggle('an', S.grade.includes(g)); speichern('grade', S.grade); zeigeStart(); });
+  });
+  const tc = $('#typChips'); tc.innerHTML = '';
+  Object.entries(TYPEN).forEach(([id, t]) => {
+    const b = document.createElement('button'); b.className = 'chip' + (S.typen.includes(id) ? ' an' : ''); b.textContent = t.name;
+    b.addEventListener('click', () => { if (S.typen.includes(id)) { if (S.typen.length === 1) return; S.typen = S.typen.filter(x => x !== id); } else S.typen.push(id); b.classList.toggle('an', S.typen.includes(id)); speichern('typen', S.typen); });
+    tc.appendChild(b);
+  });
+  const bc = $('#bruchChip'); bc.classList.toggle('an', S.brueche);
+  bc.addEventListener('click', () => { S.brueche = !S.brueche; speichern('brueche', S.brueche); bc.classList.toggle('an', S.brueche); zeigeStart(); });
+  const sc = $('#soundChip'); const soundZeigen = () => { sc.classList.toggle('an', S.sound); sc.textContent = S.sound ? '🔔 Ton an' : '🔕 Ton aus'; }; soundZeigen();
+  sc.addEventListener('click', () => { S.sound = !S.sound; speichern('sound', S.sound); soundZeigen(); });
+  $('#startKnopf').addEventListener('click', start);
+  $('#nochmal').addEventListener('click', start);
+  $('#zurueck').addEventListener('click', zeigeStart);
+  $('#teilen').addEventListener('click', teilen);
+  $('#beenden').addEventListener('click', ende);
+  zeigeStart();
+}
+initStart();
+</script>
+</body>
+</html>
