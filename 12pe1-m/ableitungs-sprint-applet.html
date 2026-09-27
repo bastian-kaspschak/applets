@@ -67,6 +67,7 @@
   button { font: inherit; cursor: pointer; }
   i { font-family: "Times New Roman", Times, serif; font-style: italic; }
   sup { font-size: .62em; vertical-align: super; line-height: 0; }
+  .ab { margin-left: .16em; } /* Ableitungsstriche etwas vom kursiven f absetzen */
 
   /* Kopfzeile wie auf dem Arbeitsblatt */
   header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; }
@@ -209,7 +210,7 @@
   </header>
   <div class="inhalt">
     <h1>Ableitungs-Sprint</h1>
-    <p class="lead">Die Zeit läuft. Bilde zu jeder Funktion <i>f</i>′(<i>x</i>) und <i>f</i>″(<i>x</i>).
+    <p class="lead">Die Zeit läuft. Bilde zu jeder Funktion <i>f</i><span class="ab">′</span>(<i>x</i>) und <i>f</i><span class="ab">″</span>(<i>x</i>).
       Jede richtige Ableitung zählt einen Punkt.</p>
 
     <h2>Zeit</h2>
@@ -234,9 +235,9 @@
 
     <h2>Ableitungen</h2>
     <div class="chips" id="ablChips">
-      <button class="chip" data-a="1">nur <i>f</i>′</button>
-      <button class="chip an" data-a="2"><i>f</i>′ und <i>f</i>″</button>
-      <button class="chip" data-a="3"><i>f</i>′, <i>f</i>″ und <i>f</i>‴</button>
+      <button class="chip" data-a="1">nur <i>f</i><span class="ab">′</span></button>
+      <button class="chip an" data-a="2"><i>f</i><span class="ab">′</span> und <i>f</i><span class="ab">″</span></button>
+      <button class="chip" data-a="3"><i>f</i><span class="ab">′</span>, <i>f</i><span class="ab">″</span> und <i>f</i><span class="ab">‴</span></button>
     </div>
 
     <h2>Eingabe</h2>
@@ -261,7 +262,7 @@
     <h2>So geht es</h2>
     <ol class="schritte">
       <li>Wähle Zeit, Grad und Eingabe.</li>
-      <li>Tippe auf Start. Bilde <i>f</i>′(<i>x</i>); nach „Richtig“ folgt <i>f</i>″(<i>x</i>) derselben Funktion.</li>
+      <li>Tippe auf Start. Bilde <i>f</i><span class="ab">′</span>(<i>x</i>); nach „Richtig“ folgt <i>f</i><span class="ab">″</span>(<i>x</i>) derselben Funktion.</li>
       <li>Schreibe den Term wie ins Heft, zum Beispiel 6<i>x</i>² − 4<i>x</i> + 3. Die Reihenfolge der Summanden ist egal. Fasse zusammen.</li>
       <li>Bei einem Fehler bleibt deine Eingabe stehen: Verbessere sie oder tippe auf „Lösung zeigen“.</li>
       <li>Am Ende steht, was du noch übst.</li>
@@ -827,7 +828,7 @@ if (typeof module !== 'undefined') module.exports = { Bruch, polyAbleitung, poly
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const PRIME = ['′', '″', '‴'];
-const fnHTML = i => `<i>f</i>${PRIME[i]}(<i>x</i>)`;
+const fnHTML = i => `<i>f</i><span class="ab">${PRIME[i]}</span>(<i>x</i>)`;
 const S = { dauer: 180, typen: ['ganzrational'], grade: [2, 3, 4], brueche: false, abl: 2, eingabe: 'tasten', systast: false, sound: true,
   laeuft: false, richtig: 0, falsch: 0, fehler: [], tEnde: 0, tStart: 0, aufgabe: null, stufe: 0, gesperrt: false, timer: null, letzte: [],
   fehlerBeiStufe: false, weiter: null, text: '', letzteSek: -1, stift: false, erkenner: null, srGrund: '',
@@ -1306,7 +1307,7 @@ function karteZeichnen() {
   g.fillStyle = '#35638A'; g.fillRect(0, 0, 1080, 300);
   g.fillStyle = '#fff'; g.font = 'bold 92px "Segoe UI", Roboto, Arial, sans-serif'; g.textAlign = 'center'; g.fillText('Ableitungs-Sprint', 540, 150);
   g.font = '40px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText('12PE1 M · Differenzialrechnung', 540, 230);
-  g.fillStyle = '#222'; g.font = 'italic 150px "Times New Roman", Times, serif'; g.fillText("f′(x)", 540, 560);
+  g.fillStyle = '#222'; g.font = 'italic 150px "Times New Roman", Times, serif'; g.fillText("f ′(x)", 540, 560);
   g.fillStyle = '#B01A15'; g.font = 'bold 260px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText(String(S.richtig), 540, 950);
   g.fillStyle = '#222'; g.font = 'bold 52px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText((S.richtig === 1 ? 'richtige Ableitung' : 'richtige Ableitungen') + (S.dauer ? ' in ' + dauerText(S.dauer) : ''), 540, 1050);
   g.fillStyle = '#555'; g.font = '38px "Segoe UI", Roboto, Arial, sans-serif';
