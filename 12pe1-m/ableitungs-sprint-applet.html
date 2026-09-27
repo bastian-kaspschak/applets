@@ -1130,7 +1130,7 @@ function baueAntwort() {
   const a = $('#antwort');
   if (S.eingabe === 'stift') {
     a.innerHTML = `<div class="erkannt"><span class="fn"></span><span id="syms"></span></div>
-      <canvas id="schreib"></canvas>
+      <canvas id="schreib" class="schreibfeld"></canvas>
       <div class="stiftknoepfe"><button id="undo">↶ Strich</button><button id="clear">Löschen</button><button class="ok" id="ok">Prüfen</button></div>
       <div class="nebenzeile"><button id="loesungKnopf">Lösung zeigen</button><button id="weiterKnopf" class="weiter" hidden>Weiter ›</button></div>`;
     stiftInit();
