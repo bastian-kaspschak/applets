@@ -857,7 +857,7 @@ const PRIME = ['′', '″', '‴'];
 const fnHTML = i => `<i>f</i><span class="ab">${PRIME[i]}</span>(<i>x</i>)`;
 const S = { dauer: 180, typen: ['ganzrational'], grade: [2, 3, 4], brueche: false, abl: 2, eingabe: 'tasten', systast: false, sound: true,
   laeuft: false, richtig: 0, falsch: 0, fehler: [], tEnde: 0, tStart: 0, aufgabe: null, stufe: 0, gesperrt: false, timer: null, letzte: [],
-  fehlerBeiStufe: false, weiter: null, text: '', letzteSek: -1, stift: false, erkenner: null, srGrund: '',
+  fehlerBeiStufe: false, weiter: null, text: '', letzteSek: -1, stiftZeit: -1e9, erkenner: null, srGrund: '',
   hs: { strokes: [], erg: null, korrekturen: new Map(), naechsteId: 1, timer: null, aktiv: null, gewaehlt: -1 } };
 function speichern(k, v) { try { localStorage.setItem('ableitungssprint.' + k, JSON.stringify(v)); } catch (e) { } }
 function laden(k, std) { try { const v = localStorage.getItem('ableitungssprint.' + k); return v === null ? std : JSON.parse(v); } catch (e) { return std; } }
@@ -1203,16 +1203,23 @@ function stiftInit(el) {
   if (canvas.dataset.init) return; canvas.dataset.init = '1';
   const c = canvas;
   const pos = ev => { const r = c.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; };
+  // Handballen: waehrend und kurz nach einem Stiftstrich zaehlen keine Fingerberuehrungen; beginnt ein
+  // Stiftstrich, waehrend ein Fingerstrich laeuft, war der Finger der Handballen und faellt weg.
+  // Kein dauerhaftes Sperren des Fingers: wer nach dem Stift mit dem Finger schreibt, kann das.
+  const stiftKuerzlich = () => performance.now() - S.stiftZeit < 1500;
   c.addEventListener('pointerdown', ev => {
     if (!(S.laeuft || S.training) || S.gesperrt) return;
-    if (ev.pointerType === 'pen') S.stift = true;
-    if (S.stift && ev.pointerType === 'touch') return; // Handballen: nach dem ersten Stiftstrich zaehlen nur Stiftstriche
+    if (ev.pointerType === 'pen') {
+      S.stiftZeit = performance.now();
+      if (h.aktiv && h.aktiv.finger) { h.strokes = h.strokes.filter(s => s !== h.aktiv); h.aktiv = null; }
+    } else if (ev.pointerType === 'touch' && stiftKuerzlich()) return;
     if (h.aktiv) return;
     ev.preventDefault(); try { c.setPointerCapture(ev.pointerId); } catch (e) { }
-    h.aktiv = { id: h.naechsteId++, pointer: ev.pointerId, pts: [pos(ev)] };
+    h.aktiv = { id: h.naechsteId++, pointer: ev.pointerId, pts: [pos(ev)], finger: ev.pointerType === 'touch' };
     h.strokes.push(h.aktiv); zeichne();
   });
   c.addEventListener('pointermove', ev => {
+    if (ev.pointerType === 'pen') S.stiftZeit = performance.now();
     if (!h.aktiv || ev.pointerId !== h.aktiv.pointer) return;
     ev.preventDefault();
     let evs = ev.getCoalescedEvents ? ev.getCoalescedEvents() : null; if (!evs || !evs.length) evs = [ev];
@@ -1293,7 +1300,7 @@ function paletteWahl(ch, supToggle) {
   const neu = supToggle ? { ch: alt.ch, sup: !alt.sup } : { ch, sup: alt.sup };
   if (!supToggle && ch !== sym.ch && sym.typ === 'zeichen' && ch !== ',' && ch !== '·') {
     const strokes = sym.strokes.map(id => h.strokes.find(s => s.id === id)).filter(Boolean).map(s => s.pts);
-    speichern('hs', HS.lerne(ch, strokes) || {});
+    const g = HS.lerne(ch, strokes); if (g) speichern('hs', g); // nie {} speichern: das wuerde alles Gelernte loeschen
   }
   if (neu.ch === sym.ch && neu.sup === sym.sup && !supToggle) { paletteZu(); return; }
   h.korrekturen.set(sym.key, neu);
@@ -1348,7 +1355,7 @@ function trWeiter() {
   const proben = laden('proben', []); proben.push({ ch, strokes, w: canvas.clientWidth, h: canvas.clientHeight, t: Date.now() });
   while (proben.length > 400) proben.shift();
   speichern('proben', proben);
-  speichern('hs', HS.lerne(ch, strokes) || {});
+  const g = HS.lerne(ch, strokes); if (g) speichern('hs', g);
   TR.i++; trZeige();
 }
 function trainingEnde() { S.training = false; $('#training').hidden = true; zeigeStart(); window.scrollTo(0, 0); }
