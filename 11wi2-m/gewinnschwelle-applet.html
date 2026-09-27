@@ -16,9 +16,11 @@
   G(x) = (p − k_v)·x − K_f, ihre Nullstelle x₀ auf der x-Achse, links davon
   die Verlustzone, rechts die Gewinnzone, und G(0) = −K_f auf der y-Achse
   (die Verwechslung, die die Stunde angreift). Darunter die Kontrolle G(⌊x₀⌋), G(⌈x₀⌉), die das Aufrunden begruendet.
-  "E und K einblenden" zeigt die Erloes- und die Kostengerade (fuer den 02.10.:
-  ihr Schnittpunkt liegt ueber der Nullstelle von G). Regel der Lernsituation:
-  erst Papier, dann Datei.
+  "E(x) und K(x) einblenden" zeigt die Erloes- und die Kostengerade und ihren
+  Schnittpunkt S(x_GS | E(x_GS)), den Break-Even-Point, mit Koordinaten am
+  Punkt und als Ablesezeile (Stunde vom 28.09.2026: der Schnittpunkt liegt
+  senkrecht ueber der Nullstelle von G, die Gewinnschwelle ist seine
+  x-Koordinate). Regel der Lernsituation: erst Papier, dann Datei.
 
   Der erste Skriptblock (id "kern") ist DOM-frei (Rechnung, Formatierung,
   Achsenraster) und wird von einem Node-Test geladen; der zweite Block haengt
@@ -162,6 +164,7 @@
       <div class="ablesen">
         <div class="z"><span class="lbl">Gewinnfunktion</span><span class="m" id="gterm"></span></div>
         <div class="z"><span class="lbl">Gewinnschwelle</span><span class="m" id="ns"></span></div>
+        <div class="z" id="bepz" style="display:none"><span class="lbl">Break-Even-Point</span><span class="m" id="bep"></span></div>
         <div class="z"><span class="lbl">Kontrolle</span><span class="klein m" id="kontrolle"></span></div>
       </div>
     </div>
@@ -350,7 +353,7 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     felder[k].n.addEventListener('input', function () { lies(k, felder[k].n); });
   });
   sel.addEventListener('change', function () { setzeBetrieb(sel.value); });
-  ekBox.addEventListener('change', function () { st.ek = ekBox.checked; draw(); });
+  ekBox.addEventListener('change', function () { st.ek = ekBox.checked; alles(); });
 
   // ---- Anzeige ----
   function betrieb() { return BETRIEBE[st.betrieb]; }
@@ -366,6 +369,15 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     else ns.textContent = 'keine (für x ≥ 0)';
     ns.innerHTML = ns.textContent.replace(/x₀/g, XGS);
     document.getElementById('kontrolle').textContent = a.kontrolle;
+    // Break-Even-Point S(x_GS | E(x_GS)) nur, wenn E(x) und K(x) eingeblendet sind (28.09.)
+    var bepz = document.getElementById('bepz'), bep = document.getElementById('bep');
+    bepz.style.display = st.ek ? '' : 'none';
+    if (r.art === 'krumm' || r.art === 'ganz' || r.art === 'null') {
+      var xs = r.art === 'krumm' ? K.fmt(r.x0, 2) : K.fmtK(r.x0);
+      bep.textContent = 'S(' + xs + ' | ' + K.fmt(st.p * r.x0, 2) + ') · Erlös = Kosten = ' + K.geld(st.p * r.x0);
+    } else {
+      bep.textContent = 'keiner (für x ≥ 0)';
+    }
     draw();
   }
 
@@ -431,7 +443,16 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
       if (hatNs && x0 < br.xmax && r.db > 0) {
         ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = '#777'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(sx(x0), sy(0)); ctx.lineTo(sx(x0), sy(p * x0)); ctx.stroke(); ctx.restore();
-        ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(sx(x0), sy(p * x0), 4, 0, 2 * Math.PI); ctx.fill();
+        // Break-Even-Point mit Koordinaten (28.09.); Beschriftung links oben,
+        // sonst rechts, wenn links kein Platz ist
+        ctx.fillStyle = '#26261E'; ctx.beginPath(); ctx.arc(sx(x0), sy(p * x0), 5, 0, 2 * Math.PI); ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
+        var sTxt = 'S(' + (r.art === 'krumm' ? K.fmt(x0, 2) : K.fmtK(x0)) + ' | ' + K.fmt(p * x0, 2) + ')';
+        ctx.font = 'bold 12px "Segoe UI", Roboto, Arial, sans-serif'; ctx.fillStyle = '#26261E';
+        ctx.textBaseline = 'bottom';
+        var sW = ctx.measureText(sTxt).width, sLinks = sx(x0) - 9 - sW > L + 4;
+        ctx.textAlign = sLinks ? 'right' : 'left';
+        ctx.fillText(sTxt, sLinks ? sx(x0) - 9 : sx(x0) + 9, sy(p * x0) - 4);
       }
     }
     ctx.strokeStyle = '#B01A15'; ctx.lineWidth = 2.2;
