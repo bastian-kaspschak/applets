@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#35638A">
+<title>Gleichungs-Sprint</title>
+<!--
+  Gleichungs-Sprint: Uebungs-Applet fuer 12PE1 M, lineare und quadratische Gleichungen mit
+  Aequivalenzumformungen loesen, unter Zeit. Eine Datei, kein Internet noetig; es wird nichts
+  gesendet, Rekord und Einstellungen bleiben im Browser (localStorage).
+
+  Spielidee wie beim Ableitungs-Sprint: Zeit laeuft ab, zufaellige Gleichungen, jede geloeste
+  Gleichung zaehlt (linear 1, quadratisch 2 Punkte). Geprueft wird nicht nur die Loesung, sondern
+  jede Zeile des Rechenwegs in der Schreibweise des Hefts:
+
+      3x + 2 = 5     | -2
+      3x = 3         | :3
+      x = 1
+
+  Jede Zeile besteht aus der Gleichung und rechts der Umformung fuer den naechsten Schritt.
+  Der Pruefer liest beide Seiten als Polynome (exakte Bruchrechnung) und verlangt, dass die
+  neue Gleichung genau aus der angegebenen Umformung folgt (beide Seiten minus 2, beide Seiten
+  durch 3 ...); Vereinfachen und Ausmultiplizieren brauchen keine Angabe. Ist die neue Gleichung
+  zwar aequivalent, aber die Umformung fehlt oder passt nicht, sagt das Applet, welche Umformung
+  gerechnet wurde. Multiplizieren mit x oder Teilen durch x gilt nicht als Aequivalenzumformung.
+  Quadratische Gleichungen: erst die Normalform x² + px + q = 0 herstellen (alles auf eine Seite,
+  durch den Faktor vor x² teilen), dann die pq-Formel mit eingesetzten Zahlen hinschreiben
+  (x1,2 = -p/2 ± √((p/2)² - q), auch vereinfacht 2 ± √1 oder 2 ± 1), dann die Loesungen
+  (x1 = 3; x2 = 1, x = 2 bei einer Loesung, "keine Loesung" bei negativem Radikanden).
+  Ein Loesungsweg, der die Normalform oder die pq-Zeile ueberspringt, wird nicht angenommen.
+
+  Wer nicht weiterweiss, laesst sich den naechsten Schritt zeigen (aus der aktuellen Zeile
+  berechnet, nicht aus einem festen Skript, mit einem Satz Erklaerung); die Gleichung zaehlt dann
+  keine Punkte, landet aber in der Liste am Ende. Eingabe ueber eigene Tasten (x, x², √, ±, |, =,
+  x1,2 =) oder die Systemtastatur; die Tasten setzen an der Schreibmarke ein.
+
+  Quelle: Jahresplanungen/kurse/12pe1-m/gleichungs-sprint-applet.html; Kopie fuer die Klasse im
+  Repo applets/12pe1-m/. Kerntest: node test-gleichungs-sprint.mjs gleichungs-sprint-applet.html
+-->
+<style>
+  :root {
+    --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A; --grau: #B5B5B5;
+    --text: #222; --hell: #f5f5f2; --gruen: #3d8a4a; --hellblau: #eaf0f4;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--text);
+         background: #fff; line-height: 1.35; overscroll-behavior: none; }
+  #app { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; max-width: 640px; margin: 0 auto; }
+  @media (min-width: 680px) { #app { border-left: 1px solid #e5e5e5; border-right: 1px solid #e5e5e5; } }
+  section { flex: 1; display: flex; flex-direction: column; }
+  [hidden] { display: none !important; }
+  button { font: inherit; cursor: pointer; }
+  i { font-family: "Times New Roman", Times, serif; font-style: italic; }
+  sup { font-size: .62em; vertical-align: super; line-height: 0; }
+  sub { font-size: .62em; vertical-align: sub; line-height: 0; }
+  .wz { display: inline-block; border-top: 1.5px solid currentColor; padding: 0 2px; margin-left: 1px; }
+
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  footer { font-size: 11px; color: #777; padding: 8px 18px 12px; }
+
+  .inhalt { padding: 14px 18px 24px; }
+  h1 { font-size: 26px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: #777; margin: 18px 0 8px; }
+  p.lead { margin: 10px 0 12px; font-size: 16px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { border: 2px solid var(--stahl); color: var(--stahl); background: #fff; padding: 8px 14px; border-radius: 999px; font-size: 16px; min-height: 44px; }
+  .chip.an { background: var(--stahl); color: #fff; }
+  .gross { display: block; width: 100%; font-size: 22px; font-weight: 700; padding: 16px; margin-top: 20px; background: var(--rot); color: #fff; border: none; border-radius: 14px; }
+  .gross:active { transform: scale(.98); }
+  .zweit { display: block; width: 100%; font-size: 18px; font-weight: 600; padding: 12px; margin-top: 10px; background: #fff; color: var(--stahl); border: 2px solid var(--stahl); border-radius: 14px; }
+  .rekord { margin-top: 12px; font-size: 15px; color: #555; }
+  .rekord b { color: var(--rot); font-size: 18px; }
+  ol.schritte { margin: 4px 0 0 20px; padding: 0; font-size: 15px; }
+  ol.schritte li { margin: 4px 0; }
+  .klein { font-size: 13px; color: #777; }
+  .beispiel { font-family: "Times New Roman", Times, serif; font-size: 17px; background: var(--hell); border: 1px solid var(--grau); padding: 8px 12px; margin: 8px 0; display: grid; grid-template-columns: auto auto; gap: 2px 18px; width: max-content; max-width: 100%; }
+  .beispiel .u { color: var(--stahl); }
+
+  .leiste { height: 8px; background: #e5e5e5; }
+  .leiste > div { height: 100%; background: var(--stahl); width: 100%; }
+  .leiste.knapp > div { background: var(--rot); }
+  .kopf { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px 0; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .kopf .zeit { font-weight: 700; font-size: 22px; }
+  .kopf .knapp { color: var(--rot); }
+  .kopf .punkte { position: relative; }
+  .kopf .punkte b { color: var(--gruen); font-size: 20px; }
+  .kopf .punkte .f { color: var(--rot); margin-left: 10px; }
+  .kopf .beenden { font-size: 14px; border: 1px solid var(--grau); background: #fff; border-radius: 8px; padding: 4px 10px; margin-left: 10px; min-height: 32px; }
+  .plus { position: absolute; right: 0; top: -4px; color: var(--gruen); font-weight: 700; font-size: 20px; animation: hoch .7s ease-out forwards; pointer-events: none; }
+  @keyframes hoch { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-28px); } }
+  .frage { padding: 10px 16px 0; font-size: 17px; font-weight: 700; }
+  .frage .typ { font-weight: 400; color: #777; font-size: 14px; margin-left: 8px; }
+
+  /* Rechenweg wie im Heft: links Gleichung, rechts Umformung */
+  .weg { padding: 6px 16px 0; font-family: "Times New Roman", Times, serif; font-size: 22px; }
+  .weg .zeile { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; align-items: center; padding: 3px 0; border-bottom: 1px dotted #e3e3e3; }
+  .weg .zeile.gezeigt { color: var(--corten); }
+  .weg .zeile .gl { overflow-wrap: anywhere; }
+  .weg .zeile .um { color: var(--stahl); white-space: nowrap; }
+  .weg .zeile .um.leer { color: #bbb; }
+  .weg .zeile .um input { font: inherit; font-size: 20px; width: 7.5em; border: none; border-bottom: 2px solid var(--stahl); outline: none; padding: 2px 4px; background: var(--hellblau); border-radius: 6px 6px 0 0; }
+  .weg .neu { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px; }
+  .weg .neu input { font: inherit; font-size: 22px; flex: 1; min-width: 0; border: none; border-bottom: 2px solid var(--rot); outline: none; padding: 4px 6px; background: var(--hell); border-radius: 6px 6px 0 0; }
+  .weg .neu input:focus, .weg .zeile .um input:focus { background: #fff8e8; }
+  .weg .erkl { font-family: "Segoe UI", Roboto, Arial, sans-serif; font-size: 14px; color: var(--corten); padding: 2px 0 4px; }
+  .melden { min-height: 34px; padding: 4px 16px; text-align: center; font-weight: 700; font-size: 16px; line-height: 1.3; }
+  .melden.ok { color: var(--gruen); }
+  .melden.nein { color: var(--rot); }
+  .melden.fast { color: var(--corten); }
+  .melden .gelesen { font-weight: 400; color: #555; font-size: 14px; display: block; }
+  .antwort { padding: 4px 12px 14px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  .keypad { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .keypad button { min-height: 44px; font-size: 20px; border: 1px solid var(--grau); border-radius: 10px; background: var(--hell); padding: 0 2px; font-family: "Times New Roman", Times, serif; }
+  .keypad button:active { background: var(--hellblau); }
+  .keypad button.op { background: #fff; color: var(--stahl); border-color: var(--stahl); }
+  .keypad button.text { font-family: "Segoe UI", Roboto, Arial, sans-serif; font-size: 14px; }
+  .keypad button.breit { grid-column: span 2; }
+  .knoepfe { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .knoepfe button { min-height: 50px; font-size: 17px; border-radius: 10px; border: 2px solid var(--stahl); background: #fff; color: var(--stahl); }
+  .knoepfe button.ok { background: var(--stahl); color: #fff; font-weight: 700; font-size: 19px; }
+  .nebenzeile { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; min-height: 32px; }
+  .nebenzeile button { background: none; border: none; color: #777; font-size: 14px; text-decoration: underline; padding: 6px 4px; min-height: 32px; }
+  .nebenzeile button.weiter { color: var(--stahl); font-weight: 700; text-decoration: none; font-size: 16px; }
+
+  .ergebnis { text-align: center; padding: 10px 0 4px; }
+  .ergebnis .gross-zahl { font-size: 72px; font-weight: 700; color: var(--rot); line-height: 1; }
+  .ergebnis .neu { color: var(--gruen); font-weight: 700; font-size: 18px; }
+  .fehlerliste { border: 1px solid var(--grau); background: var(--hell); padding: 8px 12px; margin-top: 6px; font-size: 16px; font-family: "Times New Roman", Times, serif; }
+  .fehlerliste div { padding: 6px 0; border-bottom: 1px solid #e3e3e3; display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+  .fehlerliste div:last-child { border-bottom: none; }
+  .fehlerliste .l { color: var(--gruen); font-weight: 600; text-align: right; }
+  .teilbild { margin-top: 10px; text-align: center; }
+  .teilbild img { max-width: 60%; border: 1px solid var(--grau); }
+  textarea.kopie { width: 100%; font: inherit; font-size: 14px; margin-top: 8px; height: 70px; }
+  @media (max-height: 640px) { .weg { font-size: 19px; } .keypad button { min-height: 38px; font-size: 18px; } .melden { min-height: 26px; } }
+  @media (max-width: 380px) { .weg { font-size: 19px; } .weg .zeile .um input { width: 6em; } .keypad button { font-size: 18px; } }
+</style>
+</head>
+<body>
+<div id="app">
+
+<section id="start">
+  <header>
+    <div><span class="k">Fach</span>Mathematik (Kaspschak)</div>
+    <div><span class="k">Kurs</span>12PE1 M</div>
+    <div><span class="k">Reihe</span>Gleichungen</div>
+  </header>
+  <div class="inhalt">
+    <h1>Gleichungs-Sprint</h1>
+    <p class="lead">Die Zeit läuft. Löse so viele Gleichungen wie möglich, Zeile für Zeile wie im Heft, mit der
+      Umformung rechts. Geprüft wird jeder Schritt: die neue Gleichung, die angegebene Umformung, bei
+      quadratischen Gleichungen Normalform und pq-Formel.</p>
+
+    <h2>Zeit</h2>
+    <div class="chips" id="zeitChips">
+      <button class="chip" data-s="180">3 Minuten</button>
+      <button class="chip an" data-s="300">5 Minuten</button>
+      <button class="chip" data-s="600">10 Minuten</button>
+      <button class="chip" data-s="0">Ohne Zeit</button>
+    </div>
+
+    <h2>Gleichungen</h2>
+    <div class="chips" id="artChips">
+      <button class="chip an" data-a="linear">Linear</button>
+      <button class="chip an" data-a="quadratisch">Quadratisch</button>
+    </div>
+    <div class="chips" style="margin-top:8px" id="extraChips">
+      <button class="chip" data-x="klammern">Mit Klammern</button>
+      <button class="chip" data-x="brueche">Brüche als Lösung</button>
+      <button class="chip an" data-x="sonder">Auch keine oder eine Lösung</button>
+    </div>
+
+    <h2>Eingabe</h2>
+    <div class="chips" id="eingabeChips">
+      <button class="chip" data-e="tasten">⌨ Tasten</button>
+      <button class="chip" data-e="system">Systemtastatur</button>
+    </div>
+
+    <button class="gross" id="startKnopf">Start</button>
+    <div class="rekord" id="rekordStart"></div>
+
+    <h2>So geht es</h2>
+    <ol class="schritte">
+      <li>Schreibe rechts an die letzte Zeile die Umformung, zum Beispiel <b>−2</b>, <b>:3</b>, <b>·2</b> oder <b>−4x</b>, und darunter die neue Gleichung. Vereinfachen und Ausmultiplizieren brauchen keine Angabe.</li>
+      <li>Linear: Forme um, bis <i>x</i> = … dasteht.</li>
+      <li>Quadratisch: Stelle die Normalform <i>x</i>² + p<i>x</i> + q = 0 her, schreibe die pq-Formel mit eingesetzten Zahlen, dann die Lösungen: <i>x</i><sub>1</sub> = …; <i>x</i><sub>2</sub> = …</li>
+      <li>Bei einem Fehler bleibt deine Eingabe stehen. Wer nicht weiterweiß, lässt sich den nächsten Schritt zeigen; die Gleichung zählt dann keine Punkte.</li>
+    </ol>
+    <div class="beispiel">
+      <span>2<i>x</i>² − 8<i>x</i> = −6</span><span class="u">| +6</span>
+      <span>2<i>x</i>² − 8<i>x</i> + 6 = 0</span><span class="u">| :2</span>
+      <span><i>x</i>² − 4<i>x</i> + 3 = 0</span><span class="u">| pq-Formel</span>
+      <span><i>x</i><sub>1,2</sub> = 2 ± <span class="wz">2² − 3</span></span><span></span>
+      <span><i>x</i><sub>1</sub> = 3; <i>x</i><sub>2</sub> = 1</span><span></span>
+    </div>
+    <div class="chips" style="margin-top:14px">
+      <button class="chip an" id="soundChip">🔔 Ton an</button>
+    </div>
+  </div>
+  <footer>Kaspschak · 12PE1 M · Gleichungs-Sprint</footer>
+</section>
+
+<section id="spiel" hidden>
+  <div class="leiste" id="leiste"><div></div></div>
+  <div class="kopf">
+    <div><span class="zeit" id="zeit">5:00</span><button class="beenden" id="beenden" hidden>Beenden</button></div>
+    <div class="punkte"><b id="pRichtig">0</b> Punkte <span class="f">✕ <span id="pFalsch">0</span></span></div>
+  </div>
+  <div class="frage" id="frage">Löse die Gleichung.</div>
+  <div class="weg" id="weg"></div>
+  <div class="melden" id="melden"></div>
+  <div class="antwort" id="antwort"></div>
+</section>
+
+<section id="ende" hidden>
+  <div class="inhalt">
+    <div class="ergebnis">
+      <div class="gross-zahl" id="eRichtig">0</div>
+      <div id="eText">Punkte in 5 Minuten</div>
+      <div id="eFalsch" class="klein"></div>
+      <div id="eNeu" class="neu"></div>
+      <div class="rekord" id="rekordEnde"></div>
+    </div>
+    <button class="gross" id="nochmal">Noch mal</button>
+    <button class="zweit" id="teilen">Rekord teilen</button>
+    <button class="zweit" id="zurueck">Zum Start</button>
+    <div id="teilFallback" hidden></div>
+    <h2 id="fehlerTitel">Das übst du noch</h2>
+    <div class="fehlerliste" id="fehlerliste"></div>
+  </div>
+  <footer>Kaspschak · 12PE1 M · Gleichungs-Sprint</footer>
+</section>
+
+</div>
+<canvas id="karte" hidden></canvas>
+
+<script id="kern">
+'use strict';
+// ======================= Kern (ohne DOM, testbar in Node) =======================
+
+// ----------------------- Brueche -----------------------
+function ggT(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { [a, b] = [b, a % b]; } return a || 1; }
+class Bruch {
+  constructor(z, n = 1) { if (n === 0) throw { msg: 'Division durch 0' }; if (n < 0) { z = -z; n = -n; } const g = ggT(z, n); this.z = z / g; this.n = n / g; }
+  static von(v) { return v instanceof Bruch ? v : new Bruch(v, 1); }
+  static ausText(s) { // "1,5", "1.5", "3", "-2"
+    s = String(s).replace(',', '.'); const m = /^(-?)(\d*)(?:\.(\d+))?$/.exec(s); if (!m || (!m[2] && !m[3])) throw { msg: 'Zahl nicht lesbar' };
+    const dez = m[3] || '', n = Math.pow(10, dez.length), z = parseInt((m[2] || '0') + dez, 10) * (m[1] ? -1 : 1);
+    if (!isFinite(z) || Math.abs(z) > 1e12) throw { msg: 'Zahl zu groß' }; return new Bruch(z, n);
+  }
+  plus(k) { k = Bruch.von(k); return new Bruch(this.z * k.n + k.z * this.n, this.n * k.n); }
+  minus(k) { k = Bruch.von(k); return new Bruch(this.z * k.n - k.z * this.n, this.n * k.n); }
+  mal(k) { k = Bruch.von(k); return new Bruch(this.z * k.z, this.n * k.n); }
+  durch(k) { k = Bruch.von(k); if (k.z === 0) throw { msg: 'Division durch 0' }; return new Bruch(this.z * k.n, this.n * k.z); }
+  neg() { return new Bruch(-this.z, this.n); }
+  gleich(k) { k = Bruch.von(k); return this.z === k.z && this.n === k.n; }
+  get wert() { return this.z / this.n; }
+  get istNull() { return this.z === 0; }
+  get istGanz() { return this.n === 1; }
+  abs() { return new Bruch(Math.abs(this.z), this.n); }
+  wurzel() { // exakt, wenn Zaehler und Nenner Quadratzahlen sind; sonst null
+    if (this.z < 0) return null; const a = Math.round(Math.sqrt(this.z)), b = Math.round(Math.sqrt(this.n));
+    return a * a === this.z && b * b === this.n ? new Bruch(a, b) : null;
+  }
+  html() { return this.istGanz ? String(this.z) : `<span class="br"><span class="z">${this.z}</span><span class="n">${this.n}</span></span>`; }
+  text() { return this.istGanz ? String(this.z) : `${this.z}/${this.n}`; }
+  dezimal() { if (this.istGanz) return String(this.z); const v = this.wert; return (Math.abs(v * 100 - Math.round(v * 100)) < 1e-9 ? String(Math.round(v * 100) / 100) : v.toFixed(3)).replace('.', ','); }
+}
+const B0 = new Bruch(0), B1 = new Bruch(1);
+
+// ----------------------- Polynome (Koeffizienten k[i] zu x^i) -----------------------
+function polyKuerzen(k) { const a = k.slice(); while (a.length > 1 && a[a.length - 1].istNull) a.pop(); return a.length ? a : [B0]; }
+function polyPlus(a, b) { const n = Math.max(a.length, b.length), r = []; for (let i = 0; i < n; i++) r.push((a[i] || B0).plus(b[i] || B0)); return polyKuerzen(r); }
+function polyMinus(a, b) { return polyPlus(a, b.map(c => c.neg())); }
+function polyMal(a, b) { const r = Array(a.length + b.length - 1).fill(B0); for (let i = 0; i < a.length; i++) for (let j = 0; j < b.length; j++) r[i + j] = r[i + j].plus(a[i].mal(b[j])); return polyKuerzen(r); }
+function polySkal(a, k) { return polyKuerzen(a.map(c => c.mal(k))); }
+function polyGleich(a, b) { a = polyKuerzen(a); b = polyKuerzen(b); return a.length === b.length && a.every((c, i) => c.gleich(b[i])); }
+function polyGrad(a) { a = polyKuerzen(a); return a.length === 1 && a[0].istNull ? -1 : a.length - 1; }
+const polyNull = a => polyGrad(a) < 0;
+const HOCH = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+const hoch = k => String(k).split('').map(d => HOCH[+d]).join('');
+// Ausgabe eines Polynoms: art 'html' | 'text' | 'ascii'; fuehrendes Vorzeichen bei negativem ersten Term
+function polyForm(k, art = 'html') {
+  const teile = [];
+  for (let i = k.length - 1; i >= 0; i--) {
+    const c = k[i]; if (c.istNull) continue;
+    const neg = c.z < 0, a = c.abs();
+    const vz = teile.length === 0 ? (neg ? (art === 'ascii' ? '-' : '−') : '') : (neg ? (art === 'ascii' ? '-' : ' − ') : (art === 'ascii' ? '+' : ' + '));
+    let ko = ''; if (i === 0 || !(a.istGanz && a.z === 1)) ko = art === 'html' ? a.html() : a.text();
+    let xs = ''; if (i === 1) xs = art === 'html' ? '<i>x</i>' : 'x'; else if (i > 1) xs = art === 'html' ? '<i>x</i>' + hoch(i) : art === 'text' ? 'x' + hoch(i) : 'x^' + i;
+    teile.push(vz + ko + xs);
+  }
+  return teile.length ? teile.join('') : '0';
+}
+// ein einzelner Term c·x^i (fuer Umformungen wie "-4x")
+function termForm(c, i, art = 'html') { const k = Array(i + 1).fill(B0); k[i] = c; return polyForm(k, art); }
+
+// ----------------------- Term-Parser (Ausdruecke in x) -----------------------
+const SUPER = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9' };
+function normAusdruck(s) {
+  return String(s).replace(/[−–—]/g, '-').replace(/[·×∙⋅•]/g, '*').replace(/÷/g, ':').replace(/√/g, 'sqrt').replace(/,/g, '.').replace(/\s+/g, '')
+    .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g, m => '^' + [...m].map(c => SUPER[c]).join(''));
+}
+function tokens(s) {
+  const t = []; let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (/[0-9.]/.test(c)) { let j = i; while (j < s.length && /[0-9.]/.test(s[j])) j++; const v = s.slice(i, j); if (!/^(\d+(\.\d+)?|\.\d+)$/.test(v)) throw { pos: i, msg: 'Zahl nicht lesbar' }; t.push({ t: 'num', v, pos: i }); i = j; continue; }
+    if (c === 'x') { t.push({ t: 'x', pos: i }); i++; if (/[0-9]/.test(s[i] || '')) { let j = i; while (/[0-9]/.test(s[j] || '')) j++; t.push({ t: '^', pos: i }); t.push({ t: 'num', v: s.slice(i, j), pos: i }); i = j; } continue; }
+    if ('+-*/^()'.includes(c)) { t.push({ t: c, pos: i }); i++; continue; }
+    if (c === ':') { t.push({ t: '/', pos: i }); i++; continue; }
+    if (s.startsWith('sqrt', i)) { t.push({ t: 'id', v: 'sqrt', pos: i }); i += 4; continue; }
+    throw { pos: i, msg: 'Zeichen „' + c + '“ nicht lesbar' };
+  }
+  return t;
+}
+function parse(text) {
+  const s = normAusdruck(text); if (!s) return null;
+  const tk = tokens(s); let p = 0;
+  const peek = () => tk[p], next = () => tk[p++], err = (msg, pos) => { throw { pos, msg }; };
+  function expr() { let a = term(); while (peek() && (peek().t === '+' || peek().t === '-')) { const op = next().t; const b = term(); a = { t: op === '+' ? 'add' : 'sub', a, b }; } return a; }
+  function term() {
+    let a = faktor();
+    for (;;) { const q = peek(); if (!q) break;
+      if (q.t === '*' || q.t === '/') { next(); const b = faktor(); a = { t: q.t === '*' ? 'mul' : 'div', a, b }; continue; }
+      if (q.t === 'x' || q.t === '(' || q.t === 'id' || q.t === 'num') { if (q.t === 'num' && a.t === 'num') err('Zwei Zahlen ohne Rechenzeichen', q.pos); const b = faktor(); a = { t: 'mul', a, b }; continue; }
+      break; }
+    return a;
+  }
+  function faktor() { const q = peek(); if (!q) err('Term unvollständig', s.length); if (q.t === '-') { next(); return { t: 'neg', a: faktor() }; } if (q.t === '+') { next(); return faktor(); } return potenz(); }
+  function potenz() { const a = atom(); if (peek() && peek().t === '^') { next(); const b = faktor(); return { t: 'pow', a, b }; } return a; }
+  function atom() {
+    const q = next(); if (!q) err('Term unvollständig', s.length);
+    if (q.t === 'num') return { t: 'num', v: q.v };
+    if (q.t === 'x') return { t: 'x' };
+    if (q.t === '(') { const e = expr(); if (!peek() || peek().t !== ')') err('Klammer fehlt', q.pos); next(); return { t: 'klammer', a: e }; }
+    if (q.t === 'id') { let a; if (peek() && peek().t === '(') { next(); a = expr(); if (!peek() || peek().t !== ')') err('Klammer fehlt', q.pos); next(); } else a = potenz(); return { t: 'sqrt', a }; }
+    err('Unerwartetes Zeichen', q.pos);
+  }
+  const e = expr(); if (p < tk.length) err('Unerwartetes Zeichen', tk[p].pos);
+  return e;
+}
+// AST -> Polynom mit exakten Bruechen; wirft bei Division durch Terme, Wurzeln aus Nichtquadraten usw.
+function astPoly(n) {
+  switch (n.t) {
+    case 'num': return [Bruch.ausText(n.v)];
+    case 'x': return [B0, B1];
+    case 'klammer': return astPoly(n.a);
+    case 'neg': return polySkal(astPoly(n.a), -1);
+    case 'add': return polyPlus(astPoly(n.a), astPoly(n.b));
+    case 'sub': return polyMinus(astPoly(n.a), astPoly(n.b));
+    case 'mul': { const r = polyMal(astPoly(n.a), astPoly(n.b)); if (polyGrad(r) > 4) throw { msg: 'Grad zu hoch' }; return r; }
+    case 'div': { const d = astPoly(n.b); if (polyGrad(d) > 0) throw { msg: 'Division durch einen Term mit x' }; if (d[0].istNull) throw { msg: 'Division durch 0' }; return polySkal(astPoly(n.a), B1.durch(d[0])); }
+    case 'pow': { const e = astPoly(n.b); if (polyGrad(e) > 0 || !e[0].istGanz || e[0].z < 0 || e[0].z > 4) throw { msg: 'Hochzahl muss 0 bis 4 sein' }; let r = [B1]; const b = astPoly(n.a); for (let i = 0; i < e[0].z; i++) r = polyMal(r, b); return r; }
+    case 'sqrt': { const r = astPoly(n.a); if (polyGrad(r) > 0) throw { msg: 'Wurzel aus einem Term mit x' }; if (r[0].z < 0) throw { msg: 'Wurzel aus negativer Zahl', radikandNegativ: true }; const w = r[0].wurzel(); if (!w) throw { msg: 'Wurzel nicht exakt' }; return [w]; }
+  }
+  throw { msg: 'Term nicht lesbar' };
+}
+// AST -> Anzeige (so wie gelesen)
+function astHTML(n) {
+  const summe = m => m.t === 'add' || m.t === 'sub';
+  const zahl = v => String(v).replace('.', ',');
+  switch (n.t) {
+    case 'num': return zahl(n.v); case 'x': return '<i>x</i>';
+    case 'klammer': return '(' + astHTML(n.a) + ')';
+    case 'neg': return '−' + (summe(n.a) ? '(' + astHTML(n.a) + ')' : astHTML(n.a));
+    case 'add': return astHTML(n.a) + ' + ' + astHTML(n.b);
+    case 'sub': return astHTML(n.a) + ' − ' + astHTML(n.b);
+    case 'mul': { const koeff = m => m.t === 'num' || (m.t === 'neg' && koeff(m.a)); const ohne = koeff(n.a) && !koeff(n.b) && n.b.t !== 'neg'; return astHTML(n.a) + (ohne ? '' : ' · ') + astHTML(n.b); }
+    case 'div': return (summe(n.a) ? '(' + astHTML(n.a) + ')' : astHTML(n.a)) + ' : ' + (summe(n.b) || n.b.t === 'neg' ? '(' + astHTML(n.b) + ')' : astHTML(n.b));
+    case 'pow': return (n.a.t === 'x' || n.a.t === 'num' || n.a.t === 'klammer' ? astHTML(n.a) : '(' + astHTML(n.a) + ')') + '<sup>' + astHTML(n.b) + '</sup>';
+    case 'sqrt': return '<span class="wz">' + astHTML(n.a) + '</span>';
+  }
+  return '?';
+}
+const zahlHTML = b => b.z < 0 ? '−' + b.abs().html() : b.html();
+
+// ----------------------- Zeilen lesen -----------------------
+// normalisierte Zeile: Kleinbuchstaben nur fuer Woerter, Indizes, ±, Leerzeichen weg
+function normZeile(s) {
+  return String(s).replace(/[−–—]/g, '-').replace(/[·×∙⋅•]/g, '*').replace(/÷/g, ':').replace(/√/g, 'sqrt').replace(/[₁]/g, '1').replace(/[₂]/g, '2')
+    .replace(/\+\/-|\+-|-\+|∓/g, '±').replace(/x_\{?1[,;.\/]2\}?|x_?1[,;.\/]2|x12/g, 'x1,2').replace(/x_1\b|x_\{1\}/g, 'x1').replace(/x_2\b|x_\{2\}/g, 'x2')
+    .replace(/∅/g, '{}').replace(/\s+/g, '').replace(/ℒ|𝕃/g, 'L');
+}
+// Umformung hinter dem Strich: {art:'+'|'-'|'*'|':'|'text', term (Polynom)}; null bei leer
+function umformungLesen(s) {
+  s = normZeile(s).replace(/^\|+/, ''); if (!s) return null;
+  const m = /^([+\-*:\/])(.+)$/.exec(s);
+  if (!m) {
+    if (/^(pq|p-q|pqformel|pq-formel|\(\)|ausmultiplizieren|ausmult\.?|zusammenfassen|vereinfachen|kürzen|kuerzen|klammer.*|binom.*|ordnen|sortieren)$/i.test(s)) return { art: 'text', text: s };
+    throw { msg: 'Umformung nicht verstanden. Schreibe zum Beispiel −3, :2, ·4 oder −2x.' };
+  }
+  let ast, poly; try { ast = parse(m[2]); poly = astPoly(ast); } catch (e) { throw { msg: 'Umformung nicht verstanden: ' + (e.msg || 'Term nicht lesbar') + '.' }; }
+  const art = m[1] === '/' ? ':' : m[1];
+  if ((art === '*' || art === ':') && polyGrad(poly) > 0) throw { msg: 'Mit x multiplizieren oder durch x teilen ist keine Äquivalenzumformung.' };
+  if (art === ':' && poly[0].istNull) throw { msg: 'Durch 0 teilen geht nicht.' };
+  if (art === '*' && poly[0].istNull) throw { msg: 'Mit 0 multiplizieren ist keine Äquivalenzumformung.' };
+  if ((art === '+' || art === '-') && polyNull(poly)) throw { msg: 'Plus oder minus 0 ändert nichts.' };
+  return { art, poly, ast, html: umformungHTML(art, poly) };
+}
+function umformungHTML(art, poly) { const z = { '+': '+', '-': '−', '*': '·', ':': ':' }[art]; return '| ' + z + (polyGrad(poly) > 0 && poly.filter(c => !c.istNull).length > 1 ? '(' + polyForm(poly) + ')' : polyForm(poly)); }
+function umformungAscii(art, poly) { const z = { '+': '+', '-': '-', '*': '*', ':': ':' }[art]; return z + (polyGrad(poly) > 0 && poly.filter(c => !c.istNull).length > 1 ? '(' + polyForm(poly, 'ascii') + ')' : polyForm(poly, 'ascii')); }
+function umformungAnwenden(seite, u) {
+  if (!u || u.art === 'text') return seite;
+  if (u.art === '+') return polyPlus(seite, u.poly); if (u.art === '-') return polyMinus(seite, u.poly);
+  if (u.art === '*') return polySkal(seite, u.poly[0]); return polySkal(seite, B1.durch(u.poly[0]));
+}
+// Gleichungszeile lesen: {typ:'gl', L, R, html} | {typ:'pq', a, w, wRadikand} | {typ:'lsg', werte:[Bruch]} | {typ:'keine'} | {typ:'lsg1', i, wert}
+function zeileLesen(text) {
+  const s = normZeile(text);
+  if (!s) throw { msg: 'Die Zeile ist leer.' };
+  if (/^(keinelösung|keinelsg\.?|keinelsg|keine|l=\{\}|l=\{\s*\}|nichtlösbar|unlösbar)$/i.test(s)) return { typ: 'keine', html: 'keine Lösung' };
+  let m;
+  if ((m = /^l=\{(.*)\}$/i.exec(s))) {
+    const werte = m[1].split(';').filter(t => t !== '').map(t => wertLesen(t)); return { typ: 'lsg', werte: werte.map(w => w.wert), html: 'L = {' + werte.map(w => w.html).join('; ') + '}' };
+  }
+  if ((m = /^x1,2=(.+)$/.exec(s))) {
+    const teile = m[1].split('±');
+    if (teile.length === 2) {
+      let a, w, wAst; try { a = astPoly(parse(teile[0])); wAst = parse(teile[1]); } catch (e) { throw { msg: 'pq-Zeile nicht lesbar: ' + (e.msg || '') }; }
+      if (polyGrad(a) > 0) throw { msg: 'Vor dem ± darf kein x stehen.' };
+      // Wurzelteil: sqrt(...) -> Radikand exakt; sonst Zahl
+      let radikand = null, wert = null, radikandNegativ = false;
+      const kern = wAst.t === 'klammer' ? wAst.a : wAst;
+      if (kern.t === 'sqrt') { try { const rp = astPoly(kern.a); if (polyGrad(rp) > 0) throw { msg: 'x unter der Wurzel' }; radikand = rp[0]; radikandNegativ = radikand.z < 0; } catch (e) { throw { msg: 'Radikand nicht lesbar: ' + (e.msg || '') }; } }
+      else { try { const wp = astPoly(wAst); if (polyGrad(wp) > 0) throw { msg: 'x im Wurzelteil' }; wert = wp[0]; } catch (e) { throw { msg: 'Wurzelteil nicht lesbar: ' + (e.msg || '') }; } }
+      return { typ: 'pq', a: a[0], radikand, wert, radikandNegativ, html: '<i>x</i><sub>1,2</sub> = ' + astHTML(parse(teile[0])) + ' ± ' + astHTML(wAst) };
+    }
+    if (teile.length === 1) { const w = wertLesen(teile[0]); return { typ: 'lsg', werte: [w.wert], html: '<i>x</i><sub>1,2</sub> = ' + w.html, einfach: true }; }
+    throw { msg: 'In der pq-Zeile steht ± mehr als einmal.' };
+  }
+  if ((m = /^x1=(.+?)(?:;|,|und|oder|∨|v|\|)x2=(.+)$/.exec(s))) { const w1 = wertLesen(m[1]), w2 = wertLesen(m[2]); return { typ: 'lsg', werte: [w1.wert, w2.wert], html: '<i>x</i><sub>1</sub> = ' + w1.html + '; <i>x</i><sub>2</sub> = ' + w2.html }; }
+  if ((m = /^x1=x2=(.+)$/.exec(s))) { const w = wertLesen(m[1]); return { typ: 'lsg', werte: [w.wert], html: '<i>x</i><sub>1</sub> = <i>x</i><sub>2</sub> = ' + w.html }; }
+  if ((m = /^x([12])=(.+)$/.exec(s)) && !/[±]/.test(s)) { const w = wertLesen(m[2]); return { typ: 'lsg1', i: +m[1], wert: w.wert, html: '<i>x</i><sub>' + m[1] + '</sub> = ' + w.html }; }
+  const teile = s.split('=');
+  if (teile.length !== 2) throw { msg: teile.length < 2 ? 'Eine Gleichung braucht ein Gleichheitszeichen.' : 'Nur ein Gleichheitszeichen je Zeile.' };
+  if (!teile[0] || !teile[1]) throw { msg: 'Auf beiden Seiten des Gleichheitszeichens muss etwas stehen.' };
+  let lAst, rAst, L, R;
+  try { lAst = parse(teile[0]); L = astPoly(lAst); } catch (e) { throw { msg: 'Linke Seite: ' + (e.msg || 'nicht lesbar') + '.' }; }
+  try { rAst = parse(teile[1]); R = astPoly(rAst); } catch (e) { throw { msg: 'Rechte Seite: ' + (e.msg || 'nicht lesbar') + '.' }; }
+  if (polyGrad(L) > 2 || polyGrad(R) > 2) throw { msg: 'Hier kommen nur Terme bis x² vor.' };
+  return { typ: 'gl', L, R, lAst, rAst, html: astHTML(lAst) + ' = ' + astHTML(rAst) };
+}
+function wertLesen(t) {
+  let ast, p; try { ast = parse(t); p = astPoly(ast); } catch (e) { throw { msg: 'Lösung nicht lesbar: ' + (e.msg || '') }; }
+  if (polyGrad(p) > 0) throw { msg: 'Eine Lösung ist eine Zahl, kein Term mit x.' };
+  const einfach = ast.t === 'num' || (ast.t === 'neg' && ast.a.t === 'num') || (ast.t === 'div' && ast.a.t === 'num' && ast.b.t === 'num') || (ast.t === 'neg' && ast.a.t === 'div' && ast.a.a.t === 'num' && ast.a.b.t === 'num');
+  return { wert: p[0], html: astHTML(ast), einfach };
+}
+
+// ----------------------- Schrittpruefer -----------------------
+// zustand: {aufgabe, L, R (Polynome der letzten Gleichung), phase:'gl'|'pq'|'fertig', pqGesehen, teil:{1:Bruch,2:Bruch}}
+// Ergebnis: {status:'ok'|'fertig'|'fehler', msg, neu (Zustand)}
+function pruefeSchritt(zustand, umformungText, zeilenText) {
+  const a = zustand.aufgabe;
+  let u; try { u = umformungLesen(umformungText || ''); } catch (e) { return { status: 'fehler', msg: e.msg, wo: 'um' }; }
+  let z; try { z = zeileLesen(zeilenText || ''); } catch (e) { return { status: 'fehler', msg: e.msg, wo: 'zeile' }; }
+  const { L, R } = zustand;
+  if (z.typ === 'gl' && zustand.phase === 'pq' && polyGrad(z.L) === 1 && z.L[1].gleich(B1) && z.L[0].istNull && polyGrad(z.R) <= 0) z = { typ: 'lsg', werte: [z.R[0]], html: z.html };
+  if (z.typ === 'gl') {
+    if (zustand.phase !== 'gl') return { status: 'fehler', msg: 'Nach der pq-Formel kommen die Lösungen, keine neue Gleichung.', wo: 'zeile' };
+    const Lu = umformungAnwenden(L, u), Ru = umformungAnwenden(R, u);
+    const passt = polyGleich(z.L, Lu) && polyGleich(z.R, Ru);
+    const vertauscht = polyGleich(z.L, Ru) && polyGleich(z.R, Lu);
+    if (passt || vertauscht) {
+      if (u && u.art !== 'text' && polyGleich(z.L, L) && polyGleich(z.R, R)) return { status: 'fehler', msg: `Du hast ${u.html.slice(2)} angegeben, aber nicht angewendet.`, wo: 'zeile' };
+      if (!u && polyGleich(z.L, L) && polyGleich(z.R, R) && z.html === zustand.html) return { status: 'fehler', msg: 'Die Zeile ist dieselbe wie darüber. Forme um oder vereinfache.', wo: 'zeile' };
+      return fertigPruefen(zustand, z, u);
+    }
+    if (u && u.art !== 'text' && polyGleich(z.L, L) && polyGleich(z.R, R)) return { status: 'fehler', msg: `Du hast ${u.html.slice(2)} angegeben, aber nicht angewendet.`, wo: 'zeile' };
+    // aequivalent, aber Umformung fehlt oder passt nicht?
+    const d1 = polyMinus(L, R), d2 = polyMinus(z.L, z.R);
+    const k = proportional(d1, d2);
+    if (k) {
+      const erkannt = umformungErkennen(L, R, z.L, z.R);
+      if (!u) return { status: 'fehler', msg: 'Umformung fehlt: Schreibe ' + (erkannt ? erkannt : 'die Rechenoperation') + ' rechts an die Zeile darüber.', wo: 'um' };
+      if (u.art === 'text') return { status: 'fehler', msg: 'Das ist mehr als Vereinfachen: Gib die Umformung an' + (erkannt ? ', hier ' + erkannt : '') + '.', wo: 'um' };
+      return { status: 'fehler', msg: `Die Gleichung ist äquivalent, aber ${u.html.slice(2)} passt nicht dazu` + (erkannt ? ` – gerechnet hast du ${erkannt.slice(2)}.` : '.'), wo: 'um' };
+    }
+    if (u && u.art !== 'text') return { status: 'fehler', msg: `Mit ${u.html.slice(2)} müsste hier ${polyForm(Lu)} = ${polyForm(Ru)} stehen. Prüfe die Rechnung.`, wo: 'zeile' };
+    return { status: 'fehler', msg: 'Die neue Gleichung ist nicht äquivalent zur vorherigen. Prüfe die Rechnung.', wo: 'zeile' };
+  }
+  if (a.art !== 'quadratisch') {
+    if (z.typ === 'keine') return { status: 'fehler', msg: 'Diese lineare Gleichung hat eine Lösung.', wo: 'zeile' };
+    // Loesung als x1 = ... oder L = {...}
+    const werte = z.typ === 'lsg' ? z.werte : z.typ === 'lsg1' ? [z.wert] : [];
+    if (werte.length === 1 && werte[0].gleich(a.loesung)) return { status: 'fertig', msg: 'Richtig ✓', neu: { ...zustand, phase: 'fertig', html: z.html, letzte: z } };
+    return { status: 'fehler', msg: 'Das ist nicht die Lösung. Prüfe die letzte Rechnung.', wo: 'zeile' };
+  }
+  // quadratisch: pq-Zeile und Loesungen
+  if (z.typ === 'pq') {
+    if (zustand.phase === 'gl') {
+      if (!istNormalform(L, R)) return { status: 'fehler', msg: 'Erst die Normalform x² + px + q = 0 herstellen (alles auf eine Seite, durch den Faktor vor x² teilen), dann die pq-Formel.', wo: 'zeile' };
+      if (u && u.art !== 'text') return { status: 'fehler', msg: 'Vor der pq-Formel steht keine Rechenumformung, höchstens „pq-Formel“.', wo: 'um' };
+    }
+    const p = L[1], q = L[0], mp2 = p.neg().durch(2), D = p.durch(2).mal(p.durch(2)).minus(q);
+    if (!z.a.gleich(mp2)) return { status: 'fehler', msg: `Vor dem ± muss −p/2 stehen: p = ${zahlText(p)}, also ${zahlText(mp2)}.`, wo: 'zeile' };
+    if (z.radikand !== null) { if (!z.radikand.gleich(D)) return { status: 'fehler', msg: `Der Radikand (p/2)² − q stimmt nicht: (${zahlText(p.durch(2))})² − (${zahlText(q)}) = ${zahlText(D)}.`, wo: 'zeile' }; }
+    else { const w = D.wurzel(); if (D.z < 0) return { status: 'fehler', msg: 'Der Radikand ist negativ, die Wurzel gibt es nicht. Schreibe die Wurzel hin und dann „keine Lösung“.', wo: 'zeile' }; if (!w || !z.wert.gleich(w)) return { status: 'fehler', msg: `Die Wurzel aus dem Radikanden ${zahlText(D)} ist ${w ? zahlText(w) : 'nicht ' + zahlText(z.wert)}.`, wo: 'zeile' }; }
+    return { status: 'ok', msg: '', neu: { ...zustand, phase: 'pq', pqGesehen: true, D, html: z.html, letzte: z } };
+  }
+  if (z.typ === 'lsg' || z.typ === 'lsg1' || z.typ === 'keine') {
+    if (zustand.phase === 'gl') return { status: 'fehler', msg: istNormalform(L, R) ? 'Schreibe erst die pq-Formel mit eingesetzten Zahlen, dann die Lösungen.' : 'Erst Normalform, dann pq-Formel, dann die Lösungen.', wo: 'zeile' };
+    const D = zustand.D, lsg = a.loesungen; // sortierte Brueche oder []
+    if (z.typ === 'keine') { if (D.z < 0) return fertigPruefen(zustand, z, u); return { status: 'fehler', msg: 'Der Radikand ist nicht negativ, die Gleichung hat Lösungen.', wo: 'zeile' }; }
+    if (D.z < 0) return { status: 'fehler', msg: 'Der Radikand ist negativ: Die Gleichung hat keine Lösung.', wo: 'zeile' };
+    if (z.typ === 'lsg1') {
+      if (!lsg.some(l => l.gleich(z.wert))) return { status: 'fehler', msg: 'Das ist keine Lösung. Rechne −p/2 ± Wurzel aus.', wo: 'zeile' };
+      const teil = { ...(zustand.teil || {}) }; const andere = teil[3 - z.i];
+      if (lsg.length === 2 && andere && andere.gleich(z.wert)) return { status: 'fehler', msg: 'Das ist dieselbe Lösung noch einmal. Rechne das andere Vorzeichen vor der Wurzel.', wo: 'zeile' };
+      teil[z.i] = z.wert;
+      const alle = lsg.length === 1 ? true : (teil[1] && teil[2] && !teil[1].gleich(teil[2]));
+      if (alle) return fertigPruefen({ ...zustand, teil }, z, u);
+      return { status: 'ok', msg: 'Und die zweite Lösung?', neu: { ...zustand, teil, html: z.html, letzte: z } };
+    }
+    const w = z.werte.slice().sort((x, y) => x.wert - y.wert), soll = lsg.slice().sort((x, y) => x.wert - y.wert);
+    if (w.length === soll.length && w.every((v, i) => v.gleich(soll[i]))) return fertigPruefen(zustand, z, u);
+    if (lsg.length === 1 && w.length === 2 && w[0].gleich(w[1]) && w[0].gleich(lsg[0])) return fertigPruefen(zustand, z, u);
+    if (lsg.length === 2 && w.length === 1 && soll.some(v => v.gleich(w[0]))) return { status: 'fehler', msg: 'Das ist nur eine der beiden Lösungen (± gibt zwei).', wo: 'zeile' };
+    return { status: 'fehler', msg: 'Das sind nicht die Lösungen. Rechne −p/2 ± Wurzel aus.', wo: 'zeile' };
+  }
+  return { status: 'fehler', msg: 'Zeile nicht verstanden.', wo: 'zeile' };
+}
+const zahlText = b => (b.z < 0 ? '−' : '') + b.abs().text();
+function proportional(d1, d2) { // d2 = k*d1 mit k != 0?
+  d1 = polyKuerzen(d1); d2 = polyKuerzen(d2); if (polyNull(d1) || polyNull(d2) || d1.length !== d2.length) return null;
+  let k = null; for (let i = 0; i < d1.length; i++) { if (d1[i].istNull !== d2[i].istNull) return null; if (d1[i].istNull) continue; const q = d2[i].durch(d1[i]); if (k === null) k = q; else if (!k.gleich(q)) return null; }
+  return k;
+}
+function umformungErkennen(L, R, L2, R2) { // welche Umformung fuehrt von (L,R) zu (L2,R2)? Anzeige oder null
+  const dL = polyMinus(L2, L), dR = polyMinus(R2, R);
+  if (polyGleich(dL, dR) && !polyNull(dL)) { const neg = dL[dL.length - 1].z < 0; const t = neg ? polySkal(dL, -1) : dL; return umformungHTML(neg ? '-' : '+', t); }
+  if (!polyNull(L) && !polyNull(R)) { const k = proportional(L, L2), k2 = proportional(R, R2); if (k && k2 && k.gleich(k2) && !k.gleich(B1)) return k.istGanz ? umformungHTML('*', [k]) : (k.z === 1 ? umformungHTML(':', [new Bruch(k.n)]) : umformungHTML('*', [k])); }
+  else if (polyNull(R) && !polyNull(L) && polyNull(R2)) { const k = proportional(L, L2); if (k && !k.gleich(B1)) return k.z === 1 ? umformungHTML(':', [new Bruch(k.n)]) : umformungHTML('*', [k]); }
+  return null;
+}
+// Zahl fertig ausgerechnet: ganze Zahl, Dezimalzahl oder gekuerzter Bruch, ggf. mit Minus davor
+function zahlEinfach(ast) {
+  const kern = ast.t === 'neg' ? ast.a : ast;
+  if (kern.t === 'num') return true;
+  if (kern.t === 'div' && (kern.a.t === 'num' || (kern.a.t === 'neg' && kern.a.a.t === 'num')) && kern.b.t === 'num') { try { const z = Bruch.ausText(kern.a.t === 'num' ? kern.a.v : '-' + kern.a.a.v), n = Bruch.ausText(kern.b.v); if (!z.istGanz || !n.istGanz) return false; const b = z.durch(n); return b.n === n.z && Math.abs(b.z) === Math.abs(z.z); } catch (e) { return false; } }
+  return false;
+}
+function istNormalform(L, R) { return polyNull(R) && polyGrad(L) === 2 && L[2].gleich(B1); }
+function fertigPruefen(zustand, z, u) {
+  const a = zustand.aufgabe;
+  if (z.typ === 'gl') {
+    const neu = { ...zustand, L: z.L, R: z.R, html: z.html, letzte: z };
+    if (a.art === 'linear') {
+      const xLinks = polyGrad(z.L) === 1 && z.L[1].gleich(B1) && polyNull([z.L[0]]) && polyGrad(z.R) <= 0;
+      const xRechts = polyGrad(z.R) === 1 && z.R[1].gleich(B1) && polyNull([z.R[0]]) && polyGrad(z.L) <= 0;
+      if (xLinks || xRechts) {
+        const seite = xLinks ? z.rAst : z.lAst;
+        if (!zahlEinfach(seite)) return { status: 'ok', msg: 'Rechne den Wert noch aus.', neu };
+        return { status: 'fertig', msg: xRechts ? 'Richtig ✓ (üblich ist x links: x = …)' : 'Richtig ✓', neu: { ...neu, phase: 'fertig' } };
+      }
+    }
+    return { status: 'ok', msg: '', neu };
+  }
+  return { status: 'fertig', msg: 'Richtig ✓', neu: { ...zustand, phase: 'fertig', html: z.html, letzte: z } };
+}
+
+// ----------------------- Zufall und Aufgaben -----------------------
+const zufall = (rnd, a, b) => a + Math.floor(rnd() * (b - a + 1));
+const wahl = (rnd, arr) => arr[Math.floor(rnd() * arr.length)];
+function erzeugeLinear(einst, rnd = Math.random) {
+  for (let v = 0; v < 50; v++) {
+    const loesung = einst.brueche && rnd() < 0.4 ? new Bruch(zufall(rnd, -9, 9) || 1, wahl(rnd, [2, 3, 4])) : new Bruch(zufall(rnd, -8, 8));
+    const form = wahl(rnd, einst.klammern ? [1, 2, 2, 3, 3] : [1, 2, 2]);
+    let a = zufall(rnd, 2, 7) * (rnd() < 0.25 ? -1 : 1), c = form === 1 ? 0 : zufall(rnd, 1, 5) * (rnd() < 0.5 ? -1 : 1);
+    if (a === c) c = c + 1;
+    const b = zufall(rnd, -9, 9);
+    // a x + b = c x + d  mit Loesung s:  d = (a - c) s + b
+    const d = new Bruch(a - c).mal(loesung).plus(b);
+    if (!d.istGanz) continue;
+    let L, R, lHtml, rHtml, lAscii, rAscii;
+    if (form === 3) { // Klammer links: a(x + e) + b' = c x + d, a(x+e) = a x + a e -> b' = b - a e
+      const e = zufall(rnd, -5, 5) || 2, bs = b - a * e;
+      L = [new Bruch(b), new Bruch(a)]; R = [d, new Bruch(c)];
+      lHtml = polyForm([B0, new Bruch(a)]).replace('<i>x</i>', '') + '(' + polyForm([new Bruch(e), B1]) + ')' + (bs ? (bs < 0 ? ' − ' : ' + ') + Math.abs(bs) : '');
+      lAscii = a + '(' + polyForm([new Bruch(e), B1], 'ascii') + ')' + (bs ? (bs < 0 ? '-' : '+') + Math.abs(bs) : '');
+      if (a === 1) { lHtml = '(' + polyForm([new Bruch(e), B1]) + ')' + (bs ? (bs < 0 ? ' − ' : ' + ') + Math.abs(bs) : ''); lAscii = '(' + polyForm([new Bruch(e), B1], 'ascii') + ')' + (bs ? (bs < 0 ? '-' : '+') + Math.abs(bs) : ''); }
+    } else { L = [new Bruch(b), new Bruch(a)]; R = [d, new Bruch(c)]; lHtml = polyForm(L); lAscii = polyForm(L, 'ascii'); }
+    rHtml = polyForm(R); rAscii = polyForm(R, 'ascii');
+    if (polyGleich(L, R)) continue;
+    return { art: 'linear', L, R, html: lHtml + ' = ' + rHtml, ascii: lAscii + '=' + rAscii, loesung, loesungen: [loesung], punkte: 1 };
+  }
+  return { art: 'linear', L: [new Bruch(2), new Bruch(3)], R: [new Bruch(11)], html: '3<i>x</i> + 2 = 11', ascii: '3x+2=11', loesung: new Bruch(3), loesungen: [new Bruch(3)], punkte: 1 };
+}
+function erzeugeQuadratisch(einst, rnd = Math.random) {
+  for (let v = 0; v < 50; v++) {
+    let r1, r2, p, q, loesungen;
+    const sonder = einst.sonder ? rnd() : 1;
+    if (sonder < 0.08) { // keine Loesung
+      p = zufall(rnd, -6, 6); const grenze = p * p / 4; q = Math.floor(grenze) + zufall(rnd, 1, 6); loesungen = [];
+    } else if (sonder < 0.18) { r1 = r2 = zufall(rnd, -6, 6) || 2; p = -2 * r1; q = r1 * r1; loesungen = [new Bruch(r1)]; }
+    else { r1 = zufall(rnd, -7, 7); r2 = zufall(rnd, -7, 7); if (r1 === r2) r2 = r2 + 2; p = -(r1 + r2); q = r1 * r2; loesungen = [new Bruch(r1), new Bruch(r2)]; }
+    const n = [new Bruch(q), new Bruch(p), B1]; if (p === 0 && q === 0) continue;
+    const a = wahl(rnd, [1, 1, 2, 2, 3, -1, -2, 4]);
+    let L = polySkal(n, a), R = [B0];
+    // Terme nach rechts schieben und Konstante addieren
+    const rechts = wahl(rnd, [0, 0, 1, 1, 2]);
+    if (rechts >= 1) { const t = [L[0], B0, B0]; L = polyMinus(L, t); R = polyMinus(R, t); }
+    if (rechts === 2 && !L[1].istNull) { const t = [B0, L[1], B0]; L = polyMinus(L, t); R = polyMinus(R, t); }
+    if (rnd() < 0.4) { const k = new Bruch(zufall(rnd, -9, 9) || 3); L = polyPlus(L, [k]); R = polyPlus(R, [k]); }
+    L = polyKuerzen(L); R = polyKuerzen(R);
+    if (polyGrad(L) !== 2) continue;
+    let html = polyForm(L) + ' = ' + polyForm(R), ascii = polyForm(L, 'ascii') + '=' + polyForm(R, 'ascii');
+    if (einst.klammern && rnd() < 0.35 && loesungen.length === 2 && a === 1 && polyNull(R)) { // (x - r1)(x - r2) = 0 als Produkt ist zu leicht; stattdessen (x + u)(x + v) = w
+      const u = zufall(rnd, -5, 5), w = u * u + p * u + q; // x^2 + px + q = (x+u)(x + (p-u)) + (q - u(p-u))
+      const vv = p - u, rest = q - u * vv; // (x+u)(x+vv) + rest = 0 -> (x+u)(x+vv) = -rest
+      const kl = t => '(' + polyForm([new Bruch(t), B1]) + ')', kla = t => '(' + polyForm([new Bruch(t), B1], 'ascii') + ')';
+      html = kl(u) + kl(vv) + ' = ' + zahlHTML(new Bruch(-rest)); ascii = kla(u) + kla(vv) + '=' + (-rest);
+      L = polyMal([new Bruch(u), B1], [new Bruch(vv), B1]); R = [new Bruch(-rest)]; void w;
+    }
+    return { art: 'quadratisch', L, R, html, ascii, p: new Bruch(p), q: new Bruch(q), loesungen, punkte: 2 };
+  }
+  return { art: 'quadratisch', L: [new Bruch(3), new Bruch(-4), B1], R: [B0], html: '<i>x</i>² − 4<i>x</i> + 3 = 0', ascii: 'x^2-4x+3=0', p: new Bruch(-4), q: new Bruch(3), loesungen: [new Bruch(1), new Bruch(3)], punkte: 2 };
+}
+function erzeugeAufgabe(einst, rnd = Math.random) {
+  const arten = einst.arten && einst.arten.length ? einst.arten : ['linear', 'quadratisch'];
+  return wahl(rnd, arten) === 'linear' ? erzeugeLinear(einst, rnd) : erzeugeQuadratisch(einst, rnd);
+}
+function startZustand(a) { return { aufgabe: a, L: a.L, R: a.R, phase: 'gl', html: a.html, pqGesehen: false, teil: {} }; }
+
+// ----------------------- Schrittloeser (Hilfe): naechster Schritt aus dem aktuellen Zustand -----------------------
+// liefert {umformung: html|null, zeile: html, zeileText: ascii, erkl: Satz} oder null, wenn fertig
+function naechsterSchritt(z) {
+  const a = z.aufgabe, L = polyKuerzen(z.L), R = polyKuerzen(z.R);
+  const t = (c, i) => termForm(c, i), ta = (c, i) => termForm(c, i, 'ascii');
+  if (z.phase === 'gl') {
+    if (a.art === 'linear') {
+      if (polyGrad(L) === 1 && L[1].gleich(B1) && L[0].istNull) return null;
+      if (polyGrad(R) >= 1 && !R[1].istNull && polyGrad(L) === 1 && !L[1].istNull) { const c = R[1]; return schritt(z, c.z > 0 ? '-' : '+', [B0, c.abs()], 'Alle x-Terme auf die linke Seite.'); }
+      if (polyGrad(L) <= 0 && polyGrad(R) === 1) { const c = L[0]; return c.istNull ? schrittTausch(z, 'Seiten tauschen: x nach links.') : schritt(z, c.z > 0 ? '-' : '+', [c.abs()], 'Die Zahl auf die andere Seite.'); }
+      if (!L[0].istNull) { const c = L[0]; return schritt(z, c.z > 0 ? '-' : '+', [c.abs()], 'Die Zahl auf die rechte Seite.'); }
+      if (!L[1].gleich(B1)) return schritt(z, ':', [L[1]], 'Durch den Faktor vor x teilen.');
+      return null;
+    }
+    // quadratisch: alles nach links, dann normieren
+    if (!polyNull(R)) { for (let i = R.length - 1; i >= 0; i--) if (!R[i].istNull) { const c = R[i]; return schritt(z, c.z > 0 ? '-' : '+', termPoly(c.abs(), i), i === 0 ? 'Die Zahl auf die linke Seite, rechts soll 0 stehen.' : 'Den Term auf die linke Seite, rechts soll 0 stehen.'); } }
+    if (polyGrad(L) !== 2) return null;
+    if (!L[2].gleich(B1)) return schritt(z, ':', [L[2]], 'Durch den Faktor vor x² teilen: Normalform x² + px + q = 0.');
+    const p = L[1], q = L[0], mp2 = p.neg().durch(2), D = p.durch(2).mal(p.durch(2)).minus(q);
+    const pT = zahlText(p), qT = zahlText(q);
+    const zeile = `<i>x</i><sub>1,2</sub> = −(${pT}) : 2 ± <span class="wz">(${zahlText(p.durch(2))})² − (${qT})</span>`;
+    return { umformung: '| pq-Formel', zeile, zeileText: `x1,2 = -(${pT.replace('−', '-')})/2 ± √((${zahlText(p.durch(2)).replace('−', '-')})^2 - (${qT.replace('−', '-')}))`, erkl: `pq-Formel mit p = ${pT} und q = ${qT} einsetzen: x₁,₂ = −p/2 ± √((p/2)² − q).`, phase: 'pq', D, a: mp2 };
+  }
+  if (z.phase === 'pq') {
+    const p = L[1], q = L[0], mp2 = p.neg().durch(2), D = z.D || p.durch(2).mal(p.durch(2)).minus(q);
+    const letzte = z.letzte;
+    if (D.z < 0) { if (letzte && letzte.typ === 'pq' && letzte.radikandNegativ !== undefined) return { umformung: null, zeile: 'keine Lösung', zeileText: 'keine Lösung', erkl: `Der Radikand ${zahlText(D)} ist negativ, die Wurzel gibt es nicht.`, phase: 'fertig' }; }
+    if (letzte && letzte.typ === 'pq' && letzte.radikand !== null && !(D.z < 0)) { // Radikand ausrechnen
+      const w = D.wurzel(); return { umformung: null, zeile: `<i>x</i><sub>1,2</sub> = ${zahlHTML(mp2)} ± ${w ? zahlHTML(w) : '<span class="wz">' + zahlHTML(D) + '</span>'}`, zeileText: `x1,2 = ${zahlText(mp2).replace('−', '-')} ± ${w ? zahlText(w).replace('−', '-') : '√(' + zahlText(D).replace('−', '-') + ')'}`, erkl: `Radikand ausrechnen: ${zahlText(D)}` + (w ? `, Wurzel ${zahlText(w)}.` : '.'), phase: 'pq' };
+    }
+    const l = a.loesungen;
+    if (l.length === 2) { const s = l.slice().sort((x, y) => y.wert - x.wert); return { umformung: null, zeile: `<i>x</i><sub>1</sub> = ${zahlHTML(s[0])}; <i>x</i><sub>2</sub> = ${zahlHTML(s[1])}`, zeileText: `x1 = ${zahlText(s[0]).replace('−', '-')}; x2 = ${zahlText(s[1]).replace('−', '-')}`, erkl: `Plus und minus getrennt ausrechnen: ${zahlText(mp2)} + ${zahlText(D.wurzel())} und ${zahlText(mp2)} − ${zahlText(D.wurzel())}.`, phase: 'fertig' }; }
+    if (l.length === 1) return { umformung: null, zeile: `<i>x</i> = ${zahlHTML(l[0])}`, zeileText: `x = ${zahlText(l[0]).replace('−', '-')}`, erkl: 'Der Radikand ist 0: eine Lösung.', phase: 'fertig' };
+    return { umformung: null, zeile: 'keine Lösung', zeileText: 'keine Lösung', erkl: `Der Radikand ${zahlText(D)} ist negativ, die Wurzel gibt es nicht.`, phase: 'fertig' };
+  }
+  return null;
+}
+function termPoly(c, i) { const k = Array(i + 1).fill(B0); k[i] = c; return k; }
+function schritt(z, art, poly, erkl) {
+  const u = { art, poly }; const L2 = umformungAnwenden(z.L, u), R2 = umformungAnwenden(z.R, u);
+  return { umformung: umformungHTML(art, poly), umformungText: umformungAscii(art, poly), zeile: polyForm(L2) + ' = ' + polyForm(R2), zeileText: polyForm(L2, 'ascii') + ' = ' + polyForm(R2, 'ascii'), erkl, L2, R2 };
+}
+function schrittTausch(z, erkl) { return { umformung: null, zeile: polyForm(z.R) + ' = ' + polyForm(z.L), zeileText: polyForm(z.R, 'ascii') + ' = ' + polyForm(z.L, 'ascii'), erkl, L2: z.R, R2: z.L }; }
+// Hilfe anwenden: Zustand nach dem gezeigten Schritt
+function schrittAnwenden(z, s) {
+  if (s.phase === 'fertig') return { ...z, phase: 'fertig', html: s.zeile };
+  if (z.phase === 'pq') return { ...z, html: s.zeile, letzte: { typ: 'pq', radikand: null, wert: z.D } };
+  if (s.phase === 'pq') return { ...z, phase: 'pq', pqGesehen: true, D: s.D, html: s.zeile, letzte: { typ: 'pq', radikand: s.D, radikandNegativ: s.D.z < 0 } };
+  return { ...z, L: s.L2, R: s.R2, html: s.zeile };
+}
+// vollstaendiger Loesungsweg (fuer Fehlerliste und Test)
+function loesungsweg(a) {
+  let z = startZustand(a); const weg = []; let n = 0;
+  while (n++ < 12) { const s = naechsterSchritt(z); if (!s) break; weg.push(s); z = schrittAnwenden(z, s); if (z.phase === 'fertig') break; }
+  return weg;
+}
+if (typeof module !== 'undefined') module.exports = { Bruch, polyForm, polyPlus, polyMinus, polyGleich, parse, astPoly, astHTML, zeileLesen, umformungLesen, pruefeSchritt, erzeugeLinear, erzeugeQuadratisch, erzeugeAufgabe, startZustand, naechsterSchritt, schrittAnwenden, loesungsweg, istNormalform };
+</script>
+<script>
+'use strict';
+// ======================= Oberflaeche =======================
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const S = { dauer: 300, arten: ['linear', 'quadratisch'], klammern: false, brueche: false, sonder: true, eingabe: 'tasten', sound: true,
+  laeuft: false, punkte: 0, falsch: 0, fehler: [], tEnde: 0, tStart: 0, aufgabe: null, zustand: null, zeilen: [], hilfe: false, fehlerBei: false, gesperrt: false, timer: null, letzteSek: -1, weiter: null, letzte: [], feld: null };
+function speichern(k, v) { try { localStorage.setItem('gleichungssprint.' + k, JSON.stringify(v)); } catch (e) { } }
+function laden(k, std) { try { const v = localStorage.getItem('gleichungssprint.' + k); return v === null ? std : JSON.parse(v); } catch (e) { return std; } }
+const zz = n => String(n).padStart(2, '0');
+const mmss = s => Math.floor(s / 60) + ':' + zz(s % 60);
+const dauerText = d => d === 0 ? 'ohne Zeit' : d % 60 === 0 ? (d / 60) + ' Minuten' : d + ' Sekunden';
+const einstellung = () => ({ arten: S.arten, klammern: S.klammern, brueche: S.brueche, sonder: S.sonder });
+const rekordKey = () => `best.${S.dauer}.${S.arten.join('')}.${S.klammern ? 'k' : ''}${S.brueche ? 'b' : ''}`;
+
+let audio = null;
+function tonAn() { if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; } } if (audio && audio.state === 'suspended') audio.resume(); }
+function ton(art) {
+  if (!S.sound || !audio) return;
+  const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(); o.connect(g); g.connect(audio.destination);
+  if (art === 'ok') { o.type = 'sine'; o.frequency.setValueAtTime(660, t); o.frequency.setValueAtTime(880, t + 0.08); g.gain.setValueAtTime(0.15, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.start(t); o.stop(t + 0.25); }
+  else if (art === 'nein') { o.type = 'sawtooth'; o.frequency.setValueAtTime(180, t); g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3); o.start(t); o.stop(t + 0.3); }
+  else if (art === 'tick') { o.type = 'square'; o.frequency.setValueAtTime(1000, t); g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05); o.start(t); o.stop(t + 0.05); }
+  else if (art === 'ende') { o.type = 'sine'; [523, 659, 784].forEach((f, i) => o.frequency.setValueAtTime(f, t + i * 0.15)); g.gain.setValueAtTime(0.15, t); g.gain.setValueAtTime(0.15, t + 0.4); g.gain.exponentialRampToValueAtTime(0.001, t + 0.7); o.start(t); o.stop(t + 0.7); }
+}
+
+function zeigeStart() {
+  $('#start').hidden = false; $('#spiel').hidden = true; $('#ende').hidden = true;
+  const best = laden(rekordKey(), 0);
+  $('#rekordStart').innerHTML = best ? `Dein Rekord (${dauerText(S.dauer)}): <b>${best}</b> Punkte` : (S.dauer ? `Noch kein Rekord für ${dauerText(S.dauer)}.` : '');
+}
+function start() { tonAn(); startRunde(); }
+function startRunde() {
+  S.punkte = 0; S.falsch = 0; S.fehler = []; S.laeuft = true; S.letzteSek = -1; S.letzte = [];
+  S.tStart = performance.now(); S.tEnde = S.tStart + S.dauer * 1000;
+  $('#pRichtig').textContent = '0'; $('#pFalsch').textContent = '0';
+  $('#start').hidden = true; $('#ende').hidden = true; $('#spiel').hidden = false;
+  $('#leiste').hidden = S.dauer === 0; $('#beenden').hidden = S.dauer !== 0;
+  window.scrollTo(0, 0);
+  baueAntwort(); naechsteAufgabe();
+  if (S.timer) clearInterval(S.timer);
+  S.timer = setInterval(tick, 100); tick();
+}
+function tick() {
+  if (!S.laeuft) return;
+  if (S.dauer === 0) { $('#zeit').textContent = mmss(Math.floor((performance.now() - S.tStart) / 1000)); return; }
+  const rest = Math.max(0, S.tEnde - performance.now()), sek = Math.ceil(rest / 1000);
+  $('#zeit').textContent = mmss(sek); $('#leiste > div').style.width = (rest / (S.dauer * 1000) * 100) + '%';
+  const knapp = rest < 10000 && rest > 0; $('#leiste').classList.toggle('knapp', knapp); $('#zeit').classList.toggle('knapp', knapp);
+  if (sek !== S.letzteSek) { S.letzteSek = sek; if (knapp) ton('tick'); }
+  if (rest <= 0) ende();
+}
+function naechsteAufgabe() {
+  if (!S.laeuft) return;
+  let a; for (let i = 0; i < 20; i++) { a = erzeugeAufgabe(einstellung()); if (!S.letzte.includes(a.ascii)) break; }
+  S.letzte.push(a.ascii); if (S.letzte.length > 10) S.letzte.shift();
+  S.aufgabe = a; S.zustand = startZustand(a); S.zeilen = [{ html: a.html, um: '' }]; S.hilfe = false; S.fehlerBei = false; S.gesperrt = false; S.weiter = null;
+  $('#frage').innerHTML = 'Löse die Gleichung.<span class="typ">' + (a.art === 'linear' ? 'linear, 1 Punkt' : 'quadratisch, 2 Punkte') + '</span>';
+  melde('', ''); wegZeigen(); $('#neuFeld').value = ''; $('#neuFeld').focus();
+}
+function melde(html, art) { const m = $('#melden'); m.innerHTML = html; m.className = 'melden' + (art ? ' ' + art : ''); }
+function wegZeigen() {
+  const w = $('#weg'); let html = '';
+  S.zeilen.forEach((z, i) => {
+    const letzte = i === S.zeilen.length - 1 && S.zustand.phase !== 'fertig';
+    html += `<div class="zeile${z.gezeigt ? ' gezeigt' : ''}"><span class="gl">${z.html}</span><span class="um${letzte ? '' : (z.um ? '' : ' leer')}">${letzte ? '| <input id="umFeld" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Umformung" aria-label="Umformung">' : esc(z.um ? '' : '') + (z.um || '')}</span></div>`;
+    if (z.erkl) html += `<div class="erkl">${z.erkl}</div>`;
+  });
+  if (S.zustand.phase !== 'fertig') html += `<div class="neu"><input id="neuFeld" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="nächste Zeile" aria-label="Nächste Zeile"></div>`;
+  w.innerHTML = html;
+  for (const id of ['umFeld', 'neuFeld']) { const f = document.getElementById(id); if (!f) continue; f.setAttribute('inputmode', S.eingabe === 'system' ? 'text' : 'none'); f.addEventListener('focus', () => { S.feld = f; }); f.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); pruefen(); } if (ev.key === '^') { ev.preventDefault(); einsetzen('²'); } }); }
+  if (S.zustand.phase !== 'fertig') { const f = $('#neuFeld'); if (f && document.activeElement !== $('#umFeld')) { S.feld = f; } }
+}
+function punkteGeben(n) {
+  S.punkte += n; $('#pRichtig').textContent = S.punkte;
+  const p = document.createElement('span'); p.className = 'plus'; p.textContent = '+' + n; $('.kopf .punkte').appendChild(p); setTimeout(() => p.remove(), 800);
+}
+function fehlerZaehlen() {
+  if (S.fehlerBei) return; S.fehlerBei = true; S.falsch++; $('#pFalsch').textContent = S.falsch;
+  S.fehler.push({ frage: S.aufgabe.html, loesung: loesungKurz(S.aufgabe) });
+}
+function loesungKurz(a) {
+  const l = a.loesungen; if (a.art === 'linear') return '<i>x</i> = ' + zahlHTML(l[0]);
+  if (!l.length) return 'keine Lösung'; if (l.length === 1) return '<i>x</i> = ' + zahlHTML(l[0]);
+  const s = l.slice().sort((x, y) => y.wert - x.wert); return `<i>x</i><sub>1</sub> = ${zahlHTML(s[0])}; <i>x</i><sub>2</sub> = ${zahlHTML(s[1])}`;
+}
+function pruefen() {
+  if (!S.laeuft || S.gesperrt) return;
+  const um = $('#umFeld') ? $('#umFeld').value : '', neu = $('#neuFeld') ? $('#neuFeld').value : '';
+  if (!neu.trim() && !um.trim()) { melde('Schreibe die nächste Zeile (und rechts die Umformung).', 'nein'); return; }
+  if (!neu.trim()) { melde('Die Umformung steht, jetzt die neue Gleichung darunter.', 'fast'); $('#neuFeld').focus(); return; }
+  const r = pruefeSchritt(S.zustand, um, neu);
+  if (r.status === 'fehler') { fehlerZaehlen(); ton('nein'); melde(esc(r.msg), 'nein'); const f = document.getElementById(r.wo === 'um' ? 'umFeld' : 'neuFeld'); if (f) f.focus(); return; }
+  // Zeile uebernehmen
+  const umHtml = um.trim() ? (() => { try { const u = umformungLesen(um); return u ? (u.art === 'text' ? '| ' + esc(um.trim().replace(/^\|/, '').trim()) : u.html) : ''; } catch (e) { return ''; } })() : '';
+  S.zeilen[S.zeilen.length - 1].um = umHtml;
+  S.zeilen.push({ html: r.neu.html, um: '' }); S.zustand = r.neu;
+  if (r.status === 'fertig') {
+    ton('ok'); S.gesperrt = true; wegZeigen();
+    if (!S.hilfe) { punkteGeben(S.aufgabe.punkte); melde(esc(r.msg || 'Richtig ✓'), 'ok'); } else melde('Gelöst, mit Hilfe: keine Punkte.', 'fast');
+    S.weiter = setTimeout(naechsteAufgabe, 1100); return;
+  }
+  wegZeigen(); melde(r.msg ? esc(r.msg) : 'Schritt stimmt ✓', 'ok'); $('#neuFeld').focus();
+}
+function hilfe() {
+  if (!S.laeuft || S.gesperrt) return;
+  const s = naechsterSchritt(S.zustand); if (!s) { melde('Es fehlt nur noch die Lösung.', 'fast'); return; }
+  if (!S.hilfe) { S.hilfe = true; fehlerZaehlen(); }
+  S.zeilen[S.zeilen.length - 1].um = s.umformung || S.zeilen[S.zeilen.length - 1].um;
+  S.zustand = schrittAnwenden(S.zustand, s);
+  S.zeilen.push({ html: s.zeile, um: '', gezeigt: true, erkl: s.erkl });
+  if (S.zustand.phase === 'fertig') { S.gesperrt = true; wegZeigen(); melde('Gezeigt, keine Punkte. Weiter mit der nächsten.', 'fast'); S.weiter = setTimeout(naechsteAufgabe, 1600); return; }
+  wegZeigen(); melde('', ''); $('#neuFeld').focus();
+}
+function loesungKomplett() { if (!S.laeuft || S.gesperrt) return; let n = 0; while (S.zustand.phase !== 'fertig' && n++ < 12) { const vorher = S.zustand; hilfe(); if (S.zustand === vorher) break; } }
+function ueberspringen() { if (!S.laeuft || S.gesperrt) return; fehlerZaehlen(); naechsteAufgabe(); }
+
+// Tasten setzen an der Schreibmarke ein
+function einsetzen(t) {
+  const f = S.feld && document.body.contains(S.feld) ? S.feld : $('#neuFeld'); if (!f) return;
+  const a = f.selectionStart ?? f.value.length, b = f.selectionEnd ?? f.value.length;
+  if (t === '⌫') { if (a === b && a > 0) { f.value = f.value.slice(0, a - 1) + f.value.slice(b); f.setSelectionRange(a - 1, a - 1); } else { f.value = f.value.slice(0, a) + f.value.slice(b); f.setSelectionRange(a, a); } }
+  else { f.value = f.value.slice(0, a) + t + f.value.slice(b); const p = a + t.length; f.setSelectionRange(p, p); }
+  f.focus();
+}
+function baueAntwort() {
+  const tasten = [['7', ''], ['8', ''], ['9', ''], ['+', 'op'], ['x', 'op'], ['x²', 'op'], ['4', ''], ['5', ''], ['6', ''], ['−', 'op'], ['(', 'op'], [')', 'op'], ['1', ''], ['2', ''], ['3', ''], ['·', 'op'], ['|', 'op'], ['⌫', 'op'], ['0', ''], [',', ''], [':', 'op'], ['√', 'op'], ['±', 'op'], ['=', 'op'],
+    ['x₁,₂ =', 'op text'], ['x₁ =', 'op text'], ['x₂ =', 'op text'], [';', 'op'], ['keine Lösung', 'op text breit']];
+  $('#antwort').innerHTML = `<div class="keypad" id="keypad">${tasten.map(([t, k]) => `<button data-t="${esc(t)}" class="${k}">${esc(t).replace('x²', '<i>x</i>²').replace(/^x$/, '<i>x</i>')}</button>`).join('')}</div>
+    <div class="knoepfe"><button class="ok" id="ok">Prüfen</button><button id="hilfeKnopf">Schritt zeigen</button><button id="wegKnopf">Ganzer Weg</button></div>
+    <div class="nebenzeile"><button id="skip">Gleichung überspringen</button><button id="systast">${S.eingabe === 'system' ? 'Eigene Tasten' : 'Systemtastatur'}</button></div>`;
+  $('#keypad').addEventListener('pointerdown', ev => { const b = ev.target.closest('button'); if (!b) return; ev.preventDefault(); const t = b.dataset.t; einsetzen(t === 'x₁,₂ =' ? 'x1,2 = ' : t === 'x₁ =' ? 'x1 = ' : t === 'x₂ =' ? 'x2 = ' : t === 'x²' ? 'x²' : t === 'keine Lösung' ? 'keine Lösung' : t); });
+  $('#ok').addEventListener('click', pruefen); $('#hilfeKnopf').addEventListener('click', hilfe); $('#wegKnopf').addEventListener('click', loesungKomplett); $('#skip').addEventListener('click', ueberspringen);
+  $('#systast').addEventListener('click', () => { S.eingabe = S.eingabe === 'system' ? 'tasten' : 'system'; speichern('eingabe', S.eingabe); baueAntwort(); wegZeigen(); });
+  $('#keypad').hidden = S.eingabe === 'system';
+}
+
+function ende() {
+  S.laeuft = false; if (S.timer) clearInterval(S.timer); S.timer = null; if (S.weiter) clearTimeout(S.weiter);
+  ton('ende');
+  const best = laden(rekordKey(), 0), neu = S.dauer > 0 && S.punkte > best;
+  if (neu) speichern(rekordKey(), S.punkte);
+  $('#eRichtig').textContent = S.punkte;
+  $('#eText').textContent = (S.punkte === 1 ? 'Punkt' : 'Punkte') + (S.dauer ? ' in ' + dauerText(S.dauer) : ' in ' + mmss(Math.floor((performance.now() - S.tStart) / 1000)) + ' min');
+  $('#eFalsch').textContent = S.falsch ? `${S.falsch} Gleichungen mit Fehler oder Hilfe` : 'Kein Fehler!';
+  $('#eNeu').textContent = neu && S.punkte > 0 ? '★ Neuer Rekord!' : '';
+  $('#rekordEnde').innerHTML = S.dauer ? `Rekord (${dauerText(S.dauer)}): <b>${Math.max(best, S.punkte)}</b> Punkte` : '';
+  const fl = $('#fehlerliste'); fl.innerHTML = '';
+  $('#fehlerTitel').hidden = fl.hidden = S.fehler.length === 0;
+  S.fehler.slice(0, 15).forEach(f => { const d = document.createElement('div'); d.innerHTML = `<span>${f.frage}</span><span class="l">${f.loesung}</span>`; fl.appendChild(d); });
+  $('#teilFallback').hidden = true; $('#teilFallback').innerHTML = '';
+  $('#spiel').hidden = true; $('#ende').hidden = false; window.scrollTo(0, 0);
+}
+function karteZeichnen() {
+  const c = $('#karte'); c.width = 1080; c.height = 1350; const g = c.getContext('2d');
+  g.fillStyle = '#f5f5f2'; g.fillRect(0, 0, 1080, 1350); g.fillStyle = '#35638A'; g.fillRect(0, 0, 1080, 300);
+  g.fillStyle = '#fff'; g.font = 'bold 92px "Segoe UI", Roboto, Arial, sans-serif'; g.textAlign = 'center'; g.fillText('Gleichungs-Sprint', 540, 150);
+  g.font = '40px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText('12PE1 M · Gleichungen', 540, 230);
+  g.fillStyle = '#222'; g.font = 'italic 120px "Times New Roman", Times, serif'; g.fillText('x² + px + q = 0', 540, 560);
+  g.fillStyle = '#B01A15'; g.font = 'bold 260px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText(String(S.punkte), 540, 950);
+  g.fillStyle = '#222'; g.font = 'bold 52px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText((S.punkte === 1 ? 'Punkt' : 'Punkte') + (S.dauer ? ' in ' + dauerText(S.dauer) : ''), 540, 1050);
+  g.fillStyle = '#555'; g.font = '38px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText(new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' · Schaffst du mehr?', 540, 1160);
+  g.fillStyle = '#777'; g.font = '30px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText('Kaspschak · Lore-Lorentz-Schule', 540, 1290);
+  return c;
+}
+async function teilen() {
+  const url = /^https?:/.test(location.href) ? ' ' + location.href.split('#')[0] : '';
+  const text = `Gleichungs-Sprint: ${S.punkte} ${S.punkte === 1 ? 'Punkt' : 'Punkte'}${S.dauer ? ' in ' + dauerText(S.dauer) : ''}! Schaffst du mehr?${url}`;
+  let datei = null; try { const b = await new Promise(res => karteZeichnen().toBlob(res, 'image/png')); if (b) datei = new File([b], 'gleichungs-sprint.png', { type: 'image/png' }); } catch (e) { }
+  if (navigator.share) { try { if (datei && navigator.canShare && navigator.canShare({ files: [datei] })) { await navigator.share({ files: [datei], text, title: 'Gleichungs-Sprint' }); return; } await navigator.share({ text, title: 'Gleichungs-Sprint' }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  const f = $('#teilFallback'); f.hidden = false; const c = karteZeichnen(), u = c.toDataURL('image/png');
+  f.innerHTML = `<div class="teilbild"><img src="${u}" alt="Rekordkarte"><div class="klein">Bild gedrückt halten oder <a download="gleichungs-sprint.png" href="${u}">herunterladen</a>, dann teilen.</div></div><textarea class="kopie" readonly>${esc(text)}</textarea><button class="zweit" id="kopieren">Text kopieren</button>`;
+  $('#kopieren').addEventListener('click', async () => { try { await navigator.clipboard.writeText(text); $('#kopieren').textContent = 'Kopiert ✓'; } catch (e) { const t = f.querySelector('textarea'); t.focus(); t.select(); } });
+}
+
+function initStart() {
+  S.dauer = laden('dauer', 300); S.sound = laden('sound', true); S.klammern = !!laden('klammern', false); S.brueche = !!laden('brueche', false); S.sonder = laden('sonder', true) !== false;
+  const ar = laden('arten', null); if (Array.isArray(ar) && ar.length) S.arten = ar.filter(a => ['linear', 'quadratisch'].includes(a)); if (!S.arten.length) S.arten = ['linear', 'quadratisch'];
+  const fein = window.matchMedia && window.matchMedia('(pointer: coarse)').matches; S.eingabe = laden('eingabe', fein ? 'tasten' : 'system'); if (!['tasten', 'system'].includes(S.eingabe)) S.eingabe = 'tasten';
+  const zc = $('#zeitChips'); zc.querySelectorAll('.chip').forEach(b => { b.classList.toggle('an', parseInt(b.dataset.s, 10) === S.dauer); b.addEventListener('click', () => { S.dauer = parseInt(b.dataset.s, 10); speichern('dauer', S.dauer); zc.querySelectorAll('.chip').forEach(x => x.classList.toggle('an', x === b)); zeigeStart(); }); });
+  const ac = $('#artChips'); ac.querySelectorAll('.chip').forEach(b => { const a = b.dataset.a; b.classList.toggle('an', S.arten.includes(a)); b.addEventListener('click', () => { if (S.arten.includes(a)) { if (S.arten.length === 1) return; S.arten = S.arten.filter(x => x !== a); } else S.arten.push(a); b.classList.toggle('an', S.arten.includes(a)); speichern('arten', S.arten); zeigeStart(); }); });
+  $('#extraChips').querySelectorAll('.chip').forEach(b => { const x = b.dataset.x; b.classList.toggle('an', !!S[x]); b.addEventListener('click', () => { S[x] = !S[x]; speichern(x, S[x]); b.classList.toggle('an', S[x]); zeigeStart(); }); });
+  const ec = $('#eingabeChips'); ec.querySelectorAll('.chip').forEach(b => { b.classList.toggle('an', b.dataset.e === S.eingabe); b.addEventListener('click', () => { S.eingabe = b.dataset.e; speichern('eingabe', S.eingabe); ec.querySelectorAll('.chip').forEach(x => x.classList.toggle('an', x === b)); }); });
+  const sc = $('#soundChip'); const soundZeigen = () => { sc.classList.toggle('an', S.sound); sc.textContent = S.sound ? '🔔 Ton an' : '🔕 Ton aus'; }; soundZeigen();
+  sc.addEventListener('click', () => { S.sound = !S.sound; speichern('sound', S.sound); soundZeigen(); });
+  $('#startKnopf').addEventListener('click', start); $('#nochmal').addEventListener('click', start); $('#zurueck').addEventListener('click', zeigeStart); $('#teilen').addEventListener('click', teilen); $('#beenden').addEventListener('click', ende);
+  zeigeStart();
+}
+initStart();
+</script>
+</body>
+</html>
