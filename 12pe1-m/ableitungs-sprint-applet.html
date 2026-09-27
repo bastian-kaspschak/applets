@@ -761,22 +761,25 @@ const HS = (() => {
     // Hochzahlen und Punkte: von links nach rechts, bezogen auf das letzte Grundzeichen
     let basis = null, vorher = null;
     const traeger = s => s && (s.ch === 'x' || s.ch === ')'); // nur nach x oder ) gibt es Hochzahlen
-    const hochLage = (b, a) => b.x1 > a.cx - 0.1 * a.w && (b.y2 < a.y1 + 0.75 * a.h || b.cy < a.y1 + 0.35 * a.h); // angehoben, rechts vom Traeger
+    // angehoben und rechts vom Traeger: unten ueber 75 % der x-Hoehe, oder Mitte im oberen Drittel und nicht auf der Grundlinie
+    const hochLage = (b, a) => b.x1 > a.cx - 0.1 * a.w && (b.y2 < a.y1 + 0.75 * a.h || (b.cy < a.y1 + 0.35 * a.h && b.y2 < a.y1 + 0.92 * a.h));
     for (const sym of symbole) {
       const b = sym.bbox;
       if (sym.typ === 'punkt' && !(opt.korrekturen && opt.korrekturen.get(sym.key))) {
-        // winziger Strich in Hochzahl-Lage: das ist eine kleine Hochzahl (meist 1), kein Punkt
-        if (opt.sup !== false && traeger(basis) && hochLage(b, basis.bbox)) {
+        // winziger Strich klar oben rechts vom x: eine kleine Hochzahl (meist 1), kein Punkt; ein Malpunkt auf halber Hoehe bleibt Punkt
+        const a = basis && basis.bbox;
+        if (opt.sup !== false && traeger(basis) && b.x1 > a.cx && b.y2 < a.y1 + 0.45 * a.h && b.cy < a.y1 + 0.3 * a.h) {
           const strokes = sym.idx.map(i => st[i].pts), kand = klassifiziere(strokes, opt.alphabet.filter(c => /^[0-9]$/.test(c)));
           if (kand.length) { sym.typ = 'zeichen'; sym.kandidaten = kand; sym.ch = kand[0].ch; sym.d = kand[0].d; sym.unsicher = kand[0].d > UNSICHER; }
         }
       }
       if (sym.typ === 'punkt') {
         if (!(opt.korrekturen && opt.korrekturen.get(sym.key))) {
-          const refTop = basis ? basis.bbox.y1 : (opt.baseline != null ? opt.baseline - (opt.lineH || lineH) : b.y1), refH = basis ? basis.bbox.h : (opt.lineH || lineH);
+          const bezug = basis && basis.typ !== 'punkt' ? basis : (vorher && vorher.typ !== 'punkt' ? vorher : null); // Hoehenbezug: letztes richtiges Zeichen, nicht ein Punkt
+          const refTop = bezug ? bezug.bbox.y1 : (opt.baseline != null ? opt.baseline - (opt.lineH || lineH) : b.y1), refH = bezug ? bezug.bbox.h : (opt.lineH || lineH);
           sym.ch = b.cy > refTop + 0.72 * refH ? ',' : '·';
         }
-        sym.sup = false; vorher = sym; continue;
+        sym.sup = false; vorher = sym; basis = sym; continue; // Punkt oder Komma beendet den Hochzahl-Kontext
       }
       let sup = false;
       if (opt.sup !== false && basis && sym.typ === 'zeichen' && /^[0-9]$/.test(sym.ch)) {
