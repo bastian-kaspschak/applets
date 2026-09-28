@@ -17,7 +17,7 @@
   die Verlustzone, rechts die Gewinnzone, und G(0) = −K_f auf der y-Achse
   (die Verwechslung, die die Stunde angreift). Darunter die Kontrolle G(⌊x₀⌋), G(⌈x₀⌉), die das Aufrunden begruendet.
   "E(x) und K(x) einblenden" zeigt die Erloes- und die Kostengerade und ihren
-  Schnittpunkt S(x_GS | E(x_GS)), den Break-Even-Point, mit Koordinaten am
+  Schnittpunkt BEP(x_GS | E(x_GS)), den Break-Even-Point, mit Koordinaten am
   Punkt und als Ablesezeile (Stunde vom 28.09.2026: der Schnittpunkt liegt
   senkrecht ueber der Nullstelle von G, die Gewinnschwelle ist seine
   x-Koordinate). Regel der Lernsituation: erst Papier, dann Datei.
@@ -369,12 +369,12 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     else ns.textContent = 'keine (für x ≥ 0)';
     ns.innerHTML = ns.textContent.replace(/x₀/g, XGS);
     document.getElementById('kontrolle').textContent = a.kontrolle;
-    // Break-Even-Point S(x_GS | E(x_GS)) nur, wenn E(x) und K(x) eingeblendet sind (28.09.)
+    // Break-Even-Point BEP(x_GS | E(x_GS)) nur, wenn E(x) und K(x) eingeblendet sind (28.09.)
     var bepz = document.getElementById('bepz'), bep = document.getElementById('bep');
     bepz.style.display = st.ek ? '' : 'none';
     if (r.art === 'krumm' || r.art === 'ganz' || r.art === 'null') {
       var xs = r.art === 'krumm' ? K.fmt(r.x0, 2) : K.fmtK(r.x0);
-      bep.textContent = 'S(' + xs + ' | ' + K.fmt(st.p * r.x0, 2) + '), dort Erlös = Kosten = ' + K.geld(st.p * r.x0);
+      bep.textContent = 'BEP(' + xs + ' | ' + K.fmt(st.p * r.x0, 2) + '), dort Erlös = Kosten = ' + K.geld(st.p * r.x0);
     } else {
       bep.textContent = 'keiner (für x ≥ 0)';
     }
@@ -448,7 +448,7 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
         // Punkt liegt hoechstens auf halber Hoehe des Fensters, oben ist Platz.
         ctx.fillStyle = '#26261E'; ctx.beginPath(); ctx.arc(sx(x0), sy(p * x0), 5, 0, 2 * Math.PI); ctx.fill();
         ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
-        var sZeilen = ['Break-Even-Point', 'S(' + (r.art === 'krumm' ? K.fmt(x0, 2) : K.fmtK(x0)) + ' | ' + K.fmt(p * x0, 2) + ')'];
+        var sZeilen = ['Break-Even-Point', 'BEP(' + (r.art === 'krumm' ? K.fmt(x0, 2) : K.fmtK(x0)) + ' | ' + K.fmt(p * x0, 2) + ')'];
         ctx.font = 'bold 12px "Segoe UI", Roboto, Arial, sans-serif'; ctx.fillStyle = '#26261E';
         ctx.textBaseline = 'bottom';
         var sW = Math.max(ctx.measureText(sZeilen[0]).width, ctx.measureText(sZeilen[1]).width);
