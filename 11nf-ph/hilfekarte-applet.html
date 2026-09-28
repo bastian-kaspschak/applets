@@ -630,7 +630,7 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
           ctx.beginPath(); ctx.moveTo(sx(p.t), oy); ctx.lineTo(sx(p.t), sy(p.s)); ctx.lineTo(ox, sy(p.s)); ctx.stroke();
           ctx.setLineDash([]);
           ctx.fillStyle = a.farbe; ctx.font = 'bold 13px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
-          ctx.fillText('(' + K.fmt(p.t) + ' s | ' + K.fmt(p.s) + ' m)', sx(p.t) + 8, sy(p.s) - 6);
+          ctx.fillText(k + '(' + K.fmt(p.t) + ' s | ' + K.fmt(p.s) + ' m)', sx(p.t) + 8, sy(p.s) - 6);
           ctx.font = '12px ' + FONT;
         }
         ctx.fillStyle = a.farbe; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
@@ -671,7 +671,7 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     // Zeitmarke: senkrechte Linie bei t und auf jeder gezeichneten Geraden der
     // Punkt (t | s) mit seinem Ort, sobald eine Gerade da ist
     if (ln.length && v.achsen) {
-      var rechts = sx(st.t) < W - 80, xm = sx(st.t);
+      var rechts = sx(st.t) < W - 115, xm = sx(st.t);
       ctx.strokeStyle = '#888'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]);
       ctx.beginPath(); ctx.moveTo(xm, oy); ctx.lineTo(xm, sy(186)); ctx.stroke();
       ctx.setLineDash([]);
@@ -695,8 +695,9 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
         }
         ctx.strokeStyle = a.farbe; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(xm, marken[i].y, zusammen ? 14 : 10, 0, 2 * Math.PI); ctx.stroke();
+        // Punktschreibweise wie auf dem Blatt: A(6 s | 60 m)
         ctx.font = 'bold 12px ' + FONT; ctx.textBaseline = 'middle'; ctx.textAlign = rechts ? 'left' : 'right';
-        ctx.fillText(marken[i].k + ': ' + K.fmt(marken[i].s) + ' m', xm + (rechts ? 14 : -14), marken[i].ly);
+        ctx.fillText(marken[i].k + '(' + K.fmt(st.t) + ' s | ' + K.fmt(marken[i].s) + ' m)', xm + (rechts ? 14 : -14), marken[i].ly);
       }
       ctx.font = '12px ' + FONT;
     }
@@ -713,9 +714,14 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     var pw = W - L - R;
     function px(s) { return L + s / 180 * pw; }
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = '#efefe9'; ctx.fillRect(L, top, pw, bottom - top);
-    ctx.strokeStyle = '#c9c9c0'; ctx.lineWidth = 1;
-    for (i = 1; i < lanes; i++) { ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.moveTo(L, top + i * lh); ctx.lineTo(L + pw, top + i * lh); ctx.stroke(); }
+    // Fahrbahn: grauer Asphalt ueber die ganze Breite, weisse Randlinien, gestrichelte
+    // weisse Leitlinien zwischen den drei Spuren
+    ctx.fillStyle = '#5c5c5c'; ctx.fillRect(0, top, W, bottom - top);
+    ctx.strokeStyle = '#f4f4f4'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(0, top + 3); ctx.lineTo(W, top + 3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, bottom - 3); ctx.lineTo(W, bottom - 3); ctx.stroke();
+    ctx.lineWidth = 2; ctx.setLineDash([14, 12]);
+    for (i = 1; i < lanes; i++) { ctx.beginPath(); ctx.moveTo(0, top + i * lh); ctx.lineTo(W, top + i * lh); ctx.stroke(); }
     ctx.setLineDash([]);
     // Skala
     ctx.strokeStyle = '#26261E'; ctx.fillStyle = '#26261E'; ctx.lineWidth = 1.2;
@@ -745,21 +751,22 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
         ctx.fillStyle = a.farbe;
         ctx.beginPath(); ctx.moveTo(x - bw, y - bh / 2); ctx.lineTo(x - 6, y - bh / 2); ctx.lineTo(x, y); ctx.lineTo(x - 6, y + bh / 2); ctx.lineTo(x - bw, y + bh / 2); ctx.closePath(); ctx.fill();
       }
-      // Ortsmarke an der Front; der Buchstabe steht weiss auf der Tuer, damit er
-      // auch bei s = 0 m (Auto im linken Rand) zu sehen ist
-      ctx.strokeStyle = a.farbe; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(x, y - lh / 2 + 1); ctx.lineTo(x, y + lh / 2 - 1); ctx.stroke();
+      // Ortsmarke an der Front (weiss auf dem Asphalt); der Buchstabe steht weiss mit
+      // dunkler Kontur auf der Tuer, damit er auch bei s = 0 m im linken Rand zu sehen ist
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x, y - lh / 2 + 2); ctx.lineTo(x, y + lh / 2 - 2); ctx.stroke();
       ctx.font = 'bold 13px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineJoin = 'round';
       ctx.strokeText(k, x - bw * 0.5, y + 1); ctx.fillStyle = '#fff'; ctx.fillText(k, x - bw * 0.5, y + 1);
-      ctx.fillStyle = a.farbe; ctx.font = 'bold 11px ' + FONT; ctx.textAlign = 'left';
+      // Ortsangabe in Weiss neben der Front
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px ' + FONT; ctx.textAlign = 'left';
       var lbl = K.fmt(sPos) + ' m';
-      if (x + 6 + ctx.measureText(lbl).width > W - 2) { ctx.textAlign = 'right'; ctx.fillText(lbl, x - bw - 22, y + 0.5); }
-      else ctx.fillText(lbl, x + 5, y + 0.5);
+      if (x + 6 + ctx.measureText(lbl).width > W - 2) { ctx.textAlign = 'right'; ctx.fillText(lbl, x - bw - 8, y + 0.5); }
+      else ctx.fillText(lbl, x + 6, y + 0.5);
     }
     // Position, an der die Zeitmarke im Diagramm liegt: Strich, wenn zwei Autos zusammen stehen
     if (ln.indexOf('B') >= 0 && ln.indexOf('C') >= 0 && K.nahe(K.s('B', st.t), K.s('C', st.t))) {
-      ctx.strokeStyle = '#222'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
       ctx.beginPath(); ctx.moveTo(px(K.s('B', st.t)), top); ctx.lineTo(px(K.s('B', st.t)), bottom); ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = '#222'; ctx.font = 'bold 12px ' + FONT; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
