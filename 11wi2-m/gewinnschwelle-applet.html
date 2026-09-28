@@ -374,7 +374,7 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
     bepz.style.display = st.ek ? '' : 'none';
     if (r.art === 'krumm' || r.art === 'ganz' || r.art === 'null') {
       var xs = r.art === 'krumm' ? K.fmt(r.x0, 2) : K.fmtK(r.x0);
-      bep.textContent = 'S(' + xs + ' | ' + K.fmt(st.p * r.x0, 2) + ') · Erlös = Kosten = ' + K.geld(st.p * r.x0);
+      bep.textContent = 'S(' + xs + ' | ' + K.fmt(st.p * r.x0, 2) + '), dort Erlös = Kosten = ' + K.geld(st.p * r.x0);
     } else {
       bep.textContent = 'keiner (für x ≥ 0)';
     }
@@ -443,16 +443,19 @@ if (typeof module !== 'undefined') { module.exports = Kern; }
       if (hatNs && x0 < br.xmax && r.db > 0) {
         ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = '#777'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(sx(x0), sy(0)); ctx.lineTo(sx(x0), sy(p * x0)); ctx.stroke(); ctx.restore();
-        // Break-Even-Point mit Koordinaten (28.09.); Beschriftung links oben,
-        // sonst rechts, wenn links kein Platz ist
+        // Break-Even-Point mit Name und Koordinaten (28.09.), zwei Zeilen ueber
+        // dem Punkt: links davon, sonst rechts, wenn links kein Platz ist. Der
+        // Punkt liegt hoechstens auf halber Hoehe des Fensters, oben ist Platz.
         ctx.fillStyle = '#26261E'; ctx.beginPath(); ctx.arc(sx(x0), sy(p * x0), 5, 0, 2 * Math.PI); ctx.fill();
         ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke();
-        var sTxt = 'S(' + (r.art === 'krumm' ? K.fmt(x0, 2) : K.fmtK(x0)) + ' | ' + K.fmt(p * x0, 2) + ')';
+        var sZeilen = ['Break-Even-Point', 'S(' + (r.art === 'krumm' ? K.fmt(x0, 2) : K.fmtK(x0)) + ' | ' + K.fmt(p * x0, 2) + ')'];
         ctx.font = 'bold 12px "Segoe UI", Roboto, Arial, sans-serif'; ctx.fillStyle = '#26261E';
         ctx.textBaseline = 'bottom';
-        var sW = ctx.measureText(sTxt).width, sLinks = sx(x0) - 9 - sW > L + 4;
+        var sW = Math.max(ctx.measureText(sZeilen[0]).width, ctx.measureText(sZeilen[1]).width);
+        var sLinks = sx(x0) - 9 - sW > L + 4, sX = sLinks ? sx(x0) - 9 : sx(x0) + 9;
         ctx.textAlign = sLinks ? 'right' : 'left';
-        ctx.fillText(sTxt, sLinks ? sx(x0) - 9 : sx(x0) + 9, sy(p * x0) - 4);
+        ctx.fillText(sZeilen[0], sX, sy(p * x0) - 19);
+        ctx.fillText(sZeilen[1], sX, sy(p * x0) - 4);
       }
     }
     ctx.strokeStyle = '#B01A15'; ctx.lineWidth = 2.2;
