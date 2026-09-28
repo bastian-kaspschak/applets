@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hilfekarte: Weg-Zeit-Diagramme zeichnen und deuten</title>
+<!--
+  Digitale Hilfekarte zum Arbeitsblatt "Weg-Zeit-Diagramme zeichnen und deuten",
+  11NF PH (29.09.2026). Gestufte Hilfen zu den Aufgaben 1 bis 8 des Blatts fuer
+  Lernende, die bei einer Aufgabe haengen: je Aufgabe drei Hilfen, die der Reihe
+  nach geoeffnet werden (Hilfe 1 sagt, was zu tun ist; Hilfe 2 zeigt den ersten
+  Schritt im Diagramm; Hilfe 3 zeigt das Ergebnis oder laesst es pruefen).
+  Gezeichnet und gerechnet wird auf dem Arbeitsblatt, nicht hier.
+
+  Eine Datei, kein Internet noetig: HTML, CSS und JavaScript zusammen, keine
+  Bibliothek, keine Web-Fonts. Formeln als Unicode (Δ, ₀, ·, −).
+
+  Oben das Weg-Zeit-Diagramm mit demselben Raster wie das Blatt (Karo:
+  2 Kaestchen = 1 s, 1 Kaestchen = 10 m), darunter die Strasse, auf der die
+  drei Autos zur eingestellten Zeit t stehen (Darstellungswechsel Diagramm <->
+  Bewegung; greift die Vorstellungen "Graph = Bild der Strasse" und
+  "Schnittpunkt = gleiche Geschwindigkeit" an). Rechts die Aufgabenwahl, die
+  gestuften Hilfen und die Pruefung eigener Werte (nur richtig/falsch mit
+  Hinweis, keine fertigen Antwortsaetze).
+
+  Werte des Blatts: A s = 10 m/s · t; B s = 15 m/s · t; C s = 10 m/s · t + 40 m;
+  Schnittpunkt B/C bei t = 8 s, s = 120 m.
+
+  Der erste Skriptblock (id "kern") ist DOM-frei (Autos, Rechnung, Hilfetexte,
+  Pruefung) und wird von einem Node-Test geladen; der zweite Block haengt am
+  Dokument.
+-->
+<style>
+  :root {
+    --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A;
+    --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; --achse: #26261E;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.45; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 1120px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 14px; font-size: 16px; }
+  i, .v { font-style: italic; font-family: "Cambria", "Georgia", "Times New Roman", serif; }
+  .m { font-family: "Cambria", "Georgia", "Times New Roman", serif; font-size: 1.05em; white-space: nowrap; }
+  .m sub { font-size: .72em; }
+
+  /* Aufgabenwahl: grosse Tasten, auch fuer den Daumen */
+  .aufgaben { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
+  .aufgaben .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; margin-right: 6px; }
+  .aufgaben button { min-width: 48px; min-height: 44px; font-size: 18px; font-weight: 600; }
+  button { font: inherit; font-size: 15px; padding: 8px 14px; border: 1px solid var(--stahl);
+           background: #fff; color: var(--stahl); cursor: pointer; border-radius: 0; min-height: 44px; }
+  button:hover { background: var(--stahl); color: #fff; }
+  button.akt { background: var(--stahl); color: #fff; }
+  button:disabled { border-color: var(--grau); color: #999; background: #f3f3f0; cursor: default; }
+  button.gruen { border-color: var(--oliv); color: var(--oliv); }
+  button.gruen:hover { background: var(--oliv); color: #fff; }
+
+  .zwei { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; align-items: start; }
+  .zwei > * { min-width: 0; }
+  canvas { display: block; width: 100%; border: 1px solid var(--grau); background: #fff; }
+  #diagramm { height: 380px; }
+  #strasse { height: 128px; margin-top: 8px; }
+  .legende { font-size: 12px; color: #666; margin-top: 4px; }
+
+  /* Regler: Beschriftung, Zahlfeld und Einheit oben, der Regler darunter ueber die volle Breite */
+  .r { display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: "n z e" "s s s";
+       gap: 2px 8px; align-items: center; margin: 10px 0 4px; font-size: 15px; }
+  .r .n { grid-area: n; }
+  .r input[type=range] { grid-area: s; -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; margin: 0;
+                         height: 44px; background: transparent; cursor: pointer; accent-color: var(--stahl); }
+  .r input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -11px;
+                         border-radius: 50%; background: var(--stahl); border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--stahl);
+                         border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=number] { grid-area: z; font: inherit; font-size: 16px; padding: 8px 6px; border: 1px solid var(--grau);
+                          width: 5.5em; min-width: 0; font-variant-numeric: tabular-nums; }
+  .r input[type=number]:focus { outline: 2px solid var(--stahl); border-color: var(--stahl); }
+  .r .e { grid-area: e; color: #666; font-size: 14px; white-space: nowrap; }
+
+  .box { border: 1px solid var(--grau); padding: 10px 14px; background: #fff; margin-bottom: 12px; }
+  .box .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; }
+  .box h2 { font-size: 17px; margin: 2px 0 8px; }
+  .hilfe { border-left: 4px solid var(--stahl); background: #f7f9fb; padding: 8px 12px; margin: 8px 0; font-size: 16px; }
+  .hilfe .t { display: block; font-size: 10px; letter-spacing: .12em; color: var(--stahl); text-transform: uppercase; margin-bottom: 3px; }
+  .hilfe .satz { display: block; margin: 3px 0 3px 10px; color: #444; }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .pruef .z { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 8px 0; font-size: 16px; }
+  .pruef input[type=number], .pruef input[type=text] { font: inherit; font-size: 16px; padding: 8px 6px; min-height: 44px;
+        border: 1px solid var(--grau); width: 6em; font-variant-numeric: tabular-nums; }
+  .pruef select { font: inherit; font-size: 16px; padding: 8px 6px; min-height: 44px; border: 1px solid var(--grau); background: #fff; }
+  .pruef label.opt { display: block; padding: 8px 0; font-size: 16px; cursor: pointer; }
+  .pruef label.opt input { width: 22px; height: 22px; vertical-align: -5px; margin-right: 8px; }
+  .fb { margin-top: 8px; font-size: 16px; font-weight: 600; min-height: 1.4em; }
+  .fb.ok { color: var(--oliv); }
+  .fb.nein { color: var(--rot); }
+  .fb .norm { font-weight: 400; color: #444; }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+
+  @media (min-width: 1000px) { #diagramm { height: 440px; } }
+  @media (max-width: 820px) { .zwei { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) {
+    main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
+    #diagramm { height: 300px; } #strasse { height: 112px; }
+    .aufgaben button { min-width: 44px; padding: 8px 10px; }
+  }
+  @media (max-height: 520px) and (orientation: landscape) { #diagramm { height: 260px; } }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Physik</div>
+  <div><span class="k">Kurs</span>11NF PH</div>
+  <div><span class="k">Reihe</span>Kinematik</div>
+  <div><span class="k">Thema</span>Gleichförmige geradlinige Bewegung</div>
+</header>
+<main>
+  <h1>Hilfekarte zum Arbeitsblatt „Weg-Zeit-Diagramme zeichnen und deuten“</h1>
+  <p class="lead">Wähle die Aufgabe, bei der du Hilfe brauchst. Öffne die Hilfen der Reihe nach und nur so viele,
+    wie du brauchst. Zeichne und rechne auf dem Arbeitsblatt, nicht hier.</p>
+
+  <div class="aufgaben" id="wahl">
+    <span class="lbl">Aufgabe</span>
+    <button data-nr="1">1</button><button data-nr="2">2</button><button data-nr="3">3</button>
+    <button data-nr="4">4</button><button data-nr="5">5</button><button data-nr="6">6</button>
+    <button data-nr="7">7</button><button data-nr="8">8</button>
+  </div>
+
+  <div class="zwei">
+    <div>
+      <canvas id="diagramm"></canvas>
+      <canvas id="strasse"></canvas>
+      <div class="legende">Oben: das Weg-Zeit-Diagramm mit dem Raster des Blatts (2 Kästchen = 1 s, 1 Kästchen = 10 m).
+        Unten: die Straße. Die Autos stehen dort, wo sie zur Zeit <span class="m"><i>t</i></span> sind.</div>
+      <div class="r">
+        <span class="n">Zeit <span class="m"><i>t</i></span></span>
+        <input type="range" id="t_r" min="0" max="12" step="0.5" value="0" aria-label="Zeit t Regler">
+        <input type="number" id="t_n" min="0" max="12" step="0.5" value="0" aria-label="Zeit t">
+        <span class="e">s</span>
+      </div>
+      <div class="r" id="dt_row" style="display:none">
+        <span class="n">Breite des Steigungsdreiecks <span class="m">Δ<i>t</i></span></span>
+        <input type="range" id="dt_r" min="1" max="11" step="1" value="10" aria-label="Breite des Steigungsdreiecks Regler">
+        <input type="number" id="dt_n" min="1" max="11" step="1" value="10" aria-label="Breite des Steigungsdreiecks">
+        <span class="e">s</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="box">
+        <div class="lbl">Aufgabe <span id="nr">1</span></div>
+        <h2 id="titel"></h2>
+        <div id="hilfen"></div>
+        <div class="btns">
+          <button id="mehr" class="akt">Hilfe 1 öffnen</button>
+          <button id="punkt" class="gruen" style="display:none">Nächster Punkt</button>
+        </div>
+      </div>
+      <div class="box pruef" id="pruef" style="display:none">
+        <div class="lbl">Prüfe deine Werte</div>
+        <div id="pruef_inhalt"></div>
+        <div class="btns"><button id="pruefen">Prüfen</button></div>
+        <div class="fb" id="fb"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>Physik 11NF PH · hilfekarte-applet.html</footer>
+
+<script id="kern">
+// ---------------------------------------------------------------------------
+//  Kern: Autos, Rechnung, Hilfetexte, Pruefung. Kein Zugriff auf das Dokument,
+//  damit ein Node-Test den Block laden kann.
+// ---------------------------------------------------------------------------
+var Kern = (function () {
+  'use strict';
+  var MINUS = '−';
+  var AUTOS = {
+    A: { name: 'Auto A', v: 10, s0: 0,  farbe: '#35638A' },
+    B: { name: 'Auto B', v: 15, s0: 0,  farbe: '#B01A15' },
+    C: { name: 'Auto C', v: 10, s0: 40, farbe: '#71803C' }
+  };
+  var ZEITEN = [0, 2, 4, 6, 8, 10, 12];
+
+  function s(k, t) { var a = AUTOS[k]; return a.v * t + a.s0; }
+  function punkte(k) { return ZEITEN.map(function (t) { return { t: t, s: s(k, t) }; }); }
+  // Steigungsdreieck an der Geraden k, Startzeit t1, Breite dt
+  function dreieck(k, t1, dt) {
+    var ds = s(k, t1 + dt) - s(k, t1);
+    return { t1: t1, dt: dt, ds: ds, v: ds / dt };
+  }
+  // Schnittpunkt zweier Geraden (null bei gleicher Geschwindigkeit)
+  function schnitt(k1, k2) {
+    var a = AUTOS[k1], b = AUTOS[k2];
+    if (a.v === b.v) return null;
+    var t = (b.s0 - a.s0) / (a.v - b.v);
+    return { t: t, s: s(k1, t) };
+  }
+  // Zahl mit deutschem Komma, ohne unnoetige Nullen
+  function fmt(v, dez) {
+    var x = Math.abs(v) < 1e-12 ? 0 : v;
+    var str = x.toFixed(dez === undefined ? 1 : dez);
+    if (dez === undefined) str = str.replace(/\.0$/, '');
+    return str.replace('.', ',').replace('-', MINUS);
+  }
+  function parse(str) {
+    var v = parseFloat(String(str === undefined || str === null ? '' : str).trim().replace(',', '.'));
+    return isFinite(v) ? v : NaN;
+  }
+  function nahe(a, b, tol) { return Math.abs(a - b) <= (tol === undefined ? 1e-9 : tol); }
+
+  // Die acht Aufgaben des Blatts mit je drei Hilfen. "view" sagt dem Diagramm,
+  // was es zeigt: achsen, punkte {A:n}, linien [..], schritt {auto, start}
+  // (Punkte einzeln aufdecken), dreieck 'A'/'B', dreieckWerte, s0, schnitt
+  // 'mark'/'lesen', cursor (Zeitmarke im Diagramm). "pruef" nennt die Pruefung.
+  var ALLE = { achsen: true, linien: ['A', 'B', 'C'] };
+  var AB = { achsen: true, linien: ['A', 'B'] };
+  var AUFGABEN = [
+    { nr: 1, titel: 'Auto A zeichnen', basis: { achsen: false },
+      hilfen: [
+        { text: 'Zeichne zwei Achsen: Die Zeit t geht nach rechts, der Weg s geht nach oben. Schreibe an die Achsen: „t in s“ und „s in m“. Skalierung: 2 Kästchen sind 1 s, 1 Kästchen ist 10 m. So passen 12 s und 180 m auf das Raster. Schreibe die Zahlen an die Achsen wie im Bild.',
+          view: { achsen: true } },
+        { text: 'Lies in der Tabelle von Auto A das zweite Paar: t = 2 s und s = 20 m. Gehe auf der t-Achse bis 2. Gehe von dort senkrecht nach oben bis 20. Setze dort einen Punkt. Drücke „Nächster Punkt“ und mache es genauso mit den anderen Paaren.',
+          view: { achsen: true, schritt: { auto: 'A', start: 2 } } },
+        { text: 'Lege das Lineal so an, dass es alle Punkte berührt. Ziehe die Gerade. Schreibe A an das Ende der Geraden.',
+          view: { achsen: true, punkte: { A: 7 }, linien: ['A'] } }
+      ] },
+    { nr: 2, titel: 'Auto B zeichnen', basis: { achsen: true, punkte: { A: 7 }, linien: ['A'] },
+      hilfen: [
+        { text: 'Auto B hat eine eigene Tabelle. Bei t = 2 s ist s = 30 m. Die Punkte von B liegen höher als die Punkte von A. Zeichne sie in dasselbe Koordinatensystem.',
+          view: { achsen: true, punkte: { A: 7 }, linien: ['A'] } },
+        { text: 'Gehe auf der t-Achse bis 2, dann senkrecht nach oben bis 30. Setze den Punkt. Drücke „Nächster Punkt“ für die weiteren Paare.',
+          view: { achsen: true, punkte: { A: 7 }, linien: ['A'], schritt: { auto: 'B', start: 2 } } },
+        { text: 'Ziehe die Gerade durch alle Punkte von B. Schreibe B an das Ende. Die Gerade von B ist steiler als die von A.',
+          view: { achsen: true, punkte: { A: 7, B: 7 }, linien: ['A', 'B'] } }
+      ] },
+    { nr: 3, titel: 'Steigung von A', basis: AB, pruef: 'vA',
+      hilfen: [
+        { text: 'Ein Steigungsdreieck: Wähle einen Punkt auf der Geraden A. Gehe waagerecht nach rechts. Diese Strecke heißt Δt. Gehe dann senkrecht nach oben, bis du wieder auf der Geraden bist. Diese Strecke heißt Δs. Nimm ein großes Dreieck, das ist genauer. Probiere den Regler „Breite Δt“.',
+          view: { achsen: true, linien: ['A', 'B'], dreieck: 'A' } },
+        { text: 'Lies Δt unten am Dreieck ab, in s. Lies Δs rechts am Dreieck ab, in m. Zähle die Kästchen: 2 Kästchen sind 1 s, 1 Kästchen ist 10 m. Rechne Δs : Δt. Die Einheit ist m : s, also m/s.',
+          view: { achsen: true, linien: ['A', 'B'], dreieck: 'A', dreieckWerte: true } },
+        { text: 'm/s ist die Einheit einer Geschwindigkeit. Das Ergebnis sagt: Auto A fährt in jeder Sekunde so viele Meter weiter. Schiebe den Regler: Δt und Δs werden anders, aber Δs : Δt bleibt gleich. Prüfe dein Ergebnis unten.',
+          view: { achsen: true, linien: ['A', 'B'], dreieck: 'A', dreieckWerte: true } }
+      ] },
+    { nr: 4, titel: 'Steigung von B und Vergleich', basis: AB, pruef: 'vB',
+      hilfen: [
+        { text: 'Zeichne das Steigungsdreieck an die Gerade B, genauso wie bei A. Tipp: Nimm dasselbe Δt wie bei A. Dann kannst du Δs direkt vergleichen.',
+          view: { achsen: true, linien: ['A', 'B'], dreieck: 'B' } },
+        { text: 'Lies Δt und Δs ab und rechne Δs : Δt für B. Vergleiche mit A: Teile die Geschwindigkeit von B durch die Geschwindigkeit von A. Das Ergebnis sagt, wie vielmal so schnell B fährt.',
+          view: { achsen: true, linien: ['A', 'B'], dreieck: 'B', dreieckWerte: true } },
+        { text: 'Beide Autos haben dasselbe Δt. B legt in dieser Zeit mehr Meter zurück als A. Darum ist die Gerade von B steiler. Prüfe deine Werte unten.',
+          view: { achsen: true, linien: ['A', 'B'], dreieck: 'B', dreieckWerte: true } }
+      ] },
+    { nr: 5, titel: 'Auto C zeichnen', basis: AB,
+      hilfen: [
+        { text: 'Auto C startet nicht bei 0 m. In der Tabelle steht bei t = 0 s schon s = 40 m. Der erste Punkt liegt darum auf der s-Achse bei 40.',
+          view: { achsen: true, linien: ['A', 'B'], schritt: { auto: 'C', start: 1 } } },
+        { text: 'Setze den ersten Punkt bei t = 0 und s = 40. Drücke „Nächster Punkt“: Bei t = 2 s ist s = 60 m, und so weiter.',
+          view: { achsen: true, linien: ['A', 'B'], schritt: { auto: 'C', start: 1 } } },
+        { text: 'Ziehe die Gerade durch alle Punkte von C. Schreibe C an das Ende. Die Gerade von C beginnt nicht im Ursprung.',
+          view: { achsen: true, linien: ['A', 'B', 'C'], punkte: { C: 7 } } }
+      ] },
+    { nr: 6, titel: 'Achsenabschnitt von C', basis: ALLE, pruef: 's0',
+      hilfen: [
+        { text: 'Der y-Achsenabschnitt ist der Punkt, an dem die Gerade C die senkrechte Achse trifft. Lies dort den Wert ab. Die Einheit ist m. Man nennt den Wert s₀.',
+          view: { achsen: true, linien: ['A', 'B', 'C'], s0: true } },
+        { text: 'Bedeutung: Zur Zeit t = 0 s ist Auto C schon 40 m vom Bezugspunkt entfernt. Stelle den Zeitregler auf 0 s und sieh auf die Straße: C hat einen Vorsprung.',
+          view: { achsen: true, linien: ['A', 'B', 'C'], s0: true, cursor: true }, tSetzen: 0 },
+        { text: 'Vergleiche A und C: Die Geraden sind parallel. Gleiche Steigung heißt gleiche Geschwindigkeit. C liegt im Diagramm höher, aber C ist nicht schneller. Höher heißt: weiter vorn. Steiler heißt: schneller. Schiebe den Zeitregler: Der Abstand zwischen A und C bleibt immer 40 m.',
+          view: { achsen: true, linien: ['A', 'B', 'C'], s0: true, cursor: true } }
+      ] },
+    { nr: 7, titel: 'Schnittpunkt von B und C', basis: ALLE, pruef: 'schnitt',
+      hilfen: [
+        { text: 'Suche die Stelle, an der sich die Geraden B und C kreuzen. Dieser Punkt heißt Schnittpunkt S.',
+          view: { achsen: true, linien: ['A', 'B', 'C'], schnitt: 'mark' } },
+        { text: 'Gehe von S senkrecht nach unten bis zur t-Achse. Lies dort den Zeitpunkt t ab, in s. Gehe von S waagerecht nach links bis zur s-Achse. Lies dort den Ort s ab, in m.',
+          view: { achsen: true, linien: ['A', 'B', 'C'], schnitt: 'lesen' } },
+        { text: 'Prüfe mit dem Zeitregler: Stelle t so ein, dass B und C auf der Straße genau untereinander stehen. Dann zeigt die Straße denselben Ort wie das Diagramm. Trage deine Werte unten ein.',
+          view: { achsen: true, linien: ['A', 'B', 'C'], schnitt: 'lesen', cursor: true } }
+      ] },
+    { nr: 8, titel: 'Was der Schnittpunkt bedeutet', basis: { achsen: true, linien: ['A', 'B', 'C'], cursor: true }, pruef: 'bedeutung',
+      hilfen: [
+        { text: 'Schiebe den Zeitregler langsam von 0 s bis 12 s. Sieh auf die Straße: Welches Auto ist bei t = 4 s vorn? Welches bei t = 10 s? Wann stehen B und C genau untereinander?',
+          view: { achsen: true, linien: ['A', 'B', 'C'], cursor: true } },
+        { text: 'Satzanfänge für dein Heft: „Zur Zeit t = … s sind B und C am gleichen Ort, bei s = … m.“ „Davor liegt Auto … vorn.“ „Danach liegt Auto … vorn.“ „Auto … überholt Auto ….“',
+          view: { achsen: true, linien: ['A', 'B', 'C'], cursor: true } },
+        { text: 'Gleiche Geschwindigkeit sieht man an gleicher Steigung, also an parallelen Geraden wie A und C. B ist steiler als C, darum ist B schneller. Am Schnittpunkt sind B und C nur am gleichen Ort zur gleichen Zeit. Gleich schnell sind sie dort nicht.',
+          view: { achsen: true, linien: ['A', 'B', 'C'], cursor: true, schnitt: 'mark' } }
+      ] }
+  ];
+
+  // Pruefung eigener Werte: liefert { ok, text }. Rueckmeldung nur richtig /
+  // falsch mit Hinweis auf den naechsten Schritt, kein fertiger Antwortsatz.
+  function pruefe(art, w) {
+    var v, r, S;
+    switch (art) {
+      case 'vA':
+        v = parse(w.v);
+        if (isNaN(v)) return { ok: false, text: 'Trage erst einen Wert ein.' };
+        if (nahe(v, AUTOS.A.v)) return { ok: true, text: 'Richtig. Auto A fährt ' + fmt(AUTOS.A.v) + ' m/s: in jeder Sekunde ' + fmt(AUTOS.A.v) + ' m weiter.' };
+        if (nahe(v, 1 / AUTOS.A.v, 1e-6)) return { ok: false, text: 'Du hast Δt : Δs gerechnet. Rechne Δs : Δt, also Meter geteilt durch Sekunden.' };
+        return { ok: false, text: 'Das passt nicht. Lies Δt und Δs noch einmal am Dreieck ab und rechne Δs : Δt.' };
+      case 'vB':
+        v = parse(w.v); r = parse(w.faktor);
+        if (isNaN(v) && isNaN(r)) return { ok: false, text: 'Trage erst Werte ein.' };
+        var teile = [];
+        if (isNaN(v)) teile.push('Trage Δs : Δt für B ein.');
+        else if (nahe(v, AUTOS.B.v)) teile.push('Δs : Δt für B ist richtig.');
+        else if (nahe(v, 1 / AUTOS.B.v, 1e-6)) teile.push('Für B hast du Δt : Δs gerechnet. Rechne Δs : Δt.');
+        else teile.push('Δs : Δt für B passt nicht. Lies Δt und Δs am Dreieck an B ab.');
+        if (isNaN(r)) teile.push('Trage ein, wie vielmal so schnell B fährt.');
+        else if (nahe(r, AUTOS.B.v / AUTOS.A.v)) teile.push('Der Vergleich ist richtig: B fährt ' + fmt(AUTOS.B.v / AUTOS.A.v) + '-mal so schnell wie A.');
+        else if (nahe(r, AUTOS.B.v - AUTOS.A.v)) teile.push('Du hast die Geschwindigkeiten abgezogen. Gefragt ist „wie vielmal so schnell“: Teile die Geschwindigkeit von B durch die von A.');
+        else teile.push('Der Vergleich passt nicht. Teile die Geschwindigkeit von B durch die Geschwindigkeit von A.');
+        var okB = !isNaN(v) && nahe(v, AUTOS.B.v) && !isNaN(r) && nahe(r, AUTOS.B.v / AUTOS.A.v);
+        return { ok: okB, text: (okB ? 'Richtig. ' : '') + teile.join(' ') };
+      case 's0':
+        v = parse(w.s0);
+        if (isNaN(v)) return { ok: false, text: 'Trage erst einen Wert ein.' };
+        if (nahe(v, AUTOS.C.s0)) return { ok: true, text: 'Richtig. s₀ = ' + fmt(AUTOS.C.s0) + ' m: Bei t = 0 s ist Auto C schon ' + fmt(AUTOS.C.s0) + ' m weit.' };
+        if (nahe(v, 0)) return { ok: false, text: 'Auto C startet nicht bei 0 m. Sieh in die Tabelle: Bei t = 0 s steht s = 40.' };
+        return { ok: false, text: 'Das passt nicht. Lies ab, wo die Gerade C die senkrechte Achse trifft.' };
+      case 'schnitt':
+        S = schnitt('B', 'C');
+        var t = parse(w.t), sw = parse(w.s);
+        if (isNaN(t) && isNaN(sw)) return { ok: false, text: 'Trage erst Werte ein.' };
+        if (!isNaN(t) && !isNaN(sw) && nahe(t, S.s) && nahe(sw, S.t)) return { ok: false, text: 'Du hast t und s vertauscht: t liest du unten an der waagerechten Achse ab, s links an der senkrechten.' };
+        var tOk = !isNaN(t) && nahe(t, S.t), sOk = !isNaN(sw) && nahe(sw, S.s);
+        if (tOk && sOk) return { ok: true, text: 'Richtig. Bei t = ' + fmt(S.t) + ' s sind B und C beide bei s = ' + fmt(S.s) + ' m.' };
+        var tt = [];
+        tt.push(tOk ? 'Der Zeitpunkt t ist richtig.' : 'Der Zeitpunkt t stimmt nicht. Gehe von S senkrecht nach unten zur t-Achse.');
+        tt.push(sOk ? 'Der Ort s ist richtig.' : 'Der Ort s stimmt nicht. Gehe von S waagerecht nach links zur s-Achse.');
+        return { ok: false, text: tt.join(' ') };
+      case 'bedeutung':
+        S = schnitt('B', 'C');
+        var vorher = s('B', S.t - 1) > s('C', S.t - 1) ? 'B' : 'C';
+        var nachher = s('B', S.t + 1) > s('C', S.t + 1) ? 'B' : 'C';
+        var f = [];
+        if (!w.davor) f.push('Wähle, wer vor dem Schnittpunkt vorn liegt.');
+        else if (w.davor === vorher) f.push('Vor dem Schnittpunkt liegt ' + vorher + ' vorn, richtig.');
+        else f.push('Vor dem Schnittpunkt: Stelle den Zeitregler auf ' + fmt(S.t - 2) + ' s und sieh auf die Straße.');
+        if (!w.danach) f.push('Wähle, wer nach dem Schnittpunkt vorn liegt.');
+        else if (w.danach === nachher) f.push('Nach dem Schnittpunkt liegt ' + nachher + ' vorn, richtig.');
+        else f.push('Nach dem Schnittpunkt: Stelle den Zeitregler auf ' + fmt(S.t + 2) + ' s und sieh auf die Straße.');
+        if (!w.aussage) f.push('Kreuze an, was der Schnittpunkt bedeutet.');
+        else if (w.aussage === 'ort') f.push('Der Schnittpunkt heißt: gleicher Ort zur gleichen Zeit, richtig.');
+        else f.push('Nein: Gleiche Geschwindigkeit sieht man an gleicher Steigung. B ist steiler als C, also schneller. Am Schnittpunkt sind beide nur am gleichen Ort.');
+        var okD = w.davor === vorher && w.danach === nachher && w.aussage === 'ort';
+        return { ok: okD, text: (okD ? 'Richtig. ' : '') + f.join(' ') };
+      default:
+        return { ok: false, text: '' };
+    }
+  }
+
+  return { AUTOS: AUTOS, ZEITEN: ZEITEN, AUFGABEN: AUFGABEN, s: s, punkte: punkte, dreieck: dreieck,
+           schnitt: schnitt, fmt: fmt, parse: parse, nahe: nahe, pruefe: pruefe, MINUS: MINUS };
+})();
+if (typeof module !== 'undefined') { module.exports = Kern; }
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var K = Kern;
+  var st = { i: 0, stufe: 0, nPunkte: 0, t: 0, dt: 10 };
+  var FONT = '"Segoe UI", Roboto, Arial, sans-serif';
+
+  var cvD = document.getElementById('diagramm'), cxD = cvD.getContext('2d');
+  var cvS = document.getElementById('strasse'), cxS = cvS.getContext('2d');
+  var wahl = document.getElementById('wahl');
+  var elNr = document.getElementById('nr'), elTitel = document.getElementById('titel');
+  var elHilfen = document.getElementById('hilfen');
+  var btnMehr = document.getElementById('mehr'), btnPunkt = document.getElementById('punkt');
+  var boxPruef = document.getElementById('pruef'), pruefInhalt = document.getElementById('pruef_inhalt');
+  var btnPruefen = document.getElementById('pruefen'), fb = document.getElementById('fb');
+  var tR = document.getElementById('t_r'), tN = document.getElementById('t_n');
+  var dtRow = document.getElementById('dt_row'), dtR = document.getElementById('dt_r'), dtN = document.getElementById('dt_n');
+
+  function aufgabe() { return K.AUFGABEN[st.i]; }
+  // Sicht des Diagramms: die zuletzt geoeffnete Hilfe, sonst die Basis der Aufgabe
+  function view() {
+    var a = aufgabe();
+    return st.stufe > 0 ? a.hilfen[st.stufe - 1].view : a.basis;
+  }
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  // Formelzeichen im Hilfetext kursiv, Delta und Einheiten aufrecht
+  function schmuck(text) {
+    var h = esc(text);
+    h = h.replace(/Δt/g, '<span class="m">Δ<i>t</i></span>').replace(/Δs/g, '<span class="m">Δ<i>s</i></span>');
+    h = h.replace(/s₀/g, '<span class="m"><i>s</i><sub>0</sub></span>');
+    h = h.replace(/\bt-Achse/g, '<span class="m"><i>t</i></span>-Achse').replace(/\bs-Achse/g, '<span class="m"><i>s</i></span>-Achse');
+    h = h.replace(/„t in s“/g, '„<span class="m"><i>t</i> in s</span>“').replace(/„s in m“/g, '„<span class="m"><i>s</i> in m</span>“');
+    h = h.replace(/\bt = /g, '<span class="m"><i>t</i></span> = ').replace(/\bs = /g, '<span class="m"><i>s</i></span> = ');
+    h = h.replace(/Zeit t\b/g, 'Zeit <span class="m"><i>t</i></span>').replace(/Weg s\b/g, 'Weg <span class="m"><i>s</i></span>');
+    return h;
+  }
+
+  // ---- Aufgabe, Hilfen, Pruefung ----
+  var PRUEF = {
+    vA: '<div class="z"><span class="m">Δ<i>s</i> : Δ<i>t</i></span> für A = <input type="text" id="p_v" inputmode="decimal" aria-label="Geschwindigkeit von A"> m/s</div>',
+    vB: '<div class="z"><span class="m">Δ<i>s</i> : Δ<i>t</i></span> für B = <input type="text" id="p_v" inputmode="decimal" aria-label="Geschwindigkeit von B"> m/s</div>' +
+        '<div class="z">B fährt <input type="text" id="p_faktor" inputmode="decimal" aria-label="wie vielmal so schnell">-mal so schnell wie A</div>',
+    s0: '<div class="z"><span class="m"><i>s</i><sub>0</sub></span> von C = <input type="text" id="p_s0" inputmode="decimal" aria-label="Achsenabschnitt"> m</div>',
+    schnitt: '<div class="z">Schnittpunkt B/C: <span class="m"><i>t</i></span> = <input type="text" id="p_t" inputmode="decimal" aria-label="Zeitpunkt"> s</div>' +
+             '<div class="z"><span class="m"><i>s</i></span> = <input type="text" id="p_s" inputmode="decimal" aria-label="Ort"> m</div>',
+    bedeutung: '<div class="z">Vor dem Schnittpunkt liegt vorn: <select id="p_davor" aria-label="vorher vorn"><option value="">–</option><option value="B">Auto B</option><option value="C">Auto C</option></select></div>' +
+               '<div class="z">Nach dem Schnittpunkt liegt vorn: <select id="p_danach" aria-label="nachher vorn"><option value="">–</option><option value="B">Auto B</option><option value="C">Auto C</option></select></div>' +
+               '<div>Der Schnittpunkt bedeutet:</div>' +
+               '<label class="opt"><input type="radio" name="aussage" value="ort">B und C sind am gleichen Ort zur gleichen Zeit.</label>' +
+               '<label class="opt"><input type="radio" name="aussage" value="v">B und C sind gleich schnell.</label>'
+  };
+  function wert(id) { var e = document.getElementById(id); return e ? e.value : ''; }
+  function radio(name) {
+    var r = document.querySelector('input[name="' + name + '"]:checked');
+    return r ? r.value : '';
+  }
+  function pruefen() {
+    var art = aufgabe().pruef, w = {};
+    if (art === 'vA') w = { v: wert('p_v') };
+    else if (art === 'vB') w = { v: wert('p_v'), faktor: wert('p_faktor') };
+    else if (art === 's0') w = { s0: wert('p_s0') };
+    else if (art === 'schnitt') w = { t: wert('p_t'), s: wert('p_s') };
+    else if (art === 'bedeutung') w = { davor: wert('p_davor'), danach: wert('p_danach'), aussage: radio('aussage') };
+    var r = K.pruefe(art, w);
+    fb.className = 'fb ' + (r.ok ? 'ok' : 'nein');
+    fb.textContent = r.text;
+  }
+  function zeigeHilfen() {
+    var a = aufgabe(), h = '', i;
+    for (i = 0; i < st.stufe; i++) {
+      h += '<div class="hilfe"><span class="t">Hilfe ' + (i + 1) + ' von ' + a.hilfen.length + '</span>' + schmuck(a.hilfen[i].text) + '</div>';
+    }
+    elHilfen.innerHTML = h;
+    if (st.stufe >= a.hilfen.length) { btnMehr.disabled = true; btnMehr.textContent = 'Alle Hilfen offen'; btnMehr.className = ''; }
+    else { btnMehr.disabled = false; btnMehr.textContent = 'Hilfe ' + (st.stufe + 1) + ' öffnen'; btnMehr.className = 'akt'; }
+    var v = view();
+    if (v.schritt) {
+      btnPunkt.style.display = '';
+      var fertig = st.nPunkte >= K.ZEITEN.length;
+      btnPunkt.disabled = fertig;
+      btnPunkt.textContent = fertig ? 'Alle Punkte gesetzt' : 'Nächster Punkt';
+    } else {
+      btnPunkt.style.display = 'none';
+    }
+    dtRow.style.display = v.dreieck ? '' : 'none';
+    // Pruefung erst mit der letzten Hilfe
+    if (a.pruef && st.stufe >= a.hilfen.length) {
+      if (boxPruef.style.display === 'none') { pruefInhalt.innerHTML = PRUEF[a.pruef]; fb.textContent = ''; fb.className = 'fb'; }
+      boxPruef.style.display = '';
+    } else {
+      boxPruef.style.display = 'none';
+    }
+  }
+  function setAufgabe(i) {
+    st.i = i; st.stufe = 0; st.nPunkte = 0;
+    var a = aufgabe();
+    elNr.textContent = String(a.nr); elTitel.textContent = a.titel;
+    var bs = wahl.querySelectorAll('button'), k;
+    for (k = 0; k < bs.length; k++) bs[k].className = (parseInt(bs[k].getAttribute('data-nr'), 10) === a.nr) ? 'akt' : '';
+    boxPruef.style.display = 'none';
+    zeigeHilfen(); draw();
+  }
+  function naechsteHilfe() {
+    var a = aufgabe();
+    if (st.stufe >= a.hilfen.length) return;
+    st.stufe += 1;
+    var h = a.hilfen[st.stufe - 1];
+    if (h.view.schritt && st.nPunkte < h.view.schritt.start) st.nPunkte = h.view.schritt.start;
+    if (h.tSetzen !== undefined) setT(h.tSetzen);
+    zeigeHilfen(); draw();
+  }
+  function naechsterPunkt() {
+    if (st.nPunkte < K.ZEITEN.length) st.nPunkte += 1;
+    zeigeHilfen(); draw();
+  }
+  function setT(v) {
+    v = Math.max(0, Math.min(12, v)); st.t = v;
+    tR.value = String(v); tN.value = String(v);
+  }
+  function setDt(v) {
+    v = Math.max(1, Math.min(11, Math.round(v))); st.dt = v;
+    dtR.value = String(v); dtN.value = String(v);
+  }
+
+  wahl.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('button') : null;
+    if (!b) return;
+    setAufgabe(parseInt(b.getAttribute('data-nr'), 10) - 1);
+  });
+  btnMehr.addEventListener('click', naechsteHilfe);
+  btnPunkt.addEventListener('click', naechsterPunkt);
+  btnPruefen.addEventListener('click', pruefen);
+  pruefInhalt.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); pruefen(); } });
+  tR.addEventListener('input', function () { var v = K.parse(tR.value); if (!isNaN(v)) { st.t = v; tN.value = tR.value; draw(); } });
+  tN.addEventListener('input', function () { var v = K.parse(tN.value); if (!isNaN(v)) { setT(v); draw(); } });
+  dtR.addEventListener('input', function () { var v = K.parse(dtR.value); if (!isNaN(v)) { st.dt = v; dtN.value = dtR.value; draw(); } });
+  dtN.addEventListener('input', function () { var v = K.parse(dtN.value); if (!isNaN(v)) { setDt(v); draw(); } });
+
+  // ---- Zeichnen: Diagramm ----
+  var D = { W: 300, H: 300 }, S = { W: 300, H: 100 };
+  function setup() {
+    var dpr = window.devicePixelRatio || 1;
+    D.W = cvD.clientWidth || 300; D.H = cvD.clientHeight || 300;
+    cvD.width = Math.round(D.W * dpr); cvD.height = Math.round(D.H * dpr);
+    cxD.setTransform(dpr, 0, 0, dpr, 0, 0);
+    S.W = cvS.clientWidth || 300; S.H = cvS.clientHeight || 100;
+    cvS.width = Math.round(S.W * dpr); cvS.height = Math.round(S.H * dpr);
+    cxS.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+  // Punkte, die in der aktuellen Sicht zu sehen sind: { A: n, B: n, C: n }
+  function sichtbarePunkte(v) {
+    var p = { A: 0, B: 0, C: 0 }, k;
+    if (v.punkte) for (k in v.punkte) p[k] = v.punkte[k];
+    if (v.schritt) p[v.schritt.auto] = Math.max(p[v.schritt.auto], st.nPunkte);
+    return p;
+  }
+  function linien(v) { return v.linien || []; }
+
+  function draw() {
+    var v = view(), ctx = cxD, W = D.W, H = D.H;
+    var L = 44, R = 16, T = 18, B = 30, pw = W - L - R, ph = H - T - B;
+    var NX = 26, NY = 19;                       // Kaestchen: 0,5 s und 10 m
+    var cell = Math.min(pw / NX, ph / NY);
+    var ox = L, oy = T + ph;                    // Ursprung (0 s | 0 m)
+    function sx(t) { return ox + t * 2 * cell; }
+    function sy(s) { return oy - s / 10 * cell; }
+    var i, k, p, pts, a;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = '12px ' + FONT;
+    // Karoraster wie auf dem Blatt
+    ctx.strokeStyle = '#dedcd4'; ctx.lineWidth = 1;
+    for (i = 0; i <= NX; i++) { ctx.beginPath(); ctx.moveTo(sx(i / 2) + 0.5, oy); ctx.lineTo(sx(i / 2) + 0.5, oy - NY * cell); ctx.stroke(); }
+    for (i = 0; i <= NY; i++) { ctx.beginPath(); ctx.moveTo(ox, sy(i * 10) + 0.5); ctx.lineTo(ox + NX * cell, sy(i * 10) + 0.5); ctx.stroke(); }
+
+    if (v.achsen) {
+      ctx.strokeStyle = '#26261E'; ctx.fillStyle = '#26261E'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(sx(12.8), oy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, sy(186)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx(12.8) + 7, oy); ctx.lineTo(sx(12.8), oy - 4); ctx.lineTo(sx(12.8), oy + 4); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(ox, sy(186) - 7); ctx.lineTo(ox - 4, sy(186)); ctx.lineTo(ox + 4, sy(186)); ctx.fill();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      for (i = 0; i <= 12; i++) {
+        ctx.beginPath(); ctx.moveTo(sx(i), oy - 3); ctx.lineTo(sx(i), oy + 3); ctx.stroke();
+        ctx.fillText(String(i), sx(i), oy + 5);
+      }
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      for (i = 20; i <= 180; i += 20) {
+        ctx.beginPath(); ctx.moveTo(ox - 3, sy(i)); ctx.lineTo(ox + 3, sy(i)); ctx.stroke();
+        ctx.fillText(String(i), ox - 6, sy(i));
+      }
+      // "t in s" ueber dem Pfeilende, rechtsbuendig: passt auch auf schmalen Bildschirmen ins Bild
+      ctx.font = '12px ' + FONT; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+      ctx.fillText('in s', sx(13) - 2, oy - 5);
+      var bIn = ctx.measureText('in s').width;
+      ctx.font = 'italic 13px Georgia, "Times New Roman", serif';
+      ctx.fillText('t ', sx(13) - 2 - bIn, oy - 5);
+      ctx.font = 'italic 13px Georgia, "Times New Roman", serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillText('s', ox + 8, sy(186) + 2); ctx.font = '12px ' + FONT; ctx.fillText(' in m', ox + 14, sy(186) + 3);
+      ctx.fillStyle = '#777'; ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.font = '11px ' + FONT;
+      ctx.fillText('2 Kästchen = 1 s · 1 Kästchen = 10 m', W - R - 2, T - 14 + 2);
+    }
+
+    // Geraden
+    var ln = linien(v);
+    for (i = 0; i < ln.length; i++) {
+      k = ln[i]; a = K.AUTOS[k];
+      ctx.strokeStyle = a.farbe; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(sx(0), sy(K.s(k, 0))); ctx.lineTo(sx(12), sy(K.s(k, 12))); ctx.stroke();
+      ctx.fillStyle = a.farbe; ctx.font = 'bold 14px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(k, sx(12) + 7, sy(K.s(k, 12)));
+      ctx.font = '12px ' + FONT;
+    }
+
+    // Steigungsdreieck
+    if (v.dreieck) {
+      k = v.dreieck; a = K.AUTOS[k];
+      var d = K.dreieck(k, 1, st.dt);
+      var x1 = sx(d.t1), y1 = sy(K.s(k, d.t1)), x2 = sx(d.t1 + d.dt), y2 = sy(K.s(k, d.t1 + d.dt));
+      ctx.fillStyle = 'rgba(0,0,0,0.05)';
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y1); ctx.lineTo(x2, y2); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#444'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      // rechter Winkel
+      ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x2 - 8, y1); ctx.lineTo(x2 - 8, y1 - 8); ctx.lineTo(x2, y1 - 8); ctx.stroke();
+      ctx.fillStyle = '#444'; ctx.font = 'bold 13px ' + FONT; ctx.textAlign = 'center';
+      var lt = v.dreieckWerte ? 'Δt = ' + K.fmt(d.dt) + ' s' : 'Δt';
+      var hoch = (y1 - y2) > 30;
+      ctx.textBaseline = hoch ? 'bottom' : 'top';
+      ctx.fillText(lt, (x1 + x2) / 2, hoch ? y1 - 4 : y1 + 6);
+      ctx.fillStyle = a.farbe; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      var ls = v.dreieckWerte ? 'Δs = ' + K.fmt(d.ds) + ' m' : 'Δs';
+      ctx.fillText(ls, x2 + 7, (y1 + y2) / 2);
+      ctx.font = '12px ' + FONT;
+    }
+
+    // Punkte (Messwerte), ggf. mit Ableselinien fuer den zuletzt gesetzten
+    var sp = sichtbarePunkte(v);
+    for (k in sp) {
+      if (!sp[k]) continue;
+      a = K.AUTOS[k]; pts = K.punkte(k);
+      for (i = 0; i < sp[k] && i < pts.length; i++) {
+        p = pts[i];
+        var letzter = v.schritt && v.schritt.auto === k && i === sp[k] - 1;
+        if (letzter) {
+          ctx.strokeStyle = a.farbe; ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]);
+          ctx.beginPath(); ctx.moveTo(sx(p.t), oy); ctx.lineTo(sx(p.t), sy(p.s)); ctx.lineTo(ox, sy(p.s)); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = a.farbe; ctx.font = 'bold 13px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+          ctx.fillText('(' + K.fmt(p.t) + ' s | ' + K.fmt(p.s) + ' m)', sx(p.t) + 8, sy(p.s) - 6);
+          ctx.font = '12px ' + FONT;
+        }
+        ctx.fillStyle = a.farbe; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(sx(p.t), sy(p.s), 4.5, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+      }
+    }
+
+    // s0 von C
+    if (v.s0) {
+      a = K.AUTOS.C;
+      ctx.strokeStyle = a.farbe; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(sx(0), sy(a.s0), 8, 0, 2 * Math.PI); ctx.stroke();
+      ctx.fillStyle = a.farbe; ctx.font = 'bold 13px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText('s₀', sx(0) + 12, sy(a.s0) - 12);
+      ctx.font = '12px ' + FONT;
+    }
+
+    // Schnittpunkt B/C
+    if (v.schnitt) {
+      var Sp = K.schnitt('B', 'C');
+      if (v.schnitt === 'lesen') {
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]);
+        ctx.beginPath(); ctx.moveTo(sx(Sp.t), sy(Sp.s)); ctx.lineTo(sx(Sp.t), oy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(sx(Sp.t), sy(Sp.s)); ctx.lineTo(ox, sy(Sp.s)); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#444'; ctx.font = 'bold 13px ' + FONT;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText('t = ?', sx(Sp.t), oy - 6);
+        ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; ctx.fillText('s = ?', ox + 6, sy(Sp.s) - 3);
+        ctx.font = '12px ' + FONT;
+      }
+      ctx.strokeStyle = '#222'; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(sx(Sp.t), sy(Sp.s), 9, 0, 2 * Math.PI); ctx.stroke();
+      ctx.fillStyle = '#222'; ctx.font = 'bold 14px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText('S', sx(Sp.t) + 12, sy(Sp.s) + 4);
+      ctx.font = '12px ' + FONT;
+    }
+
+    // Zeitmarke
+    if (v.cursor) {
+      ctx.strokeStyle = '#888'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(sx(st.t), oy); ctx.lineTo(sx(st.t), sy(186)); ctx.stroke();
+      ctx.setLineDash([]);
+      // Beschriftung rechts neben der Marke im Raster, damit sie bei t = 0 nicht auf „s in m“ liegt
+      ctx.fillStyle = '#555'; ctx.font = 'bold 12px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText('t = ' + K.fmt(st.t) + ' s', sx(st.t) + 5, sy(174));
+      for (i = 0; i < ln.length; i++) {
+        k = ln[i]; a = K.AUTOS[k];
+        ctx.fillStyle = a.farbe; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(sx(st.t), sy(K.s(k, st.t)), 6, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+      }
+    }
+    drawStrasse(ln);
+  }
+
+  // ---- Zeichnen: Strasse ----
+  function drawStrasse(ln) {
+    var ctx = cxS, W = S.W, H = S.H, L = 44, R = 16;
+    var pw = W - L - R, i, k, a;
+    function px(s) { return L + s / 180 * pw; }
+    ctx.clearRect(0, 0, W, H);
+    var top = 22, bottom = H - 26, lanes = 3, lh = (bottom - top) / lanes;
+    ctx.fillStyle = '#efefe9'; ctx.fillRect(L, top, pw, bottom - top);
+    ctx.strokeStyle = '#c9c9c0'; ctx.lineWidth = 1;
+    for (i = 1; i < lanes; i++) { ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.moveTo(L, top + i * lh); ctx.lineTo(L + pw, top + i * lh); ctx.stroke(); }
+    ctx.setLineDash([]);
+    // Skala
+    ctx.strokeStyle = '#26261E'; ctx.fillStyle = '#26261E'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(L, bottom); ctx.lineTo(L + pw, bottom); ctx.stroke();
+    ctx.font = '11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (i = 0; i <= 180; i += 20) {
+      ctx.beginPath(); ctx.moveTo(px(i), bottom); ctx.lineTo(px(i), bottom + 4); ctx.stroke();
+      ctx.fillText(String(i), px(i), bottom + 6);
+    }
+    ctx.textAlign = 'right'; ctx.fillText('s in m', L - 6, bottom + 6);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = 'bold 12px ' + FONT;
+    ctx.fillStyle = '#555'; ctx.fillText('Straße · t = ' + K.fmt(st.t) + ' s', L, 4);
+    // Autos in fester Spur A, B, C
+    var reihe = ['A', 'B', 'C'];
+    for (i = 0; i < reihe.length; i++) {
+      k = reihe[i];
+      if (ln.indexOf(k) < 0) continue;
+      a = K.AUTOS[k];
+      var sPos = K.s(k, st.t), x = px(sPos), y = top + (i + 0.5) * lh;
+      var bw = 30, bh = Math.min(16, lh - 6);
+      ctx.fillStyle = a.farbe;
+      ctx.beginPath(); ctx.moveTo(x - bw, y - bh / 2); ctx.lineTo(x - 6, y - bh / 2); ctx.lineTo(x, y); ctx.lineTo(x - 6, y + bh / 2); ctx.lineTo(x - bw, y + bh / 2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(k, x - bw / 2 - 2, y + 0.5);
+      ctx.fillStyle = a.farbe; ctx.font = '11px ' + FONT; ctx.textAlign = 'left';
+      var lbl = K.fmt(sPos) + ' m';
+      if (x + 6 + ctx.measureText(lbl).width > L + pw) { ctx.textAlign = 'right'; ctx.fillText(lbl, x - bw - 4, y + 0.5); }
+      else ctx.fillText(lbl, x + 5, y + 0.5);
+    }
+    // Position, an der die Zeitmarke im Diagramm liegt: Strich, wenn zwei Autos zusammen stehen
+    if (ln.indexOf('B') >= 0 && ln.indexOf('C') >= 0 && K.nahe(K.s('B', st.t), K.s('C', st.t))) {
+      ctx.strokeStyle = '#222'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(px(K.s('B', st.t)), top); ctx.lineTo(px(K.s('B', st.t)), bottom); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#222'; ctx.font = 'bold 12px ' + FONT; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillText('B und C am gleichen Ort', L + pw, 4);
+    }
+  }
+
+  window.addEventListener('resize', setup);
+  window.__hilfekarte = { setAufgabe: setAufgabe, naechsteHilfe: naechsteHilfe, naechsterPunkt: naechsterPunkt,
+                         pruefen: pruefen, setT: setT, setDt: setDt, draw: draw, st: st };
+  setAufgabe(0);
+  setup();
+})();
+</script>
+</body>
+</html>
