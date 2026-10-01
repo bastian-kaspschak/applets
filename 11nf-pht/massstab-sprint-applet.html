@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#35638A">
+<title>Maßstab-Sprint</title>
+<!--
+  Maßstab-Sprint: Uebungs-Applet fuer 11NF PHT (Technisches Zeichnen), Rechnen mit Massstaeben
+  unter Zeit. Eine Datei, kein Internet noetig; es wird nichts gesendet, Rekord und Einstellungen
+  bleiben im Browser (localStorage).
+
+  Spielidee wie bei den anderen Sprints: Zeit laeuft ab, zufaellige Aufgaben, jede richtige
+  Antwort zaehlt. Fuenf Aufgabenarten, als Themen abwaehlbar:
+    Umrechnen           Laenge auf dem Blatt aus Massstab und Wirklichkeit, oder umgekehrt
+                        (auch in cm) — 1 Punkt
+    Massstab bestimmen  aus Wirklichkeit und Blatt den genormten Massstab waehlen, auch
+                        "soll auf dem Blatt ... mm werden" — 1 Punkt
+    Massstab waehlen    groesster genormter Massstab, in dem ein Bauteil ins Zeichenfeld passt,
+                        dazu die Laenge auf dem Blatt — 2 Punkte
+    Zeichnung lesen     Masszahl gegeben, Linie auf dem Blatt gesucht — und umgekehrt — 1 Punkt
+    Begriffe            vergroessert / verkleinert / natuerliche Groesse; genormt oder nicht — 1 Punkt
+
+  Zu jeder Aufgabe eine Skizze (SVG): Blatt mit Schriftfeld (MASSSTAB), gezeichnetes Teil,
+  Masslinie mit Masszahl; bei "Massstab waehlen" Bauteil und Zeichenfeld im selben Verhaeltnis.
+  Die Skizze ist nicht in Originalgroesse, die Zahlen stehen daran.
+
+  Zahlen: Blatt- und Wirklichkeitslaengen sind so gewaehlt, dass beide hoechstens eine
+  Nachkommastelle haben. Die Zahlen der 1. Klausur (06.10.2026), ihrer Nachschreibfassung und
+  der Stationen vom 29.09. sind gesperrt (GESPERRT im Kern) und kommen in keiner Aufgabe vor.
+
+  Falsche Antworten: typische Fehlerbilder (Massstab falsch herum, Masszahl als Blattlaenge,
+  mm statt cm) werden erkannt und benannt; die Eingabe bleibt zum Verbessern stehen,
+  "Loesung zeigen" gibt Loesung und Rechenweg (dann keine Punkte). Fehler werden gezaehlt und
+  am Ende als Liste gezeigt.
+
+  Der Kern (script id "kern") ist DOM-frei und laeuft im Test
+  test-massstab-sprint.mjs in node:vm.
+-->
+<style>
+  :root {
+    --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A; --grau: #B5B5B5;
+    --text: #222; --hell: #f5f5f2; --gruen: #3d8a4a; --hellblau: #eaf0f4;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--text);
+         background: #fff; line-height: 1.35; overscroll-behavior: none; }
+  #app { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; max-width: 640px; margin: 0 auto; }
+  @media (min-width: 680px) { #app { border-left: 1px solid #e5e5e5; border-right: 1px solid #e5e5e5; } }
+  section { flex: 1; display: flex; flex-direction: column; }
+  [hidden] { display: none !important; }
+  button { font: inherit; cursor: pointer; }
+
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  footer { font-size: 11px; color: #777; padding: 8px 18px 12px; }
+
+  .inhalt { padding: 14px 18px 24px; }
+  h1 { font-size: 26px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: #777; margin: 18px 0 8px; }
+  p.lead { margin: 10px 0 12px; font-size: 16px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { border: 2px solid var(--stahl); color: var(--stahl); background: #fff; padding: 8px 14px; border-radius: 999px; font-size: 16px; min-height: 44px; }
+  .chip.an { background: var(--stahl); color: #fff; }
+  .gross { display: block; width: 100%; font-size: 22px; font-weight: 700; padding: 16px; margin-top: 20px; background: var(--rot); color: #fff; border: none; border-radius: 14px; }
+  .gross:active { transform: scale(.98); }
+  .zweit { display: block; width: 100%; font-size: 18px; font-weight: 600; padding: 12px; margin-top: 10px; background: #fff; color: var(--stahl); border: 2px solid var(--stahl); border-radius: 14px; }
+  .rekord { margin-top: 12px; font-size: 15px; color: #555; }
+  .rekord b { color: var(--rot); font-size: 18px; }
+  ol.schritte { margin: 4px 0 0 20px; padding: 0; font-size: 15px; }
+  ol.schritte li { margin: 4px 0; }
+  .klein { font-size: 13px; color: #777; }
+
+  .leiste { height: 8px; background: #e5e5e5; }
+  .leiste > div { height: 100%; background: var(--stahl); width: 100%; }
+  .leiste.knapp > div { background: var(--rot); }
+  .kopf { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px 0; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .kopf .zeit { font-weight: 700; font-size: 22px; }
+  .kopf .knapp { color: var(--rot); }
+  .kopf .punkte { position: relative; }
+  .kopf .punkte b { color: var(--gruen); font-size: 20px; }
+  .kopf .punkte .f { color: var(--rot); margin-left: 10px; }
+  .kopf .beenden { font-size: 14px; border: 1px solid var(--grau); background: #fff; border-radius: 8px; padding: 4px 10px; margin-left: 10px; min-height: 32px; }
+  .plus { position: absolute; right: 0; top: -4px; color: var(--gruen); font-weight: 700; font-size: 20px; animation: hoch .7s ease-out forwards; pointer-events: none; }
+  @keyframes hoch { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-28px); } }
+  .typ { padding: 10px 16px 0; font-size: 13px; color: #777; letter-spacing: .06em; text-transform: uppercase; }
+  .frage { padding: 4px 16px 0; font-size: 18px; line-height: 1.4; }
+  .frage b { color: var(--stahl); }
+  .bild { padding: 8px 16px 0; }
+  .bild svg { display: block; width: 100%; max-width: 420px; height: auto; margin: 0 auto; background: #fff; }
+  .melden { min-height: 34px; padding: 6px 16px; text-align: center; font-weight: 700; font-size: 16px; line-height: 1.3; margin-top: auto; }
+  .melden.ok { color: var(--gruen); }
+  .melden.nein { color: var(--rot); }
+  .melden.fast { color: var(--corten); }
+  .melden .weg { display: block; font-weight: 400; color: #555; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .antwort { padding: 4px 12px 14px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+
+  .mreihe { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 8px; }
+  .mreihe button { min-height: 46px; font-size: 18px; font-variant-numeric: tabular-nums; border: 2px solid var(--grau); border-radius: 10px; background: var(--hell); color: var(--text); padding: 0 2px; }
+  .mreihe button.eins { border-color: var(--stahl); color: var(--stahl); background: #fff; }
+  .mreihe button.an { background: var(--stahl); border-color: var(--stahl); color: #fff; }
+  .mreihe .lbl { grid-column: 1 / -1; font-size: 12px; color: #777; letter-spacing: .06em; text-transform: uppercase; margin: 2px 0 -2px; }
+  .zahlzeile { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .zahlzeile input { flex: 1; min-width: 0; font: inherit; font-size: 24px; padding: 8px 10px; border: none; border-bottom: 2px solid var(--rot); background: var(--hell); border-radius: 8px 8px 0 0; outline: none; text-align: right; font-variant-numeric: tabular-nums; }
+  .zahlzeile input:focus { background: #fff8e8; }
+  .zahlzeile .einheit { font-size: 20px; min-width: 2.2em; color: #555; }
+  .zahlzeile .vorab { font-size: 18px; color: #555; }
+  .keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .keypad button { min-height: 46px; font-size: 22px; border: 1px solid var(--grau); border-radius: 10px; background: var(--hell); }
+  .keypad button:active { background: var(--hellblau); }
+  .keypad button.op { background: #fff; color: var(--stahl); border-color: var(--stahl); }
+  .keypad button.ok { grid-row: span 2; background: var(--stahl); color: #fff; border-color: var(--stahl); font-weight: 700; font-size: 19px; }
+  .wahl { display: grid; gap: 8px; grid-template-columns: 1fr; }
+  .wahl button { min-height: 54px; font-size: 19px; border: 2px solid var(--stahl); border-radius: 12px; background: #fff; color: var(--stahl); }
+  .wahl button.an { background: var(--stahl); color: #fff; }
+  .knoepfe { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 8px; }
+  .knoepfe button { min-height: 50px; font-size: 19px; border-radius: 10px; border: 2px solid var(--stahl); background: var(--stahl); color: #fff; font-weight: 700; }
+  .nebenzeile { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; min-height: 32px; }
+  .nebenzeile button { background: none; border: none; color: #777; font-size: 14px; text-decoration: underline; padding: 6px 4px; min-height: 32px; }
+  .nebenzeile button.loesung { color: var(--corten); }
+
+  .ergebnis { text-align: center; padding: 10px 0 4px; }
+  .ergebnis .gross-zahl { font-size: 72px; font-weight: 700; color: var(--rot); line-height: 1; }
+  .ergebnis .neu { color: var(--gruen); font-weight: 700; font-size: 18px; }
+  .fehlerliste { border: 1px solid var(--grau); background: var(--hell); padding: 8px 12px; margin-top: 6px; font-size: 15px; }
+  .fehlerliste div { padding: 6px 0; border-bottom: 1px solid #e3e3e3; display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+  .fehlerliste div:last-child { border-bottom: none; }
+  .fehlerliste .l { color: var(--gruen); font-weight: 600; text-align: right; }
+  .teilbild { margin-top: 10px; text-align: center; }
+  .teilbild img { max-width: 60%; border: 1px solid var(--grau); }
+  textarea.kopie { width: 100%; font: inherit; font-size: 14px; margin-top: 8px; height: 70px; }
+  .mfest { display: flex; align-items: center; gap: 10px; font-size: 17px; margin-bottom: 8px; color: var(--gruen); font-weight: 600; }
+  .mfest button { background: none; border: none; color: #777; font-size: 14px; text-decoration: underline; padding: 4px; min-height: 32px; font-weight: 400; }
+  @media (max-height: 640px) { .bild svg { max-width: 300px; } .frage { font-size: 16px; } .keypad button { min-height: 40px; font-size: 20px; } .mreihe button { min-height: 40px; font-size: 16px; } }
+  @media (max-height: 460px) and (orientation: landscape) {
+    .fb { display: grid; grid-template-columns: 1fr 230px; gap: 0 10px; align-items: start; padding-right: 16px; }
+    .bild { padding: 4px 0 0; } .bild svg { max-width: 230px; } .frage { font-size: 15px; }
+    .keypad button, .mreihe button, .wahl button { min-height: 34px; font-size: 17px; } .zahlzeile input { font-size: 20px; padding: 4px 8px; } .melden { min-height: 24px; padding: 2px 16px; }
+  }
+  @media (max-width: 380px) { .mreihe button { font-size: 15px; } .frage { font-size: 17px; } }
+</style>
+</head>
+<body>
+<div id="app">
+
+<section id="start">
+  <header>
+    <div><span class="k">Fach</span>Physiktechnik (Kaspschak)</div>
+    <div><span class="k">Kurs</span>11NF PHT</div>
+    <div><span class="k">Reihe</span>Technisches Zeichnen</div>
+  </header>
+  <div class="inhalt">
+    <h1>Maßstab-Sprint</h1>
+    <p class="lead">Die Zeit läuft. Rechne so viele Maßstabsaufgaben wie möglich: Länge auf dem Blatt,
+      Länge in Wirklichkeit, den passenden genormten Maßstab, Maßzahlen in einer Zeichnung.
+      Jede richtige Antwort zählt.</p>
+
+    <h2>Zeit</h2>
+    <div class="chips" id="zeitChips">
+      <button class="chip" data-s="120">2 Minuten</button>
+      <button class="chip an" data-s="180">3 Minuten</button>
+      <button class="chip" data-s="300">5 Minuten</button>
+      <button class="chip" data-s="0">Ohne Zeit</button>
+    </div>
+
+    <h2>Aufgaben</h2>
+    <div class="chips" id="themaChips">
+      <button class="chip an" data-t="umrechnen">Umrechnen</button>
+      <button class="chip an" data-t="bestimmen">Maßstab bestimmen</button>
+      <button class="chip an" data-t="waehlen">Maßstab wählen</button>
+      <button class="chip an" data-t="lesen">Zeichnung lesen</button>
+      <button class="chip an" data-t="begriffe">Begriffe</button>
+    </div>
+
+    <h2>Eingabe</h2>
+    <div class="chips" id="eingabeChips">
+      <button class="chip" data-e="tasten">⌨ Eigene Tasten</button>
+      <button class="chip" data-e="system">Systemtastatur</button>
+    </div>
+
+    <button class="gross" id="startKnopf">Start</button>
+    <div class="rekord" id="rekordStart"></div>
+
+    <h2>So geht es</h2>
+    <ol class="schritte">
+      <li>Lies die Aufgabe und die Skizze. Die Skizze ist nicht in Originalgröße, die Zahlen stehen daran.</li>
+      <li>Gib die Länge als Zahl ein (Komma oder Punkt) oder tippe auf einen Maßstab aus der genormten Reihe.</li>
+      <li>Bei einem Fehler bleibt deine Eingabe stehen, du kannst verbessern. „Lösung zeigen“ erklärt den Rechenweg, die Aufgabe zählt dann keine Punkte.</li>
+      <li>„Maßstab wählen“ bringt 2 Punkte, alle anderen Aufgaben 1 Punkt.</li>
+    </ol>
+    <div class="chips" style="margin-top:14px">
+      <button class="chip an" id="soundChip">🔔 Ton an</button>
+    </div>
+  </div>
+  <footer>Kaspschak · 11NF PHT · Maßstab-Sprint</footer>
+</section>
+
+<section id="spiel" hidden>
+  <div class="leiste" id="leiste"><div></div></div>
+  <div class="kopf">
+    <div><span class="zeit" id="zeit">3:00</span><button class="beenden" id="beenden" hidden>Beenden</button></div>
+    <div class="punkte"><b id="pRichtig">0</b> Punkte <span class="f">✕ <span id="pFalsch">0</span></span></div>
+  </div>
+  <div class="typ" id="typ"></div>
+  <div class="fb">
+    <div class="frage" id="frage"></div>
+    <div class="bild" id="bild"></div>
+  </div>
+  <div class="melden" id="melden"></div>
+  <div class="antwort" id="antwort"></div>
+</section>
+
+<section id="ende" hidden>
+  <div class="inhalt">
+    <div class="ergebnis">
+      <div class="gross-zahl" id="eRichtig">0</div>
+      <div id="eText">Punkte in 3 Minuten</div>
+      <div id="eFalsch" class="klein"></div>
+      <div id="eNeu" class="neu"></div>
+      <div class="rekord" id="rekordEnde"></div>
+    </div>
+    <button class="gross" id="nochmal">Noch mal</button>
+    <button class="zweit" id="teilen">Rekord teilen</button>
+    <button class="zweit" id="zurueck">Zum Start</button>
+    <div id="teilFallback" hidden></div>
+    <h2 id="fehlerTitel">Das übst du noch</h2>
+    <div class="fehlerliste" id="fehlerliste"></div>
+  </div>
+  <footer>Kaspschak · 11NF PHT · Maßstab-Sprint</footer>
+</section>
+
+</div>
+<canvas id="karte" hidden></canvas>
+
+<script id="kern">
+'use strict';
+// ======================= Kern (ohne DOM): Maßstäbe, Aufgaben, Prüfung =======================
+const REIHE = ['1:100', '1:50', '1:20', '1:10', '1:5', '1:2', '1:1', '2:1', '5:1', '10:1', '20:1', '50:1'];
+const VERKL = ['1:2', '1:5', '1:10', '1:20', '1:50', '1:100'], VERGR = ['2:1', '5:1', '10:1', '20:1', '50:1'];
+const NICHT_GENORMT = ['1:3', '1:4', '1:8', '1:15', '1:25', '1:30', '1:40', '3:1', '4:1', '8:1', '25:1', '30:1', '1:12,5', '2:3', '1:1,5'];
+const THEMEN = ['umrechnen', 'bestimmen', 'waehlen', 'lesen', 'begriffe'];
+
+const rund = x => Math.round(x * 1000) / 1000;
+const gleich = (a, b) => Math.abs(a - b) < 1e-6;
+const zahl = x => String(x).replace('.', ',');
+function mLesen(s) { const [b, w] = s.split(':').map(Number); return { b, w, s }; }
+const aufBlatt = (W, m) => rund(W * m.b / m.w);
+const inWirk = (B, m) => rund(B * m.w / m.b);
+
+// Gesperrte Zahlen: 1. Klausur 06.10.2026, Nachschreibfassung, Stationen 29.09., AB 22.09.
+// Jede Länge in Wirklichkeit mit ihrem Maßstab — gesperrt wird sie in beiden Rollen, als
+// Wirklichkeit und als zugehörige Blattlänge. Dazu "passt:Länge|Zeichenfeld" und
+// "gross:Wirklichkeit|Blatt" für die Wortaufgaben.
+const GESPERRT_PAARE = [
+  [150, '1:5'], [9, '2:1'], [280, '1:10'], [4.5, '5:1'], [84, '1:2'], [3, '5:1'], [45, '1:20'], [17, '2:1'],
+  [240, '1:5'], [1.5, '10:1'], [36, '1:50'], [30, '2:1'], [64, '1:2'], [120, '1:5'], [7, '2:1'], [260, '1:10'],
+  [100, '1:2'], [60, '1:2'], [120, '1:2'], [80, '1:2'], [50, '1:2'], [110, '1:2'], [40, '1:2'], [140, '1:2'], [70, '1:2']
+];
+const GESPERRT = new Set(['passt:350|160', 'passt:1200|160', 'passt:700|160', 'passt:2000|160', 'gross:5|50', 'gross:2|40', 'gross:12|60']);
+for (const [W, s] of GESPERRT_PAARE) { GESPERRT.add(`${W}|${s}`); GESPERRT.add(`${aufBlatt(W, mLesen(s))}|${s}`); }
+const gesperrt = k => GESPERRT.has(k);
+const paarGesperrt = (m, W, B) => gesperrt(`${W}|${m.s}`) || gesperrt(`${B}|${m.s}`) || gesperrt(`gross:${W}|${B}`);
+
+let zufall = Math.random;
+const zi = (a, b) => a + Math.floor(zufall() * (b - a + 1));
+const wahl = arr => arr[zi(0, arr.length - 1)];
+const umgekehrt = m => `${m.w}:${m.b}`;
+const artVon = m => m.b > m.w ? 'vergrößert' : m.b < m.w ? 'verkleinert' : 'natürliche Größe';
+function zahlLesen(s) {
+  if (s === null || s === undefined) return null;
+  s = String(s).trim().toLowerCase().replace(/\s*(mm|cm|m)\s*$/, '').replace(/\s/g, '').replace(',', '.');
+  if (!/^\d+(\.\d+)?$/.test(s)) return null;
+  return Number(s);
+}
+
+// Bauteile nach Größe (Wirklichkeit in mm): Artikel, Name, Adjektiv
+const TEILE = [
+  [0, 30, [['Der', 'Stift', 'lang'], ['Die', 'Schraube', 'lang'], ['Der', 'Niet', 'lang'], ['Die', 'Mutter', 'breit'], ['Die', 'Scheibe', 'breit'], ['Der', 'Zapfen', 'lang']]],
+  [30, 250, [['Der', 'Bolzen', 'lang'], ['Die', 'Buchse', 'lang'], ['Die', 'Leiste', 'lang'], ['Die', 'Platte', 'lang'], ['Das', 'Zahnrad', 'breit'], ['Der', 'Hebel', 'lang'], ['Der', 'Winkel', 'lang']]],
+  [250, 1500, [['Die', 'Welle', 'lang'], ['Die', 'Schiene', 'lang'], ['Das', 'Rohr', 'lang'], ['Die', 'Platte', 'lang'], ['Der', 'Träger', 'lang'], ['Das', 'Gehäuse', 'lang']]],
+  [1500, 1e9, [['Die', 'Tür', 'hoch'], ['Die', 'Werkbank', 'lang'], ['Der', 'Schrank', 'hoch'], ['Das', 'Regal', 'breit'], ['Das', 'Tor', 'breit'], ['Die', 'Treppe', 'lang']]]
+];
+function teil(W) { const g = TEILE.find(([a, b]) => W >= a && W < b)[2], [A, n, adj] = wahl(g); return { A, al: A.toLowerCase(), n, adj }; }
+
+// Saubere Zahlenpaare: Blatt B und Wirklichkeit W in mm, höchstens eine Nachkommastelle
+function paar(m) {
+  if (m.b === m.w) { const W = zi(8, 180); return { W, B: W }; }
+  if (m.b < m.w) {
+    const n = m.w, max = { 2: 95, 5: 60, 10: 40, 20: 30, 50: 40, 100: 30 }[n];
+    let B = zi(n === 2 ? 6 : 3, max); if (zufall() < 0.25) B += 0.5;
+    return { W: rund(B * n), B: rund(B) };
+  }
+  const n = m.b, max = { 2: 45, 5: 30, 10: 16, 20: 8, 50: 4 }[n];
+  let W = zi(1, max); if (zufall() < 0.3) W += 0.5;
+  return { W: rund(W), B: rund(W * n) };
+}
+function waehleM(mitEins) { const r = zufall(); if (mitEins && r < 0.07) return mLesen('1:1'); return mLesen(r < 0.6 ? wahl(VERKL) : wahl(VERGR)); }
+function neuesPaar(mitEins, filter) {
+  for (let i = 0; i < 200; i++) {
+    const m = waehleM(mitEins), p = paar(m);
+    if (paarGesperrt(m, p.W, p.B)) continue;
+    if (filter && !filter(m, p)) continue;
+    return { m, W: p.W, B: p.B };
+  }
+  return { m: mLesen('1:2'), W: 86, B: 43 };
+}
+const falschHerum = m => m.b < m.w
+  ? `Bei ${m.s} ist das Blatt kleiner als die Wirklichkeit. Maßstab falsch herum?`
+  : `Bei ${m.s} ist das Blatt größer als die Wirklichkeit. Maßstab falsch herum?`;
+function wegText(m, W, B, richtung) {
+  if (m.b === m.w) return `1:1, auf dem Blatt genauso lang: ${zahl(B)} mm`;
+  if (richtung === 'blatt') return m.b < m.w ? `${zahl(W)} mm : ${m.w} = ${zahl(B)} mm` : `${zahl(W)} mm · ${m.b} = ${zahl(B)} mm`;
+  return m.b < m.w ? `${zahl(B)} mm · ${m.w} = ${zahl(W)} mm` : `${zahl(B)} mm : ${m.b} = ${zahl(W)} mm`;
+}
+
+// ---------- Skizzen (SVG als Text) ----------
+const svgKopf = (h) => `<svg viewBox="0 0 320 ${h}" xmlns="http://www.w3.org/2000/svg" role="img" font-family="Segoe UI, Roboto, Arial, sans-serif">`;
+function schriftfeld(x, y, w, s) {
+  return `<rect x="${x}" y="${y}" width="${w}" height="24" fill="#fff" stroke="#222" stroke-width="1"/>
+    <text x="${x + 5}" y="${y + 9}" font-size="6.5" fill="#777" letter-spacing=".8">MASSSTAB</text>
+    <text x="${x + 5}" y="${y + 20}" font-size="11" font-weight="700" fill="${s === '?' ? '#B01A15' : '#222'}">${s}</text>`;
+}
+// Blatt mit gezeichnetem Teil: Maßzahl (Wirklichkeit) über der Maßlinie, Blattlänge als Messung darunter
+function zeichnung(mText, masszahl, gemessen) {
+  const x0 = 60, x1 = 240, y0 = 30, y1 = 78, ym = 100;
+  const mz = masszahl === '?' ? '?' : zahl(masszahl);
+  const mess = gemessen === null ? '' : `<text x="${x0}" y="134" font-size="10.5" fill="#C87A3A">auf dem Blatt gemessen: <tspan font-weight="700">${gemessen === '?' ? '?' : zahl(gemessen) + ' mm'}</tspan></text>
+    <path d="M${x0} 124 v-5 M${x1} 124 v-5 M${x0} 120.5 H${x1}" stroke="#C87A3A" stroke-width="1" fill="none"/>`;
+  return svgKopf(150) + `
+    <rect x="4" y="4" width="312" height="142" fill="#fff" stroke="#222" stroke-width="1.2"/>
+    <rect x="${x0}" y="${y0}" width="${x1 - x0}" height="${y1 - y0}" fill="#f5f5f2" stroke="#222" stroke-width="2.2"/>
+    <line x1="${x0 - 10}" y1="${(y0 + y1) / 2}" x2="${x1 + 10}" y2="${(y0 + y1) / 2}" stroke="#222" stroke-width=".6" stroke-dasharray="10 2 1.5 2"/>
+    <line x1="${x0}" y1="${y1 + 2}" x2="${x0}" y2="${ym + 4}" stroke="#555" stroke-width=".6"/>
+    <line x1="${x1}" y1="${y1 + 2}" x2="${x1}" y2="${ym + 4}" stroke="#555" stroke-width=".6"/>
+    <line x1="${x0}" y1="${ym}" x2="${x1}" y2="${ym}" stroke="#222" stroke-width=".8"/>
+    <path d="M${x0} ${ym} l8 -2.6 v5.2 z M${x1} ${ym} l-8 -2.6 v5.2 z" fill="#222"/>
+    <text x="150" y="${ym - 4}" font-size="13" font-weight="700" fill="${mz === '?' ? '#B01A15' : '#222'}" text-anchor="middle">${mz}</text>
+    ${mess}
+    ${schriftfeld(236, 118, 76, mText)}
+    <text x="10" y="142" font-size="6.5" fill="#999">SKIZZE, NICHT IN ORIGINALGRÖSSE</text>
+  </svg>`;
+}
+// Bauteil und Zeichenfeld im selben Verhältnis
+function vergleich(L, F, adj) {
+  const sk = 280 / L, wF = Math.max(14, Math.round(F * sk));
+  return svgKopf(118) + `
+    <text x="20" y="20" font-size="11" fill="#555">Bauteil <tspan font-weight="700" fill="#222">${zahl(L)} mm</tspan> ${adj}</text>
+    <rect x="20" y="26" width="280" height="18" fill="#f5f5f2" stroke="#222" stroke-width="2"/>
+    <text x="20" y="66" font-size="11" fill="#555">Zeichenfeld <tspan font-weight="700" fill="#222">${zahl(F)} mm</tspan> breit</text>
+    <rect x="20" y="72" width="${wF}" height="34" fill="#fff" stroke="#35638A" stroke-width="1.2" stroke-dasharray="4 3"/>
+    <text x="10" y="116" font-size="6.5" fill="#999">GLEICHES VERHÄLTNIS, NICHT IN ORIGINALGRÖSSE</text>
+  </svg>`;
+}
+function nurSchriftfeld(s) { return svgKopf(60) + `<rect x="4" y="4" width="312" height="52" fill="#fff" stroke="#222" stroke-width="1.2"/>${schriftfeld(200, 28, 112, s)}<text x="10" y="52" font-size="6.5" fill="#999">SCHRIFTFELD</text></svg>`; }
+
+// ---------- Aufgaben ----------
+function gBlatt() {
+  const { m, W, B } = neuesPaar(true), t = teil(W);
+  const falsch = [];
+  if (m.b !== m.w) falsch.push({ zahl: inWirk(W, m), hinweis: falschHerum(m) });
+  falsch.push({ zahl: W, hinweis: 'Das ist die Länge in Wirklichkeit. Gesucht ist die Länge auf dem Blatt.' });
+  falsch.push({ zahl: rund(B / 10), hinweis: 'Rechne in Millimetern, nicht in Zentimetern.' });
+  return { typ: 'blatt', thema: 'umrechnen', punkte: 1, eingabe: 'zahl', einheit: 'mm',
+    frage: `Maßstab <b>${m.s}</b>. ${t.A} ${t.n} ist in Wirklichkeit <b>${zahl(W)} mm</b> ${t.adj}. Berechne, wie ${t.adj} ${t.al} ${t.n} auf dem Blatt ist.`,
+    kurz: `${m.s}, in Wirklichkeit ${zahl(W)} mm → auf dem Blatt?`, loesung: { zahl: B }, loesungText: `${zahl(B)} mm`,
+    weg: wegText(m, W, B, 'blatt'), falsch, bild: zeichnung(m.s, W, '?'), id: `blatt|${m.s}|${W}` };
+}
+function gWirk(cm) {
+  const { m, W, B } = neuesPaar(true, (m, p) => !cm || (Number.isInteger(p.W) && p.W >= 10)), t = teil(W);
+  const l = cm ? rund(W / 10) : W, falsch = [];
+  if (m.b !== m.w) falsch.push({ zahl: cm ? rund(aufBlatt(B, m) / 10) : aufBlatt(B, m), hinweis: falschHerum(m) });
+  falsch.push(cm ? { zahl: W, hinweis: `${zahl(W)} sind Millimeter. Gesucht sind Zentimeter: 10 mm = 1 cm.` } : { zahl: rund(W / 10), hinweis: 'Das wären Zentimeter. Gib die Länge in Millimetern an.' });
+  falsch.push({ zahl: B, hinweis: 'Das ist die Länge auf dem Blatt. Gesucht ist die Länge in Wirklichkeit.' });
+  if (cm) falsch.push({ zahl: rund(W / 100), hinweis: 'Zwischen mm und cm liegt der Faktor 10, nicht 100.' });
+  return { typ: cm ? 'wirkcm' : 'wirk', thema: 'umrechnen', punkte: 1, eingabe: 'zahl', einheit: cm ? 'cm' : 'mm',
+    frage: `Maßstab <b>${m.s}</b>. Auf dem Blatt ist ${t.al} ${t.n} <b>${zahl(B)} mm</b> ${t.adj}. Berechne, wie ${t.adj} ${t.al} ${t.n} in Wirklichkeit ist, in <b>${cm ? 'cm' : 'mm'}</b>.`,
+    kurz: `${m.s}, auf dem Blatt ${zahl(B)} mm → in Wirklichkeit (${cm ? 'cm' : 'mm'})?`, loesung: { zahl: l }, loesungText: `${zahl(l)} ${cm ? 'cm' : 'mm'}`,
+    weg: wegText(m, W, B, 'wirk') + (cm ? ` = ${zahl(l)} cm` : ''), falsch, bild: zeichnung(m.s, '?', B), id: `wirk|${m.s}|${B}|${cm ? 'cm' : 'mm'}` };
+}
+function gMassstab() {
+  const { m, W, B } = neuesPaar(false), t = teil(W);
+  const falsch = [{ m: umgekehrt(m), hinweis: 'Falsch herum: erste Zahl auf dem Blatt, zweite Zahl in Wirklichkeit.' }];
+  return { typ: 'massstab', thema: 'bestimmen', punkte: 1, eingabe: 'massstab',
+    frage: `${t.A} ${t.n} ist in Wirklichkeit <b>${zahl(W)} mm</b> ${t.adj}, auf dem Blatt <b>${zahl(B)} mm</b>. Gib den Maßstab an.`,
+    kurz: `${zahl(W)} mm in Wirklichkeit, ${zahl(B)} mm auf dem Blatt → Maßstab?`, loesung: { m: m.s }, loesungText: m.s,
+    weg: m.b < m.w ? `${zahl(W)} : ${zahl(B)} = ${m.w}, Blatt kleiner, also 1:${m.w}` : `${zahl(B)} : ${zahl(W)} = ${m.b}, Blatt größer, also ${m.b}:1`,
+    falsch, bild: zeichnung('?', W, B), id: `massstab|${W}|${B}` };
+}
+function gVergroessern() {
+  const { m, W, B } = neuesPaar(false, (m, p) => m.b > m.w && !gesperrt(`gross:${p.W}|${p.B}`)), t = teil(W);
+  const falsch = [{ m: umgekehrt(m), hinweis: 'Das Teil wird vergrößert, die erste Zahl muss größer sein: Maßstab falsch herum.' }];
+  return { typ: 'vergroessern', thema: 'bestimmen', punkte: 1, eingabe: 'massstab',
+    frage: `${t.A} ${t.n} ist <b>${zahl(W)} mm</b> ${t.adj}. Auf dem Blatt soll ${t.al} ${t.n} <b>${zahl(B)} mm</b> ${t.adj} werden, damit man Einzelheiten erkennt. Gib den genormten Maßstab an.`,
+    kurz: `${zahl(W)} mm soll auf dem Blatt ${zahl(B)} mm werden → Maßstab?`, loesung: { m: m.s }, loesungText: m.s,
+    weg: `${zahl(B)} : ${zahl(W)} = ${m.b}, Vergrößerung, also ${m.b}:1`, falsch, bild: zeichnung('?', W, B), id: `gross|${W}|${B}` };
+}
+const VORHER = { 2: 1, 5: 2, 10: 5, 20: 10, 50: 20 }, NACHHER = { 2: 5, 5: 10, 10: 20, 20: 50, 50: 100 };
+function gWaehlen() {
+  for (let i = 0; i < 200; i++) {
+    const n = wahl([2, 5, 10, 20, 50]), v = VORHER[n], F = wahl([100, 120, 150, 160, 180, 200, 250]);
+    const B = zi(Math.floor(F * v / n) + 1, F), L = B * n;
+    if (!(L / v > F) || gesperrt(`passt:${L}|${F}`) || paarGesperrt(mLesen(`1:${n}`), L, B)) continue;
+    const t = teil(L), feldAdj = t.adj === 'hoch' ? 'hoch' : 'breit';
+    const falsch = [
+      { m: `1:${v}`, hinweis: `Bei 1:${v} wäre ${t.al} ${t.n} ${zahl(L / v)} mm ${t.adj}, das Zeichenfeld hat nur ${F} mm.` },
+      { m: `1:${NACHHER[n]}`, hinweis: `Passt, aber es geht größer. Prüfe 1:${n}.` },
+      { m: `${n}:1`, hinweis: 'Falsch herum: das Teil wird verkleinert, die erste Zahl ist die kleinere.' },
+      { zahl: L * n, hinweis: `Bei 1:${n} wird geteilt, nicht multipliziert.` },
+      { zahl: L, hinweis: 'Das ist die Länge in Wirklichkeit. Gesucht ist die Länge auf dem Blatt.' },
+      { zahl: rund(L / v), hinweis: `Das wäre die Länge bei 1:${v}. Rechne mit 1:${n}.` },
+      { zahl: rund(L / NACHHER[n]), hinweis: `Das wäre die Länge bei 1:${NACHHER[n]}. Rechne mit 1:${n}.` }
+    ];
+    return { typ: 'waehlen', thema: 'waehlen', punkte: 2, eingabe: 'massstabZahl', einheit: 'mm',
+      frage: `${t.A} ${t.n} ist <b>${zahl(L)} mm</b> ${t.adj}. Das Zeichenfeld ist <b>${F} mm</b> ${feldAdj}. Gib den größten genormten Maßstab an, in dem ${t.al} ${t.n} ins Zeichenfeld passt, und berechne, wie ${t.adj} ${t.al} ${t.n} dann auf dem Blatt ist.`,
+      kurz: `${zahl(L)} mm ins Zeichenfeld ${F} mm → Maßstab und Blattlänge?`, loesung: { m: `1:${n}`, zahl: B }, loesungText: `1:${n}, ${zahl(B)} mm`,
+      weg: `1:${v} ergibt ${zahl(L / v)} mm, mehr als ${F} mm. 1:${n}: ${zahl(L)} mm : ${n} = ${zahl(B)} mm, passt.`,
+      falsch, bild: vergleich(L, F, t.adj), id: `waehlen|${L}|${F}` };
+  }
+  return gBlatt();
+}
+function gLesen(richtung) {
+  const { m, W, B } = neuesPaar(false, m => ['1:2', '1:5', '1:10', '2:1', '5:1'].includes(m.s));
+  if (richtung === 'blatt') {
+    const falsch = [
+      { zahl: W, hinweis: `Die Maßzahl zeigt die Wirklichkeit. Die Linie auf dem Blatt ist ${m.b < m.w ? 'kürzer' : 'länger'}.` },
+      { zahl: inWirk(W, m), hinweis: falschHerum(m) }];
+    return { typ: 'lesenBlatt', thema: 'lesen', punkte: 1, eingabe: 'zahl', einheit: 'mm',
+      frage: `Die Zeichnung ist im Maßstab <b>${m.s}</b>. An der Maßlinie steht <b>${zahl(W)}</b>. Gib an, wie lang die Linie auf dem Blatt ist.`,
+      kurz: `Zeichnung ${m.s}, Maßzahl ${zahl(W)} → Linie auf dem Blatt?`, loesung: { zahl: B }, loesungText: `${zahl(B)} mm`,
+      weg: `Maßzahl ${zahl(W)} = Wirklichkeit. ` + wegText(m, W, B, 'blatt'), falsch, bild: zeichnung(m.s, W, '?'), id: `lesenB|${m.s}|${W}` };
+  }
+  const falsch = [
+    { zahl: B, hinweis: 'Die Maßzahl zeigt die Wirklichkeit, nicht die Länge auf dem Blatt.' },
+    { zahl: aufBlatt(B, m), hinweis: falschHerum(m) }];
+  return { typ: 'lesenMass', thema: 'lesen', punkte: 1, eingabe: 'zahl', einheit: '',
+    frage: `Die Zeichnung ist im Maßstab <b>${m.s}</b>. Du misst die Linie auf dem Blatt: <b>${zahl(B)} mm</b>. Gib die Maßzahl an, die an der Maßlinie steht.`,
+    kurz: `Zeichnung ${m.s}, auf dem Blatt ${zahl(B)} mm → Maßzahl?`, loesung: { zahl: W }, loesungText: zahl(W),
+    weg: wegText(m, W, B, 'wirk') + `, Maßzahl ${zahl(W)} (ohne Einheit, mm)`, falsch, bild: zeichnung(m.s, '?', B), id: `lesenM|${m.s}|${B}` };
+}
+function gBegriffArt() {
+  const m = mLesen(wahl(REIHE));
+  return { typ: 'begriffArt', thema: 'begriffe', punkte: 1, eingabe: 'wahl', optionen: ['vergrößert', 'verkleinert', 'natürliche Größe'],
+    frage: `Gib an, ob der Maßstab <b>${m.s}</b> vergrößert, verkleinert oder die natürliche Größe zeigt.`,
+    kurz: `${m.s}: vergrößert, verkleinert oder 1:1?`, loesung: { wahl: artVon(m) }, loesungText: artVon(m),
+    weg: m.b === m.w ? 'Beide Zahlen gleich: natürliche Größe.' : m.b < m.w ? `Erste Zahl (Blatt) kleiner als zweite (Wirklichkeit): verkleinert.` : `Erste Zahl (Blatt) größer als zweite (Wirklichkeit): vergrößert.`,
+    hinweisFalsch: 'Erste Zahl: auf dem Blatt. Zweite Zahl: in Wirklichkeit. Welche ist größer?', falsch: [], bild: nurSchriftfeld(m.s), id: `art|${m.s}` };
+}
+function gBegriffNorm() {
+  const genormt = zufall() < 0.5, s = genormt ? wahl(REIHE) : wahl(NICHT_GENORMT);
+  return { typ: 'begriffNorm', thema: 'begriffe', punkte: 1, eingabe: 'wahl', optionen: ['genormt', 'nicht genormt'],
+    frage: `Gib an, ob <b>${s}</b> ein genormter Maßstab ist.`,
+    kurz: `${s} genormt?`, loesung: { wahl: genormt ? 'genormt' : 'nicht genormt' }, loesungText: genormt ? 'genormt' : 'nicht genormt',
+    weg: 'Genormt: 1:100 · 1:50 · 1:20 · 1:10 · 1:5 · 1:2 · 1:1 · 2:1 · 5:1 · 10:1 · 20:1 · 50:1.',
+    hinweisFalsch: 'Die genormte Reihe: 1:2, 1:5, 1:10, 1:20, 1:50, 1:100 und 2:1, 5:1, 10:1, 20:1, 50:1.', falsch: [], bild: nurSchriftfeld(s), id: `norm|${s}` };
+}
+const GENERATOREN = [
+  { f: gBlatt, g: 3, thema: 'umrechnen' }, { f: () => gWirk(false), g: 2, thema: 'umrechnen' }, { f: () => gWirk(true), g: 1, thema: 'umrechnen' },
+  { f: gMassstab, g: 2, thema: 'bestimmen' }, { f: gVergroessern, g: 1, thema: 'bestimmen' },
+  { f: gWaehlen, g: 2, thema: 'waehlen' },
+  { f: () => gLesen('blatt'), g: 1.5, thema: 'lesen' }, { f: () => gLesen('mass'), g: 1.5, thema: 'lesen' },
+  { f: gBegriffArt, g: 0.7, thema: 'begriffe' }, { f: gBegriffNorm, g: 0.7, thema: 'begriffe' }
+];
+function erzeugeAufgabe(themen) {
+  const pool = GENERATOREN.filter(x => themen.includes(x.thema));
+  const liste = pool.length ? pool : GENERATOREN;
+  let r = zufall() * liste.reduce((s, x) => s + x.g, 0);
+  for (const x of liste) { r -= x.g; if (r <= 0) return fertig(x.f()); }
+  return fertig(liste[liste.length - 1].f());
+}
+function fertig(a) {
+  // Fehlerbilder, die zufällig die Lösung treffen, raus; doppelte raus
+  const seen = new Set();
+  a.falsch = (a.falsch || []).filter(f => {
+    const k = f.zahl !== undefined ? 'z' + f.zahl : 'm' + f.m;
+    if (seen.has(k)) return false; seen.add(k);
+    if (f.zahl !== undefined && a.loesung.zahl !== undefined && gleich(f.zahl, a.loesung.zahl)) return false;
+    if (f.m !== undefined && f.m === a.loesung.m) return false;
+    return true;
+  });
+  return a;
+}
+
+// ---------- Prüfung ----------
+const ALLGEMEIN = 'Nicht richtig. Erste Zahl: auf dem Blatt, zweite Zahl: in Wirklichkeit.';
+function pruefe(a, e) {
+  e = e || {};
+  if (a.eingabe === 'wahl') {
+    if (!e.wahl) return { status: 'leer', hinweis: 'Tippe auf eine Antwort.' };
+    return e.wahl === a.loesung.wahl ? { status: 'richtig' } : { status: 'falsch', hinweis: a.hinweisFalsch || ALLGEMEIN };
+  }
+  if (a.eingabe === 'massstab') {
+    if (!e.m) return { status: 'leer', hinweis: 'Tippe auf einen Maßstab.' };
+    if (e.m === a.loesung.m) return { status: 'richtig' };
+    const f = a.falsch.find(x => x.m === e.m);
+    return { status: 'falsch', hinweis: f ? f.hinweis : ALLGEMEIN };
+  }
+  if (a.eingabe === 'zahl') {
+    const z = zahlLesen(e.zahl);
+    if (z === null) return { status: 'leer', hinweis: 'Gib eine Zahl ein.' };
+    if (gleich(z, a.loesung.zahl)) return { status: 'richtig' };
+    const f = a.falsch.find(x => x.zahl !== undefined && gleich(x.zahl, z));
+    return { status: 'falsch', hinweis: f ? f.hinweis : ALLGEMEIN };
+  }
+  if (a.eingabe === 'massstabZahl') {
+    if (!e.m) return { status: 'leer', hinweis: 'Tippe zuerst auf den Maßstab.' };
+    const mOk = e.m === a.loesung.m;
+    if (!mOk) { const f = a.falsch.find(x => x.m === e.m); return { status: 'falsch', wo: 'm', hinweis: f ? f.hinweis : ALLGEMEIN }; }
+    const z = zahlLesen(e.zahl);
+    if (z === null) return { status: 'leer', hinweis: `Maßstab ${e.m} stimmt. Gib jetzt die Länge auf dem Blatt an.` };
+    if (gleich(z, a.loesung.zahl)) return { status: 'richtig' };
+    const f = a.falsch.find(x => x.zahl !== undefined && gleich(x.zahl, z));
+    return { status: 'falsch', wo: 'zahl', hinweis: f ? f.hinweis : `Maßstab ${e.m} stimmt, die Länge nicht.` };
+  }
+  return { status: 'leer' };
+}
+</script>
+<script>
+'use strict';
+// ======================= Oberfläche =======================
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const S = { dauer: 180, themen: THEMEN.slice(), eingabe: 'tasten', sound: true,
+  laeuft: false, punkte: 0, falsch: 0, fehler: [], tEnde: 0, tStart: 0, aufgabe: null, m: null, fehlerBei: false, hilfe: false, gesperrt: false, timer: null, letzteSek: -1, weiter: null, letzte: [] };
+function speichern(k, v) { try { localStorage.setItem('massstabsprint.' + k, JSON.stringify(v)); } catch (e) { } }
+function laden(k, std) { try { const v = localStorage.getItem('massstabsprint.' + k); return v === null ? std : JSON.parse(v); } catch (e) { return std; } }
+const zz = n => String(n).padStart(2, '0');
+const mmss = s => Math.floor(s / 60) + ':' + zz(s % 60);
+const dauerText = d => d === 0 ? 'ohne Zeit' : d % 60 === 0 ? (d / 60) + ' Minuten' : d + ' Sekunden';
+const rekordKey = () => `best.${S.dauer}.${THEMEN.filter(t => S.themen.includes(t)).join('')}`;
+const TYPNAME = { umrechnen: 'Umrechnen', bestimmen: 'Maßstab bestimmen', waehlen: 'Maßstab wählen', lesen: 'Zeichnung lesen', begriffe: 'Begriffe' };
+
+let audio = null;
+function tonAn() { if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audio = null; } } if (audio && audio.state === 'suspended') audio.resume(); }
+function ton(art) {
+  if (!S.sound || !audio) return;
+  const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain(); o.connect(g); g.connect(audio.destination);
+  if (art === 'ok') { o.type = 'sine'; o.frequency.setValueAtTime(660, t); o.frequency.setValueAtTime(880, t + 0.08); g.gain.setValueAtTime(0.15, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.start(t); o.stop(t + 0.25); }
+  else if (art === 'nein') { o.type = 'sawtooth'; o.frequency.setValueAtTime(180, t); g.gain.setValueAtTime(0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3); o.start(t); o.stop(t + 0.3); }
+  else if (art === 'tick') { o.type = 'square'; o.frequency.setValueAtTime(1000, t); g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05); o.start(t); o.stop(t + 0.05); }
+  else if (art === 'ende') { o.type = 'sine'; [523, 659, 784].forEach((f, i) => o.frequency.setValueAtTime(f, t + i * 0.15)); g.gain.setValueAtTime(0.15, t); g.gain.setValueAtTime(0.15, t + 0.4); g.gain.exponentialRampToValueAtTime(0.001, t + 0.7); o.start(t); o.stop(t + 0.7); }
+}
+
+function zeigeStart() {
+  $('#start').hidden = false; $('#spiel').hidden = true; $('#ende').hidden = true;
+  const best = laden(rekordKey(), 0);
+  $('#rekordStart').innerHTML = best ? `Dein Rekord (${dauerText(S.dauer)}): <b>${best}</b> Punkte` : (S.dauer ? `Noch kein Rekord für ${dauerText(S.dauer)}.` : '');
+}
+function start() { tonAn(); startRunde(); }
+function startRunde() {
+  S.punkte = 0; S.falsch = 0; S.fehler = []; S.laeuft = true; S.letzteSek = -1; S.letzte = [];
+  S.tStart = performance.now(); S.tEnde = S.tStart + S.dauer * 1000;
+  $('#pRichtig').textContent = '0'; $('#pFalsch').textContent = '0';
+  $('#start').hidden = true; $('#ende').hidden = true; $('#spiel').hidden = false;
+  $('#leiste').hidden = S.dauer === 0; $('#beenden').hidden = S.dauer !== 0;
+  window.scrollTo(0, 0);
+  naechsteAufgabe();
+  if (S.timer) clearInterval(S.timer);
+  S.timer = setInterval(tick, 100); tick();
+}
+function tick() {
+  if (!S.laeuft) return;
+  if (S.dauer === 0) { $('#zeit').textContent = mmss(Math.floor((performance.now() - S.tStart) / 1000)); return; }
+  const rest = Math.max(0, S.tEnde - performance.now()), sek = Math.ceil(rest / 1000);
+  $('#zeit').textContent = mmss(sek); $('#leiste > div').style.width = (rest / (S.dauer * 1000) * 100) + '%';
+  const knapp = rest < 10000 && rest > 0; $('#leiste').classList.toggle('knapp', knapp); $('#zeit').classList.toggle('knapp', knapp);
+  if (sek !== S.letzteSek) { S.letzteSek = sek; if (knapp) ton('tick'); }
+  if (rest <= 0) ende();
+}
+function naechsteAufgabe() {
+  if (!S.laeuft) return;
+  let a; for (let i = 0; i < 30; i++) { a = erzeugeAufgabe(S.themen); if (!S.letzte.includes(a.id) && !(S.aufgabe && S.aufgabe.typ === a.typ && i < 10 && zufall() < 0.5)) break; }
+  S.letzte.push(a.id); if (S.letzte.length > 12) S.letzte.shift();
+  S.aufgabe = a; S.m = null; S.mOk = false; S.fehlerBei = false; S.hilfe = false; S.gesperrt = false; S.weiter = null;
+  $('#typ').textContent = `${TYPNAME[a.thema]} · ${a.punkte} ${a.punkte === 1 ? 'Punkt' : 'Punkte'}`;
+  $('#frage').innerHTML = a.frage; $('#bild').innerHTML = a.bild || '';
+  melde('', ''); baueAntwort();
+}
+function melde(html, art) { const m = $('#melden'); m.innerHTML = html; m.className = 'melden' + (art ? ' ' + art : ''); }
+function punkteGeben(n) {
+  S.punkte += n; $('#pRichtig').textContent = S.punkte;
+  const p = document.createElement('span'); p.className = 'plus'; p.textContent = '+' + n; $('.kopf .punkte').appendChild(p); setTimeout(() => p.remove(), 800);
+}
+function fehlerZaehlen() {
+  if (S.fehlerBei) return; S.fehlerBei = true; S.falsch++; $('#pFalsch').textContent = S.falsch;
+  S.fehler.push({ frage: S.aufgabe.kurz, loesung: S.aufgabe.loesungText });
+}
+function eingabeLesen() { const f = $('#zahlFeld'); return { m: S.m, zahl: f ? f.value : null, wahl: null }; }
+function pruefen(wahlWert) {
+  if (!S.laeuft || S.gesperrt) return;
+  const a = S.aufgabe, e = eingabeLesen(); if (wahlWert !== undefined) e.wahl = wahlWert;
+  const r = pruefe(a, e);
+  if (r.status === 'leer') { melde(esc(r.hinweis || ''), 'fast'); if (a.eingabe === 'massstabZahl' && S.m) { const f = $('#zahlFeld'); if (f) f.focus(); } return; }
+  if (r.status === 'falsch') { fehlerZaehlen(); ton('nein'); melde(esc(r.hinweis), 'nein'); const f = $('#zahlFeld'); if (f && r.wo !== 'm') f.focus(); return; }
+  ton('ok'); S.gesperrt = true;
+  if (!S.hilfe) { punkteGeben(a.punkte); melde(`Richtig ✓<span class="weg">${esc(a.weg)}</span>`, 'ok'); }
+  else melde(`Stimmt, mit Hilfe: keine Punkte.<span class="weg">${esc(a.weg)}</span>`, 'fast');
+  S.weiter = setTimeout(naechsteAufgabe, S.fehlerBei || S.hilfe ? 1800 : 1200);
+}
+function loesungZeigen() {
+  if (!S.laeuft || S.gesperrt) return;
+  const a = S.aufgabe; S.hilfe = true; fehlerZaehlen(); S.gesperrt = true;
+  if (a.loesung.m) { S.m = a.loesung.m; S.mOk = true; }
+  baueAntwort();
+  melde(`Lösung: ${esc(a.loesungText)}<span class="weg">${esc(a.weg)}</span>`, 'fast');
+  const f = $('#zahlFeld'); if (f && a.loesung.zahl !== undefined) { f.value = zahl(a.loesung.zahl); f.blur(); }
+  if (a.eingabe === 'wahl') document.querySelectorAll('.wahl button').forEach(b => b.classList.toggle('an', b.dataset.w === a.loesung.wahl));
+  S.weiter = setTimeout(naechsteAufgabe, 2600);
+}
+function ueberspringen() { if (!S.laeuft || S.gesperrt) return; fehlerZaehlen(); naechsteAufgabe(); }
+
+function einsetzen(t) {
+  const f = $('#zahlFeld'); if (!f) return;
+  const a = f.selectionStart ?? f.value.length, b = f.selectionEnd ?? f.value.length;
+  if (t === '⌫') { if (a === b && a > 0) { f.value = f.value.slice(0, a - 1) + f.value.slice(b); f.setSelectionRange(a - 1, a - 1); } else { f.value = f.value.slice(0, a) + f.value.slice(b); f.setSelectionRange(a, a); } }
+  else if (t === 'C') { f.value = ''; }
+  else { f.value = f.value.slice(0, a) + t + f.value.slice(b); const p = a + t.length; f.setSelectionRange(p, p); }
+  f.focus();
+}
+function mReiheHtml() {
+  const k = s => `<button data-m="${s}" class="${s === '1:1' ? 'eins' : ''}${S.m === s ? ' an' : ''}">${s}</button>`;
+  return `<div class="mreihe"><span class="lbl">Verkleinerung</span>${VERKL.map(k).join('')}<span class="lbl">Natürliche Größe · Vergrößerung</span>${k('1:1')}${VERGR.map(k).join('')}</div>`;
+}
+function baueAntwort() {
+  const a = S.aufgabe, el = $('#antwort'); let html = '';
+  if (a.eingabe === 'wahl') {
+    html = `<div class="wahl">${a.optionen.map(o => `<button data-w="${esc(o)}">${esc(o)}</button>`).join('')}</div>`;
+  } else {
+    // "Maßstab wählen" in zwei Schritten: erst die Reihe, nach dem richtigen Maßstab die Länge
+    if (a.eingabe === 'massstab' || (a.eingabe === 'massstabZahl' && !S.mOk)) html += mReiheHtml();
+    if (a.eingabe === 'zahl' || (a.eingabe === 'massstabZahl' && S.mOk)) {
+      if (a.eingabe === 'massstabZahl') html += `<div class="mfest">Maßstab ${esc(S.m)} ✓<button id="mAendern">ändern</button></div>`;
+      html += `<div class="zahlzeile">${a.eingabe === 'massstabZahl' ? '<span class="vorab">auf dem Blatt</span>' : ''}<input id="zahlFeld" type="text" autocomplete="off" inputmode="${S.eingabe === 'system' ? 'decimal' : 'none'}" placeholder="Zahl" aria-label="Antwort"><span class="einheit">${a.einheit || 'Maßzahl'}</span></div>`;
+      if (S.eingabe !== 'system') html += `<div class="keypad">${['7', '8', '9', '⌫', '4', '5', '6', 'C', '1', '2', '3', 'OK', '0', ',', ''].map(t => t === 'OK' ? '<button class="ok" data-t="OK">Prüfen</button>' : t === '' ? '' : `<button data-t="${t}" class="${t === '⌫' || t === 'C' ? 'op' : ''}">${t}</button>`).join('')}</div>`;
+      else html += `<div class="knoepfe"><button id="ok">Prüfen</button></div>`;
+    }
+  }
+  html += `<div class="nebenzeile"><button id="skip">Überspringen</button><button class="loesung" id="loesungKnopf">Lösung zeigen</button>${(a.eingabe === 'zahl' || a.eingabe === 'massstabZahl') ? `<button id="systast">${S.eingabe === 'system' ? 'Eigene Tasten' : 'Systemtastatur'}</button>` : ''}</div>`;
+  el.innerHTML = html;
+  el.querySelectorAll('.wahl button').forEach(b => b.addEventListener('click', () => { if (S.gesperrt) return; el.querySelectorAll('.wahl button').forEach(x => x.classList.toggle('an', x === b)); pruefen(b.dataset.w); }));
+  el.querySelectorAll('.mreihe button').forEach(b => b.addEventListener('click', () => {
+    if (S.gesperrt) return; S.m = b.dataset.m; el.querySelectorAll('.mreihe button').forEach(x => x.classList.toggle('an', x === b));
+    if (a.eingabe === 'massstab') { pruefen(); return; }
+    const r = pruefe(a, { m: S.m, zahl: null });
+    if (r.status === 'falsch') { fehlerZaehlen(); ton('nein'); melde(esc(r.hinweis), 'nein'); return; }
+    S.mOk = true; baueAntwort(); melde(esc(r.hinweis || ''), 'fast');
+  }));
+  const ma = $('#mAendern'); if (ma) ma.addEventListener('click', () => { if (S.gesperrt) return; S.m = null; S.mOk = false; melde('', ''); baueAntwort(); });
+  const kp = el.querySelector('.keypad'); if (kp) kp.addEventListener('pointerdown', ev => { const b = ev.target.closest('button'); if (!b) return; ev.preventDefault(); if (b.dataset.t === 'OK') pruefen(); else einsetzen(b.dataset.t); });
+  const ok = $('#ok'); if (ok) ok.addEventListener('click', () => pruefen());
+  const f = $('#zahlFeld'); if (f) { f.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); pruefen(); } }); if (S.eingabe === 'system' || !window.matchMedia('(pointer: coarse)').matches) f.focus(); }
+  $('#skip').addEventListener('click', ueberspringen); $('#loesungKnopf').addEventListener('click', loesungZeigen);
+  const st = $('#systast'); if (st) st.addEventListener('click', () => { const alt = $('#zahlFeld') ? $('#zahlFeld').value : ''; S.eingabe = S.eingabe === 'system' ? 'tasten' : 'system'; speichern('eingabe', S.eingabe); baueAntwort(); const nf = $('#zahlFeld'); if (nf) nf.value = alt; });
+}
+
+function ende() {
+  S.laeuft = false; if (S.timer) clearInterval(S.timer); S.timer = null; if (S.weiter) clearTimeout(S.weiter);
+  ton('ende');
+  const best = laden(rekordKey(), 0), neu = S.dauer > 0 && S.punkte > best;
+  if (neu) speichern(rekordKey(), S.punkte);
+  $('#eRichtig').textContent = S.punkte;
+  $('#eText').textContent = (S.punkte === 1 ? 'Punkt' : 'Punkte') + (S.dauer ? ' in ' + dauerText(S.dauer) : ' in ' + mmss(Math.floor((performance.now() - S.tStart) / 1000)) + ' min');
+  $('#eFalsch').textContent = S.falsch ? `${S.falsch} ${S.falsch === 1 ? 'Aufgabe' : 'Aufgaben'} mit Fehler oder Hilfe` : 'Kein Fehler!';
+  $('#eNeu').textContent = neu && S.punkte > 0 ? '★ Neuer Rekord!' : '';
+  $('#rekordEnde').innerHTML = S.dauer ? `Rekord (${dauerText(S.dauer)}): <b>${Math.max(best, S.punkte)}</b> Punkte` : '';
+  const fl = $('#fehlerliste'); fl.innerHTML = '';
+  $('#fehlerTitel').hidden = fl.hidden = S.fehler.length === 0;
+  S.fehler.slice(0, 15).forEach(f => { const d = document.createElement('div'); d.innerHTML = `<span>${esc(f.frage)}</span><span class="l">${esc(f.loesung)}</span>`; fl.appendChild(d); });
+  $('#teilFallback').hidden = true; $('#teilFallback').innerHTML = '';
+  $('#start').hidden = true; $('#spiel').hidden = true; $('#ende').hidden = false; window.scrollTo(0, 0);
+}
+function karteZeichnen() {
+  const c = $('#karte'); c.width = 1080; c.height = 1350; const g = c.getContext('2d');
+  g.fillStyle = '#f5f5f2'; g.fillRect(0, 0, 1080, 1350); g.fillStyle = '#35638A'; g.fillRect(0, 0, 1080, 300);
+  g.fillStyle = '#fff'; g.font = 'bold 92px "Segoe UI", Roboto, Arial, sans-serif'; g.textAlign = 'center'; g.fillText('Maßstab-Sprint', 540, 150);
+  g.font = '40px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText('11NF PHT · Technisches Zeichnen', 540, 230);
+  g.fillStyle = '#222'; g.font = 'bold 110px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText('1:2 · 1:5 · 5:1', 540, 560);
+  g.fillStyle = '#B01A15'; g.font = 'bold 260px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText(String(S.punkte), 540, 950);
+  g.fillStyle = '#222'; g.font = 'bold 52px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText((S.punkte === 1 ? 'Punkt' : 'Punkte') + (S.dauer ? ' in ' + dauerText(S.dauer) : ''), 540, 1050);
+  g.fillStyle = '#555'; g.font = '38px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText(new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' · Schaffst du mehr?', 540, 1160);
+  g.fillStyle = '#777'; g.font = '30px "Segoe UI", Roboto, Arial, sans-serif'; g.fillText('Kaspschak · Lore-Lorentz-Schule', 540, 1290);
+  return c;
+}
+async function teilen() {
+  const url = /^https?:/.test(location.href) ? ' ' + location.href.split('#')[0] : '';
+  const text = `Maßstab-Sprint: ${S.punkte} ${S.punkte === 1 ? 'Punkt' : 'Punkte'}${S.dauer ? ' in ' + dauerText(S.dauer) : ''}! Schaffst du mehr?${url}`;
+  let datei = null; try { const b = await new Promise(res => karteZeichnen().toBlob(res, 'image/png')); if (b) datei = new File([b], 'massstab-sprint.png', { type: 'image/png' }); } catch (e) { }
+  if (navigator.share) { try { if (datei && navigator.canShare && navigator.canShare({ files: [datei] })) { await navigator.share({ files: [datei], text, title: 'Maßstab-Sprint' }); return; } await navigator.share({ text, title: 'Maßstab-Sprint' }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  const f = $('#teilFallback'); f.hidden = false; const c = karteZeichnen(), u = c.toDataURL('image/png');
+  f.innerHTML = `<div class="teilbild"><img src="${u}" alt="Rekordkarte"><div class="klein">Bild gedrückt halten oder <a download="massstab-sprint.png" href="${u}">herunterladen</a>, dann teilen.</div></div><textarea class="kopie" readonly>${esc(text)}</textarea><button class="zweit" id="kopieren">Text kopieren</button>`;
+  $('#kopieren').addEventListener('click', async () => { try { await navigator.clipboard.writeText(text); $('#kopieren').textContent = 'Kopiert ✓'; } catch (e) { const t = f.querySelector('textarea'); t.focus(); t.select(); } });
+}
+
+function initStart() {
+  S.dauer = laden('dauer', 180); S.sound = laden('sound', true);
+  const th = laden('themen', null); if (Array.isArray(th) && th.length) S.themen = th.filter(t => THEMEN.includes(t)); if (!S.themen.length) S.themen = THEMEN.slice();
+  const grob = window.matchMedia && window.matchMedia('(pointer: coarse)').matches; S.eingabe = laden('eingabe', grob ? 'tasten' : 'system'); if (!['tasten', 'system'].includes(S.eingabe)) S.eingabe = 'tasten';
+  const zc = $('#zeitChips'); zc.querySelectorAll('.chip').forEach(b => { b.classList.toggle('an', parseInt(b.dataset.s, 10) === S.dauer); b.addEventListener('click', () => { S.dauer = parseInt(b.dataset.s, 10); speichern('dauer', S.dauer); zc.querySelectorAll('.chip').forEach(x => x.classList.toggle('an', x === b)); zeigeStart(); }); });
+  const tc = $('#themaChips'); tc.querySelectorAll('.chip').forEach(b => { const t = b.dataset.t; b.classList.toggle('an', S.themen.includes(t)); b.addEventListener('click', () => { if (S.themen.includes(t)) { if (S.themen.length === 1) return; S.themen = S.themen.filter(x => x !== t); } else S.themen.push(t); b.classList.toggle('an', S.themen.includes(t)); speichern('themen', S.themen); zeigeStart(); }); });
+  const ec = $('#eingabeChips'); ec.querySelectorAll('.chip').forEach(b => { b.classList.toggle('an', b.dataset.e === S.eingabe); b.addEventListener('click', () => { S.eingabe = b.dataset.e; speichern('eingabe', S.eingabe); ec.querySelectorAll('.chip').forEach(x => x.classList.toggle('an', x === b)); }); });
+  const sc = $('#soundChip'); const soundZeigen = () => { sc.classList.toggle('an', S.sound); sc.textContent = S.sound ? '🔔 Ton an' : '🔕 Ton aus'; }; soundZeigen();
+  sc.addEventListener('click', () => { S.sound = !S.sound; speichern('sound', S.sound); soundZeigen(); });
+  $('#startKnopf').addEventListener('click', start); $('#nochmal').addEventListener('click', start); $('#zurueck').addEventListener('click', zeigeStart); $('#teilen').addEventListener('click', teilen); $('#beenden').addEventListener('click', ende);
+  zeigeStart();
+}
+initStart();
+</script>
+</body>
+</html>
