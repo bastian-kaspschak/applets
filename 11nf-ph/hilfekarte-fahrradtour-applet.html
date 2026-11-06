@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hilfekarte: Momentan- und Durchschnittsgeschwindigkeit</title>
+<!--
+  Digitale Hilfekarte zum Arbeitsblatt "Momentan- und Durchschnittsgeschwindigkeit"
+  (Fahrradtour mit Fitness-App), 11NF PH. Je Aufgabe drei Hilfen, die der Reihe
+  nach geoeffnet werden; gerechnet wird auf dem Blatt. Pruefung eigener Werte
+  nur mit richtig/falsch und Hinweis, keine Antwortsaetze.
+
+  Eine Datei, kein Internet noetig: HTML, CSS und JavaScript zusammen, keine
+  Bibliothek, keine Web-Fonts. Formeln als Unicode.
+
+  Sichtbar: Weg-Zeit-Diagramm im Raster des Blatts (1 Kaestchen = 1 min bzw.
+  0,5 km), Zeitregler mit Punkt P(t | s), darunter das Hoehenprofil der Strecke
+  mit dem Fahrrad, daneben die App-Anzeige (aktuell = Momentangeschwindigkeit,
+  Ø bisher = Durchschnittsgeschwindigkeit seit dem Start). Zuschaltbar: Ø-Gerade
+  vom Start zu P, Steigungsdreieck je Abschnitt, Pause herausschneiden.
+
+  Tour: I 0-10 min 0->3 km (18 km/h), II 10-15 Pause, III 15-20 3->4 km
+  (12 km/h), IV 20-25 4->7 km (36 km/h), V 25-30 7->8 km (12 km/h).
+  Ø 16 km/h, Ø in Bewegung 19,2 km/h. Zusatz: 24 min, 20 min, 4 min Pause.
+
+  Der erste Skriptblock (id "kern") ist DOM-frei und wird von einem Node-Test
+  geladen. URL-Parameter fuer Screenshots: ?a=<aufgabe>&h=<hilfen>&t=<min>.
+-->
+<style>
+  :root {
+    --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A;
+    --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; --achse: #26261E;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.45; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 1120px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 14px; font-size: 16px; }
+  i { font-style: italic; font-family: "Cambria", "Georgia", "Times New Roman", serif; }
+  .m { font-family: "Cambria", "Georgia", "Times New Roman", serif; font-size: 1.05em; white-space: nowrap; }
+
+  .aufgaben { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
+  .aufgaben .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; margin-right: 6px; }
+  .aufgaben button { min-width: 48px; min-height: 44px; font-size: 18px; font-weight: 600; }
+  button { font: inherit; font-size: 15px; padding: 8px 14px; border: 1px solid var(--stahl);
+           background: #fff; color: var(--stahl); cursor: pointer; border-radius: 0; min-height: 44px; }
+  button:hover { background: var(--stahl); color: #fff; }
+  button.akt { background: var(--stahl); color: #fff; }
+  button:disabled { border-color: var(--grau); color: #999; background: #f3f3f0; cursor: default; }
+
+  .zwei { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; align-items: start; }
+  .zwei > * { min-width: 0; }
+  canvas { display: block; width: 100%; border: 1px solid var(--grau); background: #fff; }
+  #diagramm { height: 360px; }
+  #strecke { height: 130px; margin-top: 8px; }
+  .legende { font-size: 12px; color: #666; margin-top: 4px; }
+
+  .r { display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: "n z e" "s s s";
+       gap: 2px 8px; align-items: center; margin: 10px 0 4px; font-size: 15px; }
+  .r .n { grid-area: n; }
+  .r input[type=range] { grid-area: s; -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; margin: 0;
+                         height: 44px; background: transparent; cursor: pointer; accent-color: var(--stahl); }
+  .r input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -11px;
+                         border-radius: 50%; background: var(--stahl); border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--stahl);
+                         border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=number] { grid-area: z; font: inherit; font-size: 16px; padding: 8px 6px; border: 1px solid var(--grau);
+                          width: 5.5em; min-width: 0; font-variant-numeric: tabular-nums; }
+  .r .e { grid-area: e; color: #666; font-size: 14px; white-space: nowrap; }
+
+  .schalter { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 6px 0 2px; font-size: 15px; }
+  .schalter label { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
+  .schalter input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--stahl); }
+  .schalter select { font: inherit; font-size: 15px; padding: 8px 6px; min-height: 44px; border: 1px solid var(--grau); background: #fff; }
+
+  /* App-Anzeige im Stil eines Handys */
+  .app { border: 2px solid var(--achse); border-radius: 14px; padding: 10px 14px; margin-bottom: 12px; background: #fbfbf9; }
+  .app .kopf { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #777; margin-bottom: 4px; }
+  .app .gitter { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; }
+  .app .w { font-size: 11px; color: #666; }
+  .app .z { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .app .z small { font-size: 12px; font-weight: 400; color: #555; }
+  .app .mom .z { color: var(--rot); }
+  .app .avg .z { color: var(--stahl); }
+
+  .box { border: 1px solid var(--grau); padding: 10px 14px; background: #fff; margin-bottom: 12px; }
+  .box .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; }
+  .box h2 { font-size: 17px; margin: 2px 0 8px; }
+  .hilfe { border-left: 4px solid var(--stahl); background: #f7f9fb; padding: 8px 12px; margin: 8px 0; font-size: 16px; }
+  .hilfe .t { display: block; font-size: 10px; letter-spacing: .12em; color: var(--stahl); text-transform: uppercase; margin-bottom: 3px; }
+  .hilfe .satz { display: block; margin: 3px 0 3px 10px; color: #444; }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .pruef .z { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 8px 0; font-size: 16px; }
+  .pruef input[type=text] { font: inherit; font-size: 16px; padding: 8px 6px; min-height: 44px;
+        border: 1px solid var(--grau); width: 5.5em; font-variant-numeric: tabular-nums; }
+  .pruef select { font: inherit; font-size: 16px; padding: 8px 6px; min-height: 44px; border: 1px solid var(--grau); background: #fff; }
+  .fb { margin-top: 8px; font-size: 16px; font-weight: 600; min-height: 1.4em; }
+  .fb.ok { color: var(--oliv); }
+  .fb.nein { color: var(--rot); }
+  .fb .norm { font-weight: 400; color: #444; display: block; }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+
+  @media (min-width: 1000px) { #diagramm { height: 420px; } }
+  @media (max-width: 820px) { .zwei { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) {
+    main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
+    #diagramm { height: 290px; } #strecke { height: 110px; }
+    .aufgaben button { min-width: 44px; padding: 8px 10px; }
+    .app .z { font-size: 17px; }
+  }
+  @media (max-height: 520px) and (orientation: landscape) { #diagramm { height: 250px; } }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Physik</div>
+  <div><span class="k">Kurs</span>11NF PH</div>
+  <div><span class="k">Reihe</span>Kinematik</div>
+  <div><span class="k">Thema</span>Momentan- und Durchschnittsgeschwindigkeit</div>
+</header>
+<main>
+  <h1>Hilfekarte zur Fahrradtour</h1>
+  <p class="lead">Wähle die Aufgabe, bei der du Hilfe brauchst. Öffne die Hilfen der Reihe nach und nur so viele,
+    wie du brauchst. Rechne auf dem Arbeitsblatt. Ziehe den Zeitregler und beobachte die App.</p>
+
+  <div class="aufgaben" id="wahl">
+    <span class="lbl">Aufgabe</span>
+    <button data-nr="1">1</button><button data-nr="2">2</button><button data-nr="3">3</button>
+    <button data-nr="4">4</button><button data-nr="5">5</button>
+  </div>
+
+  <div class="zwei">
+    <div>
+      <canvas id="diagramm" aria-label="Weg-Zeit-Diagramm der Fahrradtour"></canvas>
+      <div class="r">
+        <span class="n">Zeit <span class="m"><i>t</i></span></span>
+        <input type="range" id="t_r" min="0" max="30" step="0.5" value="0" aria-label="Zeit t Regler">
+        <input type="number" id="t_n" min="0" max="30" step="0.5" value="0" aria-label="Zeit t">
+        <span class="e">min</span>
+      </div>
+      <div class="schalter">
+        <label><input type="checkbox" id="sek"> Ø-Gerade vom Start zu P</label>
+        <label>Steigungsdreieck
+          <select id="dreieck" aria-label="Steigungsdreieck für Abschnitt">
+            <option value="">keins</option><option value="0">Abschnitt I</option><option value="1">Abschnitt II</option>
+            <option value="2">Abschnitt III</option><option value="3">Abschnitt IV</option><option value="4">Abschnitt V</option>
+          </select></label>
+        <label><input type="checkbox" id="schnitt"> Pause herausschneiden</label>
+      </div>
+      <canvas id="strecke" aria-label="Höhenprofil der Strecke mit dem Fahrrad"></canvas>
+      <div class="legende">Oben: Weg <span class="m"><i>s</i></span> über der Zeit <span class="m"><i>t</i></span>
+        im Raster des Blatts (1 Kästchen = 1 min bzw. 0,5 km). Unten: die Strecke von der Seite; das Fahrrad steht dort,
+        wo die Radfahrerin zur Zeit <span class="m"><i>t</i></span> ist.</div>
+    </div>
+
+    <div>
+      <div class="app" aria-live="polite">
+        <div class="kopf">Fitness-App · Tour läuft</div>
+        <div class="gitter">
+          <div><div class="w">Zeit</div><div class="z" id="a_t">0:00</div></div>
+          <div><div class="w">Strecke</div><div class="z" id="a_s">0,00 <small>km</small></div></div>
+          <div class="mom"><div class="w">aktuell</div><div class="z" id="a_v">18,0 <small>km/h</small></div></div>
+          <div class="avg"><div class="w">Ø bisher</div><div class="z" id="a_avg">–</div></div>
+          <div><div class="w">Ø in Bewegung</div><div class="z" id="a_bew">–</div></div>
+          <div><div class="w">Höchstwert</div><div class="z" id="a_max">18,0 <small>km/h</small></div></div>
+        </div>
+      </div>
+      <div class="box">
+        <div class="lbl">Aufgabe <span id="nr">1</span></div>
+        <h2 id="titel"></h2>
+        <div id="hilfen"></div>
+        <div class="btns"><button id="mehr" class="akt">Hilfe 1 öffnen</button></div>
+      </div>
+      <div class="box pruef" id="pruef">
+        <div class="lbl">Prüfe deine Werte</div>
+        <div id="pruef_inhalt"></div>
+        <div class="btns"><button id="pruefen">Prüfen</button></div>
+        <div class="fb" id="fb"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>Physik 11NF PH · hilfekarte-fahrradtour-applet.html</footer>
+
+<script id="kern">
+// ---------------------------------------------------------------------------
+//  Kern: Tour, Rechnung, Hilfetexte, Pruefung. Kein Zugriff auf das Dokument.
+// ---------------------------------------------------------------------------
+var Kern = (function () {
+  'use strict';
+  // Abschnitte: Zeit in min, Weg in km
+  var ABSCHNITTE = [
+    { name: 'I',   t0: 0,  t1: 10, s0: 0, s1: 3 },
+    { name: 'II',  t0: 10, t1: 15, s0: 3, s1: 3 },
+    { name: 'III', t0: 15, t1: 20, s0: 3, s1: 4 },
+    { name: 'IV',  t0: 20, t1: 25, s0: 4, s1: 7 },
+    { name: 'V',   t0: 25, t1: 30, s0: 7, s1: 8 }
+  ];
+  var PAUSE = 1;          // Index des Pausenabschnitts
+  var T_END = 30;
+
+  function vAbschnitt(i) { var a = ABSCHNITTE[i]; return (a.s1 - a.s0) / ((a.t1 - a.t0) / 60); } // km/h
+  function index(t) {     // Abschnitt, in dem t liegt (Knick zaehlt zum folgenden, Ende zum letzten)
+    for (var i = 0; i < ABSCHNITTE.length; i++) if (t < ABSCHNITTE[i].t1) return i;
+    return ABSCHNITTE.length - 1;
+  }
+  function s(t) {
+    t = Math.max(0, Math.min(T_END, t));
+    var a = ABSCHNITTE[index(t)];
+    return a.s0 + (a.s1 - a.s0) * (t - a.t0) / (a.t1 - a.t0);
+  }
+  function pauseBis(t) {  // Pausenminuten bis t
+    var a = ABSCHNITTE[PAUSE];
+    return Math.max(0, Math.min(t, a.t1) - a.t0);
+  }
+  function aktuell(t) { return vAbschnitt(index(t)); }
+  function avg(t) { return t > 0 ? s(t) / (t / 60) : null; }
+  function avgBewegung(t) { var f = t - pauseBis(t); return f > 0 ? s(t) / (f / 60) : null; }
+  function hoechst(t) { var m = 0; for (var i = 0; i <= index(t); i++) m = Math.max(m, vAbschnitt(i)); return m; }
+  // Zeit auf der Achse, wenn die Pause herausgeschnitten ist
+  function tOhnePause(t) { return t - pauseBis(t); }
+
+  function zahl(txt) {
+    if (txt == null) return NaN;
+    var z = String(txt).trim().replace(/\s/g, '').replace(',', '.');
+    if (z === '' || !/^[-+]?\d*\.?\d+$/.test(z)) return NaN;
+    return parseFloat(z);
+  }
+  function nah(a, b, tol) { return Math.abs(a - b) <= tol; }
+
+  // Je Aufgabe: Titel, drei Hilfen (Text + Zustand der Darstellung), Pruefung
+  var AUFGABEN = {
+    1: {
+      titel: 'Pause und schnellster Abschnitt',
+      hilfen: [
+        { text: 'Ziehe den Zeitregler langsam von 0 bis 30 min. Beobachte die Anzeige „Strecke“ in der App. In welchem Abschnitt wächst sie nicht?',
+          zustand: { t: 12 } },
+        { text: 'Vergleiche die Abschnitte I und IV. Beide bringen 3 km. Lies an den Steigungsdreiecken ab, wie lange sie dafür jeweils braucht.',
+          zustand: { dreiecke: [0, 3] } },
+        { text: 'Gleicher Weg in kürzerer Zeit heißt: schneller. Im Diagramm ist der Graph dort steiler. Nicht der höchste Punkt zählt, sondern die steilste Stelle.',
+          zustand: { dreiecke: [0, 3] } }
+      ],
+      pruef: [
+        { id: 'p1a', art: 'wahl', vor: 'a) Pause in Abschnitt', optionen: ['I', 'II', 'III', 'IV', 'V'], soll: 'II',
+          tipp: 'Bei einer Pause bleibt der Weg gleich: Der Graph ist waagerecht.' },
+        { id: 'p1b', art: 'wahl', vor: 'b) am schnellsten in Abschnitt', optionen: ['I', 'II', 'III', 'IV', 'V'], soll: 'IV',
+          tipp: 'Suche die steilste Stelle, nicht die höchste. Vergleiche, wie lange I und IV für je 3 km brauchen.' }
+      ]
+    },
+    2: {
+      titel: 'Geschwindigkeit in jedem Abschnitt',
+      hilfen: [
+        { text: 'Lies für jeden Abschnitt Anfang und Ende an den Knicken ab. Wähle unter dem Diagramm einen Abschnitt beim Steigungsdreieck: Es zeigt Δt und Δs.',
+          zustand: { dreiecke: [2] } },
+        { text: 'Rechne die Zeit in Stunden um: 10 min = 10/60 h, 5 min = 5/60 h. Teile dann: v = Δs : Δt.',
+          zustand: { dreiecke: [2] } },
+        { text: 'Beispiel mit anderen Zahlen: 2 km in 4 min. Das sind 2 km : (4/60 h) = 30 km/h. Andere Rechnung: 2 km : 4 min = 0,5 km pro Minute, mal 60 ergibt 30 km/h.',
+          zustand: { dreiecke: [2] } }
+      ],
+      pruef: [
+        { id: 'p2_0', art: 'zahl', vor: 'I:', nach: 'km/h', soll: 18, tol: 0.05, tipp: 'I dauert 10 min, nicht 5 min.' },
+        { id: 'p2_1', art: 'zahl', vor: 'II:', nach: 'km/h', soll: 0, tol: 0.05, tipp: 'In der Pause kommt kein Weg dazu.' },
+        { id: 'p2_2', art: 'zahl', vor: 'III:', nach: 'km/h', soll: 12, tol: 0.05, tipp: '1 km in 5 min. Wie weit käme sie in 60 min?' },
+        { id: 'p2_3', art: 'zahl', vor: 'IV:', nach: 'km/h', soll: 36, tol: 0.05, tipp: 'Lies Δs ab: von 4 km bis 7 km.' },
+        { id: 'p2_4', art: 'zahl', vor: 'V:', nach: 'km/h', soll: 12, tol: 0.05, tipp: 'Lies Δs ab: von 7 km bis 8 km.' }
+      ]
+    },
+    3: {
+      titel: 'Ø und Ø in Bewegung',
+      hilfen: [
+        { text: 'Ø heißt: Gesamtweg durch Gesamtzeit. Stelle den Zeitregler auf 30 min und lies beide Werte ab. Rechne die Zeit in Stunden um.',
+          zustand: { t: 30, sek: true } },
+        { text: 'Die Ø-Gerade verbindet den Start mit dem Punkt P. Ihre Steigung ist die Durchschnittsgeschwindigkeit bis zur Zeit t. Ziehe den Regler und beobachte „Ø bisher“.',
+          zustand: { t: 30, sek: true } },
+        { text: 'Zu b): „In Bewegung“ heißt: Die App hält die Uhr in der Pause an. Schneide die Pause heraus. Wie viele Minuten bleiben? Teile den Gesamtweg durch diese Zeit.',
+          zustand: { t: 30, sek: true, schnitt: true } }
+      ],
+      pruef: [
+        { id: 'p3a', art: 'zahl', vor: 'a) Ø =', nach: 'km/h', soll: 16, tol: 0.05,
+          tipp: 'Gesamtweg 8 km, Gesamtzeit 30 min = 0,5 h. Die Pause gehört zur Gesamtzeit.' },
+        { id: 'p3t', art: 'zahl', vor: 'b) Fahrzeit ohne Pause:', nach: 'min', soll: 25, tol: 0.01,
+          tipp: 'Die Pause dauert von 10 min bis 15 min.' },
+        { id: 'p3b', art: 'zahl', vor: 'b) Ø in Bewegung =', nach: 'km/h', soll: 19.2, tol: 0.05,
+          tipp: 'Rechne 25 min in Stunden um: 25/60 h. Dann 8 km durch diese Zeit.' }
+      ]
+    },
+    4: {
+      titel: 'Passt 36 km/h zu Ø 16 km/h?',
+      hilfen: [
+        { text: 'Stelle den Zeitregler auf 22 min. Vergleiche in der App „aktuell“ und „Ø bisher“. Ziehe dann weiter bis 30 min.',
+          zustand: { t: 22, sek: true } },
+        { text: '„aktuell“ ist die Momentangeschwindigkeit: die Geschwindigkeit in diesem Moment. „Ø“ ist die Durchschnittsgeschwindigkeit: Gesamtweg durch Gesamtzeit für die ganze Tour.',
+          zustand: { t: 22, sek: true } },
+        { text: 'Satzanfänge für deine Antwort:',
+          saetze: ['Die Aussage ist …, weil …', '36 km/h ist die … Sie gilt nur in Abschnitt …', 'Die Durchschnittsgeschwindigkeit zählt … mit. Deshalb …'],
+          zustand: { t: 22, sek: true } }
+      ],
+      pruef: [
+        { id: 'p4', art: 'wahl', vor: 'Die Aussage des Freundes ist', optionen: ['richtig', 'falsch'], soll: 'falsch',
+          tipp: 'Wie lange fährt sie 36 km/h? Was passiert in der übrigen Zeit?' }
+      ]
+    },
+    5: {
+      titel: 'Zusatz: Wie lange darf die Pause sein?',
+      hilfen: [
+        { text: 'Rechne zwei Zeiten aus: die Gesamtzeit für Ø 20 km/h und die Fahrzeit mit 24 km/h. Zeit = Weg : Geschwindigkeit.',
+          zustand: {} },
+        { text: '8 km : 20 km/h ergibt eine Zeit in Stunden. Mal 60 ergibt Minuten. Rechne genauso mit 24 km/h.',
+          zustand: {} },
+        { text: 'Die Pause ist der Unterschied zwischen Gesamtzeit und Fahrzeit.',
+          zustand: {} }
+      ],
+      pruef: [
+        { id: 'p5g', art: 'zahl', vor: 'Gesamtzeit:', nach: 'min', soll: 24, tol: 0.01, tipp: '8 : 20 = 0,4. Das sind Stunden.' },
+        { id: 'p5f', art: 'zahl', vor: 'Fahrzeit:', nach: 'min', soll: 20, tol: 0.01, tipp: '8 : 24 = 1/3. Das sind Stunden.' },
+        { id: 'p5p', art: 'zahl', vor: 'Pause höchstens:', nach: 'min', soll: 4, tol: 0.01, tipp: 'Gesamtzeit minus Fahrzeit.' }
+      ]
+    }
+  };
+
+  // Pruefung: werte = { id: eingabe }; Rueckgabe { alle, falsch: [tipps], leer }
+  function pruefe(nr, werte) {
+    var liste = AUFGABEN[nr].pruef, falsch = [], leer = 0;
+    liste.forEach(function (p) {
+      var w = werte[p.id];
+      if (w == null || String(w).trim() === '') { leer++; return; }
+      var ok = p.art === 'wahl' ? w === p.soll : nah(zahl(w), p.soll, p.tol);
+      if (!ok) falsch.push(p.vor.replace(/\s*[:=]$/, '') + ': ' + p.tipp);
+    });
+    return { alle: falsch.length === 0 && leer === 0, falsch: falsch, leer: leer };
+  }
+
+  return { ABSCHNITTE: ABSCHNITTE, T_END: T_END, s: s, vAbschnitt: vAbschnitt, index: index,
+           aktuell: aktuell, avg: avg, avgBewegung: avgBewegung, hoechst: hoechst,
+           pauseBis: pauseBis, tOhnePause: tOhnePause, zahl: zahl, AUFGABEN: AUFGABEN, pruefe: pruefe };
+})();
+if (typeof module !== 'undefined') module.exports = Kern;
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var K = Kern;
+  var $ = function (id) { return document.getElementById(id); };
+  var FARBE = { rot: '#B01A15', stahl: '#35638A', oliv: '#71803C', corten: '#C87A3A', achse: '#26261E' };
+  var zustand = { nr: 1, offen: 0, t: 0, sek: false, dreiecke: [], schnitt: false };
+
+  function fmt(x, n) { return x.toFixed(n).replace('.', ','); }
+  function fmtZeit(t) { var m = Math.floor(t), sek = Math.round((t - m) * 60); return m + ':' + (sek < 10 ? '0' : '') + sek; }
+
+  // ---- Canvas vorbereiten (Pixel nach devicePixelRatio) ----
+  function vorbereiten(c) {
+    var dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    var g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { g: g, w: w, h: h };
+  }
+
+  // ---- Diagramm ----
+  function zeichneDiagramm() {
+    var c = vorbereiten($('diagramm')), g = c.g, w = c.w, h = c.h;
+    var schmal = w < 480;
+    var L = schmal ? 38 : 48, R = schmal ? 14 : 22, O = 22, U = 40;
+    var tMax = 31, sMax = 8.6;
+    var X = function (t) { return L + (w - L - R) * t / tMax; };
+    var Y = function (s) { return h - U - (h - O - U) * s / sMax; };
+    var schnitt = zustand.schnitt;
+    var tx = function (t) { return X(schnitt ? K.tOhnePause(t) : t); };   // Achsenzeit
+    g.clearRect(0, 0, w, h);
+
+    // Raster
+    for (var t = 0; t <= 30; t++) {
+      g.strokeStyle = t % 5 === 0 ? '#c9c9c4' : '#ecece8'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(X(t), Y(0)); g.lineTo(X(t), Y(sMax)); g.stroke();
+    }
+    for (var s = 0; s <= 8.5; s += 0.5) {
+      g.strokeStyle = s % 1 === 0 ? '#c9c9c4' : '#ecece8';
+      g.beginPath(); g.moveTo(X(0), Y(s)); g.lineTo(X(tMax), Y(s)); g.stroke();
+    }
+    // Achsen
+    g.strokeStyle = FARBE.achse; g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(tMax), Y(0)); g.stroke();
+    g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(X(0), Y(sMax)); g.stroke();
+    g.fillStyle = '#444'; g.font = (schmal ? 11 : 12) + 'px Segoe UI, Arial, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    for (t = 0; t <= 30; t += 5) g.fillText(String(t), X(t), Y(0) + 5);
+    g.textAlign = 'right'; g.textBaseline = 'middle';
+    for (s = 0; s <= 8; s++) g.fillText(String(s), X(0) - 6, Y(s));
+    g.textAlign = 'right'; g.textBaseline = 'top';
+    g.fillText('t in min' + (schnitt ? ' (ohne Pause)' : ''), X(tMax), Y(0) + 21);
+    g.textAlign = 'left'; g.textBaseline = 'bottom';
+    g.fillText('s in km', X(0) + 4, O - 6 + 10);
+
+    // Pause markieren, wenn herausgeschnitten
+    if (schnitt) {
+      g.strokeStyle = FARBE.corten; g.setLineDash([4, 4]); g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(X(10), Y(0)); g.lineTo(X(10), Y(sMax)); g.stroke(); g.setLineDash([]);
+      g.fillStyle = FARBE.corten; g.textAlign = 'left'; g.textBaseline = 'top';
+      g.fillText('Pause entfernt', X(10) + 4, Y(sMax) + 2);
+    }
+
+    // Steigungsdreiecke
+    zustand.dreiecke.forEach(function (i) {
+      var a = K.ABSCHNITTE[i];
+      if (schnitt && i === 1) return;
+      var x0 = tx(a.t0), x1 = tx(a.t1 - 1e-9), y0 = Y(a.s0), y1 = Y(a.s1);
+      g.fillStyle = 'rgba(113,128,60,0.12)';
+      g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y0); g.lineTo(x1, y1); g.closePath(); g.fill();
+      g.strokeStyle = FARBE.oliv; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y0); g.lineTo(x1, y1); g.stroke();
+      g.fillStyle = FARBE.oliv; g.font = 'bold ' + (schmal ? 11 : 13) + 'px Segoe UI, Arial, sans-serif';
+      g.textAlign = 'center'; g.textBaseline = 'bottom';
+      var dtx = a.s1 > a.s0 ? x0 + (x1 - x0) * 0.62 : (x0 + x1) / 2;
+      g.fillText('Δt = ' + (a.t1 - a.t0) + ' min', dtx, y0 - 3);
+      g.textAlign = 'left'; g.textBaseline = 'middle';
+      var lab = 'Δs = ' + fmt(a.s1 - a.s0, 0) + ' km';
+      var lx = Math.min(x1 + 5, w - R - g.measureText(lab).width);
+      g.fillText(lab, lx, (y0 + y1) / 2 + (a.s1 === a.s0 ? -10 : 0));
+    });
+
+    // Graph
+    g.strokeStyle = FARBE.rot; g.lineWidth = 2.6; g.lineJoin = 'round';
+    g.beginPath();
+    K.ABSCHNITTE.forEach(function (a, i) {
+      if (i === 0) g.moveTo(tx(a.t0), Y(a.s0));
+      g.lineTo(tx(a.t1 - 1e-9), Y(a.s1));
+    });
+    g.stroke();
+    // Abschnittsnamen
+    g.fillStyle = FARBE.achse; g.font = 'bold ' + (schmal ? 11 : 13) + 'px Segoe UI, Arial, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'bottom';
+    K.ABSCHNITTE.forEach(function (a, i) {
+      if (schnitt && i === 1) return;
+      var tm = (a.t0 + a.t1) / 2;
+      g.fillText(a.name, tx(tm), Y(K.s(tm)) - (i === 4 ? 6 : 12));
+    });
+
+    // Ø-Gerade vom Start zu P
+    var tP = zustand.t, sP = K.s(tP);
+    if (zustand.sek && tP > 0) {
+      g.strokeStyle = FARBE.stahl; g.lineWidth = 2; g.setLineDash([7, 5]);
+      g.beginPath(); g.moveTo(X(0), Y(0)); g.lineTo(tx(tP), Y(sP)); g.stroke(); g.setLineDash([]);
+    }
+    // Punkt P
+    g.strokeStyle = '#999'; g.lineWidth = 1; g.setLineDash([3, 3]);
+    g.beginPath(); g.moveTo(tx(tP), Y(0)); g.lineTo(tx(tP), Y(sP)); g.lineTo(X(0), Y(sP)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = FARBE.rot; g.beginPath(); g.arc(tx(tP), Y(sP), 6, 0, 2 * Math.PI); g.fill();
+    g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke();
+    var lab = 'P(' + fmt(tP, tP % 1 ? 1 : 0) + ' min | ' + fmt(sP, 2) + ' km)';
+    g.font = 'bold ' + (schmal ? 11 : 13) + 'px Segoe UI, Arial, sans-serif';
+    var lw = g.measureText(lab).width + 8;
+    var lx = tx(tP) + 10, ly = Y(sP) + 16;
+    if (lx + lw > w - R) lx = tx(tP) - 10 - lw;
+    if (ly > Y(0) - 22) ly = Y(sP) - 30;
+    g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(lx, ly - 2, lw, 20);
+    g.fillStyle = FARBE.rot; g.textAlign = 'left'; g.textBaseline = 'top'; g.fillText(lab, lx + 4, ly + 1);
+  }
+
+  // ---- Strecke als Hoehenprofil mit Fahrrad ----
+  function hoehe(s) {            // Hoehe in m ueber Start (Darstellung)
+    if (s <= 3) return 0;
+    if (s <= 4) return 40 * (s - 3);
+    if (s <= 7) return 40 - 60 * (s - 4) / 3;
+    return -20;
+  }
+  function zeichneStrecke() {
+    var c = vorbereiten($('strecke')), g = c.g, w = c.w, h = c.h;
+    var L = 20, R = 20, O = 24, U = 26;
+    var X = function (s) { return L + (w - L - R) * s / 8; };
+    var Y = function (z) { return O + (h - O - U) * (45 - z) / 70; };
+    g.clearRect(0, 0, w, h);
+    // Boden
+    g.beginPath(); g.moveTo(X(0), h - U + 6);
+    for (var s = 0; s <= 8.0001; s += 0.05) g.lineTo(X(s), Y(hoehe(s)));
+    g.lineTo(X(8), h - U + 6); g.closePath();
+    g.fillStyle = '#e4e7da'; g.fill();
+    g.strokeStyle = '#555'; g.lineWidth = 3;
+    g.beginPath(); for (s = 0; s <= 8.0001; s += 0.05) { var x = X(s), y = Y(hoehe(s)); if (s === 0) g.moveTo(x, y); else g.lineTo(x, y); } g.stroke();
+    // km-Marken
+    g.fillStyle = '#555'; g.font = '11px Segoe UI, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'top';
+    for (s = 0; s <= 8; s++) g.fillText(s + ' km', X(s), h - U + 9);
+    // Kiosk bei 3 km
+    var kx = X(3), ky = Y(hoehe(3));
+    g.fillStyle = FARBE.corten; g.fillRect(kx - 14, ky - 22, 28, 18);
+    g.fillStyle = '#fff'; g.font = 'bold 9px Segoe UI, Arial, sans-serif'; g.textBaseline = 'middle';
+    g.fillText('Kiosk', kx, ky - 13);
+    g.fillStyle = '#666'; g.font = '11px Segoe UI, Arial, sans-serif'; g.textBaseline = 'bottom';
+    g.fillText('bergauf', X(3.5), Y(hoehe(3.5)) - 8);
+    g.fillText('bergab', X(5.5), Y(hoehe(5.5)) - 10);
+
+    // Fahrrad
+    var sb = K.s(zustand.t), bx = X(sb), by = Y(hoehe(sb));
+    var steig = (Y(hoehe(sb + 0.02)) - Y(hoehe(sb - 0.02))) / (X(sb + 0.02) - X(sb - 0.02));
+    g.save(); g.translate(bx, by); g.rotate(Math.atan(steig));
+    var r = 7;
+    g.strokeStyle = FARBE.achse; g.lineWidth = 2;
+    g.beginPath(); g.arc(-11, -r, r, 0, 2 * Math.PI); g.stroke();
+    g.beginPath(); g.arc(11, -r, r, 0, 2 * Math.PI); g.stroke();
+    g.strokeStyle = FARBE.rot; g.lineWidth = 2.4;
+    g.beginPath(); g.moveTo(-11, -r); g.lineTo(-2, -r); g.lineTo(5, -18); g.lineTo(-5, -18); g.lineTo(-11, -r);
+    g.moveTo(-2, -r); g.lineTo(-6, -21); g.moveTo(5, -18); g.lineTo(11, -r); g.moveTo(5, -18); g.lineTo(6, -23); g.stroke();
+    // Fahrerin
+    g.strokeStyle = FARBE.stahl; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(-5, -22); g.lineTo(1, -34); g.lineTo(6, -24); g.stroke();
+    g.fillStyle = FARBE.stahl; g.beginPath(); g.arc(3, -39, 4.5, 0, 2 * Math.PI); g.fill();
+    g.restore();
+  }
+
+  // ---- App-Anzeige ----
+  function app() {
+    var t = zustand.t;
+    $('a_t').textContent = fmtZeit(t);
+    $('a_s').innerHTML = fmt(K.s(t), 2) + ' <small>km</small>';
+    $('a_v').innerHTML = fmt(K.aktuell(t), 1) + ' <small>km/h</small>';
+    var a = K.avg(t), b = K.avgBewegung(t);
+    $('a_avg').innerHTML = a == null ? '–' : fmt(a, 1) + ' <small>km/h</small>';
+    $('a_bew').innerHTML = b == null ? '–' : fmt(b, 1) + ' <small>km/h</small>';
+    $('a_max').innerHTML = fmt(K.hoechst(t), 1) + ' <small>km/h</small>';
+  }
+
+  function alles() { zeichneDiagramm(); zeichneStrecke(); app(); }
+
+  // ---- Bedienung ----
+  function setT(t) {
+    t = Math.max(0, Math.min(30, Math.round(t * 2) / 2));
+    zustand.t = t; $('t_r').value = t; $('t_n').value = t; alles();
+  }
+  $('t_r').addEventListener('input', function () { setT(parseFloat(this.value)); });
+  $('t_n').addEventListener('change', function () { var v = K.zahl(this.value); if (!isNaN(v)) setT(v); else this.value = zustand.t; });
+  $('sek').addEventListener('change', function () { zustand.sek = this.checked; alles(); });
+  $('schnitt').addEventListener('change', function () { zustand.schnitt = this.checked; alles(); });
+  $('dreieck').addEventListener('change', function () {
+    zustand.dreiecke = this.value === '' ? [] : [parseInt(this.value, 10)]; alles();
+  });
+
+  function zustandAnwenden(z) {
+    if (z.t != null) setT(z.t);
+    if (z.sek != null) { zustand.sek = z.sek; $('sek').checked = z.sek; }
+    if (z.schnitt != null) { zustand.schnitt = z.schnitt; $('schnitt').checked = z.schnitt; }
+    if (z.dreiecke) {
+      zustand.dreiecke = z.dreiecke.slice();
+      $('dreieck').value = z.dreiecke.length === 1 ? String(z.dreiecke[0]) : '';
+    }
+    alles();
+  }
+
+  function hilfenZeigen() {
+    var A = K.AUFGABEN[zustand.nr], box = $('hilfen');
+    box.innerHTML = '';
+    for (var i = 0; i < zustand.offen; i++) {
+      var hh = A.hilfen[i], d = document.createElement('div');
+      d.className = 'hilfe';
+      var html = '<span class="t">Hilfe ' + (i + 1) + '</span>' + hh.text;
+      if (hh.saetze) hh.saetze.forEach(function (sz) { html += '<span class="satz">' + sz + '</span>'; });
+      d.innerHTML = html; box.appendChild(d);
+    }
+    var b = $('mehr');
+    if (zustand.offen < 3) { b.disabled = false; b.textContent = 'Hilfe ' + (zustand.offen + 1) + ' öffnen'; }
+    else { b.disabled = true; b.textContent = 'Alle Hilfen offen'; }
+  }
+
+  function pruefBauen() {
+    var A = K.AUFGABEN[zustand.nr], box = $('pruef_inhalt');
+    box.innerHTML = ''; $('fb').textContent = ''; $('fb').className = 'fb';
+    A.pruef.forEach(function (p) {
+      var z = document.createElement('div'); z.className = 'z';
+      var lab = document.createElement('label'); lab.textContent = p.vor; lab.htmlFor = p.id; z.appendChild(lab);
+      var el;
+      if (p.art === 'wahl') {
+        el = document.createElement('select');
+        el.innerHTML = '<option value="">wählen …</option>' + p.optionen.map(function (o) { return '<option>' + o + '</option>'; }).join('');
+      } else {
+        el = document.createElement('input'); el.type = 'text'; el.inputMode = 'decimal'; el.autocomplete = 'off';
+      }
+      el.id = p.id; z.appendChild(el);
+      if (p.nach) { var e = document.createElement('span'); e.textContent = p.nach; z.appendChild(e); }
+      box.appendChild(z);
+    });
+  }
+
+  $('pruefen').addEventListener('click', function () {
+    var A = K.AUFGABEN[zustand.nr], werte = {};
+    A.pruef.forEach(function (p) { werte[p.id] = $(p.id).value; });
+    var r = K.pruefe(zustand.nr, werte), fb = $('fb');
+    if (r.alle) { fb.className = 'fb ok'; fb.textContent = 'Alles richtig.'; return; }
+    fb.className = 'fb nein';
+    var html = r.falsch.length ? 'Noch nicht ganz.' : '';
+    r.falsch.forEach(function (f) { html += '<span class="norm">' + f + '</span>'; });
+    if (r.leer) html += '<span class="norm">' + (r.falsch.length ? '' : 'Bisher richtig. ') + 'Fülle noch ' + r.leer + (r.leer === 1 ? ' Feld' : ' Felder') + ' aus.</span>';
+    fb.innerHTML = html;
+  });
+
+  $('mehr').addEventListener('click', function () {
+    if (zustand.offen >= 3) return;
+    zustand.offen++;
+    zustandAnwenden(K.AUFGABEN[zustand.nr].hilfen[zustand.offen - 1].zustand);
+    hilfenZeigen();
+  });
+
+  function setAufgabe(nr) {
+    zustand.nr = nr; zustand.offen = 0;
+    Array.prototype.forEach.call(document.querySelectorAll('#wahl button'), function (b) {
+      b.classList.toggle('akt', parseInt(b.dataset.nr, 10) === nr);
+    });
+    $('nr').textContent = nr; $('titel').textContent = K.AUFGABEN[nr].titel;
+    zustandAnwenden({ sek: false, schnitt: false, dreiecke: [] });
+    hilfenZeigen(); pruefBauen();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#wahl button'), function (b) {
+    b.addEventListener('click', function () { setAufgabe(parseInt(b.dataset.nr, 10)); });
+  });
+
+  var timer;
+  window.addEventListener('resize', function () { clearTimeout(timer); timer = setTimeout(alles, 80); });
+
+  // Start, optional ueber URL-Parameter ?a=&h=&t=
+  var q = {};
+  location.search.replace(/^\?/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) q[p[0]] = decodeURIComponent(p[1] || ''); });
+  setAufgabe(q.a && K.AUFGABEN[q.a] ? parseInt(q.a, 10) : 1);
+  var nh = Math.min(3, parseInt(q.h || '0', 10) || 0);
+  for (var i = 0; i < nh; i++) $('mehr').click();
+  if (q.t) setT(parseFloat(q.t));
+  window.__hk = { setAufgabe: setAufgabe, setT: setT };
+})();
+</script>
+</body>
+</html>
