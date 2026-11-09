@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hilfekarte: Der Notruf auf der Achterbahn</title>
+<!--
+  Digitale Hilfekarte zum Arbeitsblatt "Der Notruf auf der Achterbahn" und zu den
+  Legekarten, 11NF PH. Je Aufgabe "Ich brauche Hilfe" (Hilfen der Reihe nach) und
+  "Ich bin schon fertig" (Erweiterung). Dazu v-t-Diagramm der drei Logs mit
+  Steigungsdreieck je Phase und Pruefung eigener Werte.
+
+  Eine Datei, offline: HTML, CSS und JavaScript zusammen, keine Bibliothek.
+  URL-Parameter fuer Screenshots: ?a=<aufgabe>&h=<hilfen>&f=1&log=<0-2>&ph=<0-2>
+  Modellwerte: ICE +0,4 / 0 / -0,5; Achterbahn +5 / 0 / -30; Crash-Test +2 / 0 / -160.
+-->
+<style>
+  :root { --rot:#B01A15; --stahl:#35638A; --oliv:#71803C; --grau:#B5B5B5; --text:#222; --hell:#f5f5f2; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; color:var(--text); background:#fff; line-height:1.45; }
+  header { border-bottom:1px solid var(--grau); padding:10px 18px; display:flex; flex-wrap:wrap; gap:6px 24px; font-size:13px; }
+  header .k { color:#777; font-size:10px; letter-spacing:.12em; text-transform:uppercase; display:block; }
+  main { max-width:1120px; margin:0 auto; padding:14px 18px 30px; }
+  h1 { font-size:22px; margin:6px 0 10px; }
+  h1::after { content:""; display:block; width:44px; border-bottom:2px solid var(--text); margin-top:6px; }
+  .zeile { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+  .lbl { font-size:10px; letter-spacing:.12em; color:#777; text-transform:uppercase; margin-right:4px; }
+  button, select, input { font:inherit; font-size:15px; min-height:44px; }
+  button { padding:8px 14px; border:1px solid var(--stahl); background:#fff; color:var(--stahl); cursor:pointer; }
+  button:hover, button.akt { background:var(--stahl); color:#fff; }
+  button:disabled { border-color:var(--grau); color:#999; background:#f3f3f0; cursor:default; }
+  .gross { font-size:17px; font-weight:600; padding:12px 18px; }
+  #fertigBtn { border-color:var(--oliv); color:var(--oliv); }
+  #fertigBtn:hover, #fertigBtn.akt { background:var(--oliv); color:#fff; }
+  .zwei { display:grid; grid-template-columns:3fr 2fr; gap:18px; align-items:start; margin-top:12px; }
+  .zwei > * { min-width:0; }
+  @media (max-width:760px) { .zwei { grid-template-columns:1fr; } }
+  canvas { display:block; width:100%; height:330px; border:1px solid var(--grau); background:#fff; }
+  @media (max-width:480px) { canvas { height:250px; } }
+  .box { border:1px solid var(--grau); background:var(--hell); padding:10px 14px; margin:8px 0; }
+  .box.f { border-color:var(--oliv); background:#f2f4e9; }
+  .box b.t { display:block; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#666; margin-bottom:2px; }
+  .werte { font-size:16px; }
+  input[type=text] { width:7em; padding:6px 8px; border:1px solid var(--grau); }
+  select { padding:6px; border:1px solid var(--grau); background:#fff; }
+  #meldung { min-height:1.5em; font-weight:600; margin-top:6px; }
+  .ok { color:var(--oliv); } .nein { color:var(--rot); }
+  .hinweis { font-size:12px; color:#666; margin-top:6px; }
+  footer { font-size:11px; color:#777; padding:0 18px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Kurs</span>11NF PH · Physik</div>
+  <div><span class="k">Thema</span>Beschleunigung</div>
+</header>
+<main>
+  <h1>Hilfekarte: Der Notruf auf der Achterbahn</h1>
+  <div class="zeile"><span class="lbl">Aufgabe</span><span id="aufgaben" class="zeile" style="margin:0"></span></div>
+  <p id="auftrag" style="margin:8px 0 4px"></p>
+  <div class="zeile">
+    <button id="hilfeBtn" class="gross">Ich brauche Hilfe</button>
+    <button id="fertigBtn" class="gross">Ich bin schon fertig</button>
+  </div>
+  <div id="hilfen"></div>
+  <div id="fertig"></div>
+
+  <div class="zwei" id="diagrammTeil">
+    <div>
+      <div class="zeile"><span class="lbl">Log</span><span id="logs" class="zeile" style="margin:0"></span></div>
+      <div class="zeile"><span class="lbl">Phase</span><span id="phasen" class="zeile" style="margin:0"></span></div>
+      <canvas id="c" aria-label="Geschwindigkeit-Zeit-Diagramm des gewählten Logs"></canvas>
+      <div class="hinweis">Modellwerte. Das Dreieck zeigt Δv und Δt der gewählten Phase.</div>
+    </div>
+    <div>
+      <div class="box werte" id="werte"></div>
+      <div class="box">
+        <b class="t">Eigenen Wert prüfen</b>
+        Trage deine Beschleunigung für die gewählte Phase ein.
+        <div class="zeile">
+          <input id="eingabe" type="text" inputmode="text" placeholder="z. B. 1,5" aria-label="Beschleunigung">
+          <select id="einheit" aria-label="Einheit">
+            <option value="">Einheit wählen</option>
+            <option>m/s</option><option>m/s²</option><option>km/h</option><option>s/m</option>
+          </select>
+          <button id="pruefen">Prüfen</button>
+        </div>
+        <div id="meldung"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>Kaspschak · applets · 11nf-ph</footer>
+
+<script id="kern">
+const LOGS = [
+  { name:'ICE', tMax:700, vMax:100, tick:100, vTick:20, punkte:[[0,0],[200,80],[500,80],[660,0]], phasen:['Anfahren','Fahrt','Bremsen'] },
+  { name:'Achterbahn', tMax:30, vMax:40, tick:5, vTick:10, punkte:[[0,0],[6,30],[26,30],[27,0]], phasen:['Katapultstart','Fahrt','Bremsen'] },
+  { name:'Crash-Test', tMax:12, vMax:20, tick:2, vTick:5, punkte:[[0,0],[8,16],[11,16],[11.1,0]], phasen:['Anfahren','Fahrt','Aufprall'], lupe:{ph:2,t0:10.9,t1:11.3,tick:0.1} }
+];
+function phase(log, i) {
+  const [t0,v0] = LOGS[log].punkte[i], [t1,v1] = LOGS[log].punkte[i+1];
+  const dv = v1 - v0, dt = t1 - t0;
+  return { t0, v0, t1, v1, dv, dt, a: Math.round(dv/dt*1000)/1000 };
+}
+function pruefe(text, einheit, soll) {
+  const w = parseFloat(String(text).trim().replace(',', '.').replace('−', '-'));
+  if (!isFinite(w)) return { ok:false, m:'Trage eine Zahl ein.' };
+  if (einheit !== 'm/s²') return { ok:false, m: einheit ? 'Prüfe die Einheit: Rechne Geschwindigkeit durch Zeit.' : 'Wähle eine Einheit.' };
+  if (Math.abs(w - soll) < 0.001) return { ok:true, m:'Richtig.' };
+  if (Math.abs(Math.abs(w) - Math.abs(soll)) < 0.001) return { ok:false, m:'Der Zahlenwert passt. Prüfe das Vorzeichen: Δv ist Endwert minus Anfangswert.' };
+  return { ok:false, m:'Noch nicht richtig. Bestimme Δv und Δt am Dreieck und teile.' };
+}
+const FERTIG1 = 'Wähle unten den Log „Crash-Test“ und die Phase „Aufprall“. Berechne die Beschleunigung und prüfe deinen Wert. Schlage eine neue Werksschwelle vor. Begründe deinen Vorschlag im Lernheft mit zwei Sätzen.';
+const AUFGABEN = [
+  { titel:'1', auftrag:'Aufgabe 1: Berechne die Durchschnittsgeschwindigkeit und die Beschleunigung beim ICE.', diagramm:true, log:0, fertig:FERTIG1,
+    hilfen:['Lies im s-t-Diagramm Weg und Zeit am Anfang und am Ende der Phase ab.',
+            'Berechne v̄ = Δs / Δt. Anfahren: Δs = 8 000 m − 0 m, Δt = 200 s.',
+            'Die Beschleunigung gibt an, um wie viel sich v in jeder Sekunde ändert: a = Δv / Δt. Anfahren: Δv = 80 m/s, Δt = 200 s.'] },
+  { titel:'2', auftrag:'Aufgabe 2: Berechne die Beschleunigung in jeder Phase der Achterbahn.', diagramm:true, log:1, fertig:FERTIG1,
+    hilfen:['Wähle unten die Phase. Das Dreieck zeigt Δv und Δt.',
+            'Δv ist immer Endwert minus Anfangswert. Beim Bremsen: 0 m/s − 30 m/s.',
+            'Schreibe a = Δv / Δt mit Zahlen und Einheiten. Aus m/s geteilt durch s wird m/s².'] },
+  { titel:'3', auftrag:'Aufgabe 3: Vergleiche die Beschleunigungen mit der Werksschwelle und erkläre.', diagramm:true, log:1, fertig:FERTIG1,
+    hilfen:['Der Betrag ist der Wert ohne Vorzeichen. Vergleiche ihn in jeder Phase mit 20 m/s².',
+            'Vergleiche beim ICE und bei der Achterbahn nicht die Höhe des Graphen, sondern seine Steilheit.',
+            'Satzanfänge: Der ICE hat zwar die größere Geschwindigkeit, aber … Seine Geschwindigkeit ändert sich … Deshalb bleibt die Beschleunigung …'] },
+  { titel:'Legekarten', auftrag:'Teil 2: Ordne jeder Bewegung ihre drei Diagramme zu. Begründe deine Legung.', diagramm:false,
+    fertig:'Skizziere im Lernheft für den Crash-Test ein s-t-, ein v-t- und ein a-t-Diagramm. Ordne jede Phase als gleichförmig, gleichmäßig beschleunigt oder keines von beiden ein.',
+    hilfen:['Beginne mit den a-t-Karten. Ist a null, konstant oder ändert es sich?',
+            'Die Steigung im v-t-Diagramm ist a. Suche zu jeder a-t-Karte den passenden v-t-Graphen.',
+            'Die Steigung im s-t-Diagramm ist v. Bleibt v gleich, ist der Graph eine Gerade. Wächst v, wird er steiler. Sinkt v, wird er flacher.',
+            'Satzanfänge: Diese Karten gehören zusammen, weil … Im a-t-Diagramm sieht man, dass … Im v-t-Diagramm ist der Graph …, also … Deshalb ist die Bewegung …'] }
+];
+if (typeof module !== 'undefined') module.exports = { LOGS, AUFGABEN, phase, pruefe };
+</script>
+<script>
+const $ = id => document.getElementById(id);
+const P = new URLSearchParams(location.search);
+const st = { a:+(P.get('a')||0), h:+(P.get('h')||0), f:P.get('f')==='1', log:+(P.get('log')||0), ph:+(P.get('ph')||0) };
+const komma = x => String(x).replace('.', ',').replace('-', '−');
+
+function setAufgabe(i) {
+  st.a = i; st.h = 0; st.f = false;
+  if (AUFGABEN[i].diagramm) { st.log = AUFGABEN[i].log; st.ph = 0; }
+  aufbau();
+}
+function btn(text, an, fn) { const b = document.createElement('button'); b.textContent = text; if (an) b.className = 'akt'; b.onclick = fn; return b; }
+function aufbau() {
+  const A = AUFGABEN[st.a];
+  $('aufgaben').replaceChildren(...AUFGABEN.map((x,i) => btn(x.titel, i===st.a, () => setAufgabe(i))));
+  $('auftrag').textContent = A.auftrag;
+  $('hilfeBtn').disabled = st.h >= A.hilfen.length;
+  $('hilfeBtn').textContent = st.h >= A.hilfen.length ? 'Alle Hilfen geöffnet' : (st.h ? 'Nächste Hilfe' : 'Ich brauche Hilfe');
+  $('fertigBtn').className = 'gross' + (st.f ? ' akt' : '');
+  $('hilfen').replaceChildren(...A.hilfen.slice(0, st.h).map((t,i) => box('Hilfe ' + (i+1), t, '')));
+  $('fertig').replaceChildren(...(st.f ? [box('Für dich, wenn du fertig bist', A.fertig, ' f')] : []));
+  $('diagrammTeil').style.display = (A.diagramm || (st.f && false)) ? '' : 'none';
+  if (A.diagramm) { diagrammAufbau(); }
+}
+function box(titel, text, k) {
+  const d = document.createElement('div'); d.className = 'box' + k;
+  const b = document.createElement('b'); b.className = 't'; b.textContent = titel;
+  d.append(b, document.createTextNode(text)); return d;
+}
+function diagrammAufbau() {
+  const L = LOGS[st.log];
+  $('logs').replaceChildren(...LOGS.map((x,i) => btn(x.name, i===st.log, () => { st.log = i; st.ph = 0; meldung(); diagrammAufbau(); })));
+  $('phasen').replaceChildren(...L.phasen.map((x,i) => btn(x, i===st.ph, () => { st.ph = i; meldung(); diagrammAufbau(); })));
+  const p = phase(st.log, st.ph);
+  $('werte').innerHTML = '<b class="t">' + L.phasen[st.ph] + '</b>t von ' + komma(p.t0) + ' s bis ' + komma(p.t1) + ' s<br>v von ' + komma(p.v0) + ' m/s bis ' + komma(p.v1) + ' m/s';
+  zeichne();
+}
+function meldung(m, ok) { const e = $('meldung'); e.textContent = m || ''; e.className = ok ? 'ok' : 'nein'; }
+
+function zeichne() {
+  const c = $('c'), dpr = window.devicePixelRatio || 1, W = c.clientWidth, H = c.clientHeight;
+  if (!W) return;
+  c.width = W*dpr; c.height = H*dpr;
+  const g = c.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const L = LOGS[st.log], lupe = L.lupe && L.lupe.ph === st.ph ? L.lupe : null;
+  const t0 = lupe ? lupe.t0 : 0, t1 = lupe ? lupe.t1 : L.tMax, tick = lupe ? lupe.tick : L.tick;
+  const l = 52, r = 16, o = 16, u = 44, X = t => l + (t-t0)/(t1-t0)*(W-l-r), Y = v => H-u - v/L.vMax*(H-u-o);
+  g.font = '12px "Segoe UI",Arial,sans-serif'; g.lineWidth = 1;
+  g.strokeStyle = '#dcdcd6'; g.fillStyle = '#444'; g.textAlign = 'center'; g.textBaseline = 'top';
+  for (let t = Math.ceil(t0/tick-1e-9)*tick; t <= t1+1e-9; t += tick) {
+    g.beginPath(); g.moveTo(X(t),o); g.lineTo(X(t),H-u); g.stroke();
+    g.fillText(komma(Math.round(t*100)/100), X(t), H-u+4);
+  }
+  g.textAlign = 'right'; g.textBaseline = 'middle';
+  for (let v = 0; v <= L.vMax; v += L.vTick) { g.beginPath(); g.moveTo(l,Y(v)); g.lineTo(W-r,Y(v)); g.stroke(); g.fillText(v, l-6, Y(v)); }
+  g.strokeStyle = '#26261E'; g.beginPath(); g.moveTo(l,o); g.lineTo(l,H-u); g.lineTo(W-r,H-u); g.stroke();
+  g.fillStyle = '#26261E'; g.textAlign = 'center'; g.textBaseline = 'bottom'; g.fillText('t in s' + (lupe ? ' (Ausschnitt)' : ''), (l+W-r)/2, H-4);
+  g.save(); g.translate(14,(o+H-u)/2); g.rotate(-Math.PI/2); g.textBaseline = 'middle'; g.fillText('v in m/s',0,0); g.restore();
+
+  g.save(); g.beginPath(); g.rect(l,o,W-l-r,H-u-o+1); g.clip();
+  g.strokeStyle = '#35638A'; g.lineWidth = 2.5; g.beginPath();
+  L.punkte.forEach(([t,v],i) => i ? g.lineTo(X(t),Y(v)) : g.moveTo(X(t),Y(v)));
+  if (lupe) g.lineTo(X(t1), Y(0));
+  g.stroke();
+  const p = phase(st.log, st.ph);
+  g.strokeStyle = '#B01A15'; g.lineWidth = 2; g.setLineDash([6,4]); g.beginPath();
+  g.moveTo(X(p.t0),Y(p.v0)); g.lineTo(X(p.t1),Y(p.v0)); g.lineTo(X(p.t1),Y(p.v1)); g.stroke(); g.setLineDash([]);
+  g.restore();
+  const mx = (X(p.t0)+X(p.t1))/2, my = Y(p.v0), breit = X(p.t1)-X(p.t0);
+  g.fillStyle = '#B01A15'; g.font = 'bold 13px "Segoe UI",Arial,sans-serif'; g.textBaseline = 'alphabetic';
+  g.textAlign = 'center';
+  const lt = 'Δt = ' + komma(Math.round(p.dt*100)/100) + ' s', lv = 'Δv = ' + komma(p.dv) + ' m/s';
+  const yT = my < o+22 ? my+17 : my-6;
+  g.fillText(lt, Math.min(Math.max(mx, l+40), W-r-40), yT);
+  if (p.dv !== 0) {
+    const xv = X(p.t1), rechts = xv + 8 + g.measureText(lv).width < W-r;
+    const tw = g.measureText(lv).width, xl = rechts ? xv + 8 : xv - 14 - tw, yl = (Y(p.v0)+Y(p.v1))/2;
+    g.fillStyle = '#fff'; g.fillRect(xl-3, yl-14, tw+6, 19);
+    g.fillStyle = '#B01A15'; g.textAlign = 'left';
+    g.fillText(lv, xl, yl);
+  }
+}
+
+$('hilfeBtn').onclick = () => { st.h++; aufbau(); };
+$('fertigBtn').onclick = () => { st.f = !st.f; if (st.f && AUFGABEN[st.a].diagramm) { st.log = 2; st.ph = 2; } aufbau(); };
+$('pruefen').onclick = () => {
+  const r = pruefe($('eingabe').value, $('einheit').value, phase(st.log, st.ph).a);
+  meldung(r.m, r.ok);
+};
+window.addEventListener('resize', zeichne);
+aufbau();
+</script>
+</body>
+</html>
