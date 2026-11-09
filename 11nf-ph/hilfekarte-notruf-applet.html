@@ -111,7 +111,7 @@ function pruefe(text, einheit, soll) {
   if (Math.abs(Math.abs(w) - Math.abs(soll)) < 0.001) return { ok:false, m:'Der Zahlenwert passt. Prüfe das Vorzeichen: Δv ist Endwert minus Anfangswert.' };
   return { ok:false, m:'Noch nicht richtig. Bestimme Δv und Δt am Dreieck und teile.' };
 }
-const FERTIG1 = 'Wähle unten den Log „Crash-Test“ und die Phase „Aufprall“. Berechne die Beschleunigung und prüfe deinen Wert. Schlage eine neue Werksschwelle vor. Begründe deinen Vorschlag im Lernheft mit zwei Sätzen.';
+const FERTIG1 = 'Wähle unten den Log „Crash-Test“ und die Phase „Aufprall“. Berechne die Beschleunigung und prüfe deinen Wert. Schlage eine neue Werksschwelle vor. Begründe deinen Vorschlag im Heft mit zwei Sätzen.';
 const AUFGABEN = [
   { titel:'1', auftrag:'Aufgabe 1: Berechne die Durchschnittsgeschwindigkeit und die Beschleunigung beim ICE.', diagramm:true, log:0, fertig:FERTIG1,
     hilfen:['Lies im s-t-Diagramm Weg und Zeit am Anfang und am Ende der Phase ab.',
@@ -126,7 +126,7 @@ const AUFGABEN = [
             'Vergleiche beim ICE und bei der Achterbahn nicht die Höhe des Graphen, sondern seine Steigung.',
             'Satzanfänge: Der ICE hat zwar die größere Geschwindigkeit, aber … Seine Geschwindigkeit ändert sich … Deshalb bleibt die Beschleunigung …'] },
   { titel:'Legekarten', auftrag:'Teil 2: Ordne jeder Bewegung ihre drei Diagramme zu. Begründe deine Legung.', diagramm:false,
-    fertig:'Skizziere im Lernheft für den Crash-Test ein s-t-, ein v-t- und ein a-t-Diagramm. Ordne jede Phase als gleichförmig, gleichmäßig beschleunigt oder keines von beiden ein.',
+    fertig:'Skizziere im Heft für den Crash-Test ein s-t-, ein v-t- und ein a-t-Diagramm. Ordne jede Phase als gleichförmig, gleichmäßig beschleunigt oder keines von beiden ein.',
     hilfen:['Beginne mit den a-t-Karten. Ist a null, konstant oder ändert es sich?',
             'Die Steigung im v-t-Diagramm ist a. Suche zu jeder a-t-Karte den passenden v-t-Graphen.',
             'Die Steigung im s-t-Diagramm ist v. Bleibt v gleich, ist der Graph eine Gerade. Wächst v, wird er steiler. Sinkt v, wird er flacher.',
