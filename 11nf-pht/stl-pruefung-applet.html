@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greifarm: STL-Prüfung</title>
+<!--
+  Selbstkontrolle vor der Partnerprüfung in den Projekttagen Greifarm (11NF).
+  Die Schüler laden die STL, die sie fuer Cura exportiert haben. Geprueft werden:
+  drei Aussenmasse (unabhaengig von der Lage, sortiert, Toleranz 0,4 mm), Zahl der
+  durchgehenden Loecher (Geschlecht der Oberflaeche aus der Euler-Charakteristik,
+  unabhaengig von der Feinheit des Exports), Volumen (Toleranz 1,5 %), ein einziger
+  geschlossener Koerper. Toleranzen kalibriert am 10.11.2026 mit Exporten der
+  Lehrkraft-Modelle in drei Feinheiten (max. 1,1 % Volumen, 0,24 mm Masse).
+  Sollwerte aus den Lehrkraft-Modellen (FreeCAD, exakt). Nur Kennzahlen, keine
+  Modelle. Die Datei verlaesst das Geraet nicht. Eine Datei, offline, kein CDN.
+  Lochdurchmesser und Lage der Loecher prueft das Applet nicht genau: das macht die
+  Partnergruppe mit der Zeichnung, die Freigabe gibt die Lehrkraft (abnahme.py).
+-->
+<style>
+  :root { --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.4; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 980px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 16px; }
+  .wrap { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 20px; align-items: start; }
+  .wrap > * { min-width: 0; }
+  @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) { main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; } }
+  .panel { background: var(--hell); border: 1px solid var(--grau); padding: 12px 14px; }
+  .panel label { display: block; font-size: 14px; margin: 4px 0 4px; font-weight: 600; }
+  select { width: 100%; font: inherit; font-size: 16px; padding: 8px; min-height: 44px; }
+  .drop { margin-top: 14px; border: 2px dashed var(--stahl); background: #fff; padding: 18px 12px;
+          text-align: center; cursor: pointer; min-height: 110px; display: flex; flex-direction: column;
+          justify-content: center; gap: 6px; }
+  .drop.ueber { background: #e8f0f7; }
+  .drop b { color: var(--stahl); font-size: 16px; }
+  .drop small { color: #666; }
+  .datei { font-size: 13px; color: #555; margin-top: 8px; word-break: break-all; }
+  canvas { display: block; width: 100%; height: 260px; border: 1px solid var(--grau); background: #fff; margin-top: 14px; }
+  @media (max-width: 480px) { canvas { height: 200px; } }
+  .gesamt { padding: 12px 14px; font-size: 17px; font-weight: 600; border: 1px solid var(--grau); }
+  .gesamt.ok { background: #eef3e3; color: #4d5a22; border-color: var(--oliv); }
+  .gesamt.nein { background: #f8e9e8; color: var(--rot); border-color: var(--rot); }
+  .gesamt.leer { background: var(--hell); color: #555; font-weight: 400; }
+  table { border-collapse: collapse; width: 100%; margin-top: 12px; font-size: 15px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  th { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #777; font-weight: 600; }
+  td.z { white-space: nowrap; }
+  td.s { font-weight: 700; width: 2em; }
+  .gut { color: var(--oliv); } .schlecht { color: var(--rot); }
+  .tipp { font-size: 14px; color: #333; }
+  .box { border: 1px solid var(--grau); padding: 10px 14px; margin-top: 18px; background: #fff; font-size: 14px; }
+  .box .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; }
+  .box ol { margin: 6px 0 0 18px; padding: 0; }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; max-width: 980px; margin: 0 auto; }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Projektwoche (Neef &amp; Kaspschak)</div>
+  <div><span class="k">Kurs</span>11NF</div>
+  <div><span class="k">Reihe</span>Projekttage Greifarm</div>
+  <div><span class="k">Thema</span>STL-Prüfung</div>
+</header>
+<main>
+  <h1>Stimmt mein Teil?</h1>
+  <p class="lead">Wähle dein Teil aus. Lade die STL-Datei hoch, die du für Cura exportiert hast.
+    Lies die Rückmeldung und verbessere dein Modell in FreeCAD, bis alles grün ist. Die Datei bleibt auf
+    deinem Gerät; es wird nichts gesendet.</p>
+
+  <div class="wrap">
+    <div>
+      <div class="panel">
+        <label for="teil">1. Wähle dein Teil.</label>
+        <select id="teil"></select>
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="STL-Datei auswählen">
+          <b>2. STL-Datei hierher ziehen</b>
+          <small>oder tippen und Datei auswählen</small>
+        </div>
+        <input type="file" id="datei" accept=".stl,model/stl" hidden>
+        <div class="datei" id="name"></div>
+      </div>
+      <canvas id="bild" aria-label="Ansicht des hochgeladenen Teils"></canvas>
+    </div>
+    <div>
+      <div class="gesamt leer" id="gesamt">Noch keine Datei geprüft.</div>
+      <table id="tab" hidden>
+        <thead><tr><th></th><th>Prüfung</th><th>Soll</th><th>Deine Datei</th></tr></thead>
+        <tbody id="zeilen"></tbody>
+      </table>
+      <div id="tipps"></div>
+      <div class="box">
+        <span class="lbl">Was das Applet prüft und was nicht</span>
+        <ol>
+          <li>Es prüft die drei Außenmaße, die Zahl der durchgehenden Löcher und das Volumen. Wie das Teil im Raum liegt, ist egal.</li>
+          <li>Lochdurchmesser und die Lage der Löcher prüft es nur grob. Das prüft die Partnergruppe mit der Zeichnung.</li>
+          <li>Alles grün? Dann zeigt eure Datei der Partnergruppe. Die Freigabe für den Drucker gibt die Lehrkraft.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>Greifarm · STL-Prüfung · Sollwerte aus den Modellen der Lehrkraft</footer>
+
+<script id="kern">
+// ---- Sollwerte (exakt aus FreeCAD). masse: Aussenmasse in mm, loecher: durchgehende Loecher.
+const TEILE = [
+  { nr: '01',  name: 'Sockel',            blatt: 3,  masse: [76, 76, 12.1],  loecher: 7,  volumen: 27748.6 },
+  { nr: '01b', name: 'Fuß',               blatt: 4,  masse: [20, 14, 14],    loecher: 1,  volumen: 2760.7 },
+  { nr: '02',  name: 'Drehteller mit Gabel', blatt: 5, masse: [70, 70, 55], loecher: 8,  volumen: 23279.6 },
+  { nr: '03',  name: 'Oberarm',           blatt: 6,  masse: [95, 22, 10],    loecher: 7,  volumen: 7124.3 },
+  { nr: '04',  name: 'Unterarm',          blatt: 7,  masse: [89, 22, 4],     loecher: 5,  volumen: 7640.4 },
+  { nr: '05',  name: 'Handplatte',        blatt: 8,  masse: [96, 52, 26],    loecher: 7,  volumen: 22216.8 },
+  { nr: '05b', name: 'Treiberarm',        blatt: 9,  masse: [47, 10, 4],     loecher: 4,  volumen: 1733.1 },
+  { nr: '05c', name: 'Lenker',            blatt: 10, masse: [33, 8, 4],      loecher: 2,  volumen: 1004.2 },
+  { nr: '05d', name: 'Finger',            blatt: 11, masse: [70, 23, 14.6],  loecher: 2,  volumen: 6410.7 },
+  { nr: '06',  name: 'Deckplatte',        blatt: 12, masse: [100, 60, 3],    loecher: 14, volumen: 14016.0 },
+  { nr: '00',  name: 'Passungsprobe',     blatt: 2,  masse: [70, 18, 4],     loecher: 6,  volumen: 3704.6 },
+];
+const TOL_MASS = 0.4, TOL_VOL = 1.5;
+
+function stlLesen(buf) {
+  const u8 = new Uint8Array(buf);
+  if (u8.length < 15) throw new Error('leer');
+  const kopf = new TextDecoder().decode(u8.subarray(0, Math.min(u8.length, 512)));
+  const dv = new DataView(buf);
+  const binaerPasst = u8.length >= 84 && 84 + dv.getUint32(80, true) * 50 === u8.length;
+  if (!binaerPasst && /^\s*solid/i.test(kopf)) {
+    const txt = new TextDecoder().decode(u8);
+    const z = [];
+    const re = /vertex\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)/g;
+    let m;
+    while ((m = re.exec(txt))) z.push(+m[1], +m[2], +m[3]);
+    if (z.length === 0 || z.length % 9) throw new Error('text');
+    return Float64Array.from(z);
+  }
+  if (!binaerPasst) throw new Error('format');
+  const n = dv.getUint32(80, true);
+  const out = new Float64Array(n * 9);
+  for (let i = 0; i < n; i++) {
+    const o = 84 + i * 50 + 12;
+    for (let k = 0; k < 9; k++) out[i * 9 + k] = dv.getFloat32(o + k * 4, true);
+  }
+  return out;
+}
+
+function analysieren(t) {
+  const F = t.length / 9;
+  const idx = new Map();
+  const ecken = new Int32Array(F * 3);
+  const q = (x) => Math.round(x * 1e3);
+  let V = 0;
+  for (let i = 0; i < F * 3; i++) {
+    const key = q(t[i * 3]) + ',' + q(t[i * 3 + 1]) + ',' + q(t[i * 3 + 2]);
+    let id = idx.get(key);
+    if (id === undefined) { id = V++; idx.set(key, id); }
+    ecken[i] = id;
+  }
+  const p = new Int32Array(V); for (let i = 0; i < V; i++) p[i] = i;
+  const f = (a) => { while (p[a] !== a) { p[a] = p[p[a]]; a = p[a]; } return a; };
+  const kanten = new Map();
+  let entartet = 0;
+  for (let i = 0; i < F; i++) {
+    const a = ecken[i * 3], b = ecken[i * 3 + 1], c = ecken[i * 3 + 2];
+    if (a === b || b === c || a === c) { entartet++; continue; }
+    for (const [x, y] of [[a, b], [b, c], [c, a]]) {
+      const k = x < y ? x * 4294967296 + y : y * 4294967296 + x;
+      kanten.set(k, (kanten.get(k) || 0) + 1);
+      const rx = f(x), ry = f(y); if (rx !== ry) p[rx] = ry;
+    }
+  }
+  let offen = 0; for (const n of kanten.values()) if (n !== 2) offen++;
+  const wurzeln = new Set(); for (let i = 0; i < V; i++) wurzeln.add(f(i));
+  const C = wurzeln.size;
+  const chi = V - kanten.size + (F - entartet);
+  const loecher = Math.round((2 * C - chi) / 2);
+  let vol = 0;
+  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < F; i++) {
+    const o = i * 9;
+    const ax = t[o], ay = t[o + 1], az = t[o + 2], bx = t[o + 3], by = t[o + 4], bz = t[o + 5], cx = t[o + 6], cy = t[o + 7], cz = t[o + 8];
+    vol += (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6;
+    for (let k = 0; k < 9; k++) { const a = k % 3; if (t[o + k] < min[a]) min[a] = t[o + k]; if (t[o + k] > max[a]) max[a] = t[o + k]; }
+  }
+  const masse = [0, 1, 2].map((a) => max[a] - min[a]);
+  return { dreiecke: F, teile: C, offen, loecher, volumen: Math.abs(vol),
+           sortiert: [...masse].sort((a, b) => b - a), min, max };
+}
+
+// Liefert Zeilen und Tipps. Jede Zeile: { ok, was, soll, ist }.
+function bewerten(a, teil) {
+  const zeilen = [], tipps = [];
+  const soll = [...teil.masse].sort((x, y) => y - x);
+  const zahl = (x, d = 1) => x.toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
+  // Einheit falsch?
+  const r = a.sortiert[0] / soll[0];
+  if (Math.abs(r - 0.001) < 0.0002 || Math.abs(r - 1000) < 200 || Math.abs(r - 1 / 25.4) < 0.005 || Math.abs(r - 25.4) < 3) {
+    tipps.push('Deine Datei hat die falsche Einheit (Meter oder Zoll statt Millimeter). Exportiere die STL noch einmal aus FreeCAD; ändere dabei keine Einheit.');
+  }
+  const ganz = a.teile === 1 && a.offen === 0;
+  zeilen.push({ ok: ganz, was: 'Ein geschlossener Körper', soll: '1', ist: a.offen ? 'nicht geschlossen' : String(a.teile) });
+  if (a.teile > 1) tipps.push('In der Datei stecken ' + a.teile + ' getrennte Körper. Wähle in FreeCAD nur den Körper aus (nicht die Skizzen oder ein zweites Teil) und exportiere ihn dann als STL.');
+  if (a.offen) tipps.push('Die Oberfläche ist nicht geschlossen. Exportiere den Körper, nicht eine einzelne Fläche oder Skizze.');
+  const namen = ['Längste Seite', 'Mittlere Seite', 'Kürzeste Seite'];
+  let masseOk = true;
+  for (let i = 0; i < 3; i++) {
+    const ok = Math.abs(a.sortiert[i] - soll[i]) <= TOL_MASS;
+    masseOk = masseOk && ok;
+    zeilen.push({ ok, was: namen[i], soll: zahl(soll[i]) + ' mm', ist: zahl(a.sortiert[i]) + ' mm' });
+  }
+  if (!masseOk) tipps.push('Mindestens ein Außenmaß stimmt nicht. Vergleiche Länge, Breite und Höhe mit der Zeichnung (Blatt ' + teil.blatt + '): Stimmen die Maße in der Skizze und die Länge beim Aufpolstern?');
+  const lOk = a.loecher === teil.loecher;
+  zeilen.push({ ok: lOk, was: 'Durchgehende Löcher', soll: String(teil.loecher), ist: String(Math.max(0, a.loecher)) });
+  const lz = (n) => n === 1 ? '1 durchgehendes Loch' : n + ' durchgehende Löcher';
+  if (a.loecher < teil.loecher) tipps.push((teil.loecher - a.loecher === 1 ? 'Es fehlt ' : 'Es fehlen ') + lz(teil.loecher - a.loecher) + '. Zähle die Löcher auf der Zeichnung und in deinen Skizzen. Prüfe bei jeder Vertiefung: Steht der Typ auf „Durch alles“?');
+  if (a.loecher > teil.loecher) tipps.push('Dein Teil hat ' + lz(a.loecher - teil.loecher) + ' zu viel. Vergleiche jede Vertiefung mit der Zeichnung.');
+  const dv = (a.volumen / teil.volumen - 1) * 100;
+  const vOk = Math.abs(dv) <= TOL_VOL;
+  zeilen.push({ ok: vOk, was: 'Volumen', soll: zahl(teil.volumen / 1000, 2) + ' cm³', ist: zahl(a.volumen / 1000, 2) + ' cm³ (' + (dv >= 0 ? '+' : '−') + zahl(Math.abs(dv)) + ' %)' });
+  if (!vOk && masseOk && lOk) {
+    tipps.push(dv > 0
+      ? 'Außenmaße und Löcher stimmen, aber es ist zu viel Material da. Ist ein Loch zu klein, fehlt eine Vertiefung, die nicht durchgeht, oder ist eine Wand zu dick?'
+      : 'Außenmaße und Löcher stimmen, aber es fehlt Material. Ist ein Loch zu groß, eine Wand zu dünn oder fehlt ein Teil der Form?');
+  }
+  const ok = zeilen.every((z) => z.ok) && tipps.length === 0;
+  return { ok, zeilen, tipps };
+}
+if (typeof module !== 'undefined') module.exports = { TEILE, stlLesen, analysieren, bewerten };
+</script>
+
+<script>
+const sel = document.getElementById('teil');
+for (const t of TEILE) {
+  const o = document.createElement('option');
+  o.value = t.nr; o.textContent = t.nr + ' ' + t.name + ' (Blatt ' + t.blatt + ')';
+  sel.appendChild(o);
+}
+try { const m = localStorage.getItem('greifarm-teil'); if (m) sel.value = m; } catch (e) {}
+const drop = document.getElementById('drop'), inp = document.getElementById('datei');
+const gesamt = document.getElementById('gesamt'), tab = document.getElementById('tab');
+const zeilenEl = document.getElementById('zeilen'), tippsEl = document.getElementById('tipps');
+const nameEl = document.getElementById('name'), cv = document.getElementById('bild');
+let letzte = null, dreiecke = null;
+
+sel.addEventListener('change', () => {
+  try { localStorage.setItem('greifarm-teil', sel.value); } catch (e) {}
+  if (letzte) zeigen();
+});
+drop.addEventListener('click', () => inp.click());
+drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inp.click(); } });
+drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('ueber'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('ueber'));
+drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('ueber'); if (e.dataTransfer.files[0]) laden(e.dataTransfer.files[0]); });
+inp.addEventListener('change', () => { if (inp.files[0]) laden(inp.files[0]); inp.value = ''; });
+
+function laden(file) {
+  nameEl.textContent = file.name;
+  if (/\.fcstd$/i.test(file.name)) {
+    fehler('Das ist eine FreeCAD-Datei. Exportiere zuerst eine STL: Körper anklicken, Datei → Exportieren, Dateityp STL.');
+    return;
+  }
+  file.arrayBuffer().then((buf) => {
+    try { dreiecke = stlLesen(buf); letzte = analysieren(dreiecke); zeigen(); zeichnen(); }
+    catch (e) { fehler('Die Datei lässt sich nicht als STL lesen. Exportiere sie noch einmal aus FreeCAD als STL.'); }
+  });
+}
+
+function fehler(text) {
+  letzte = null; dreiecke = null; tab.hidden = true; tippsEl.innerHTML = '';
+  gesamt.className = 'gesamt nein'; gesamt.textContent = text; zeichnen();
+}
+
+function zeigen() {
+  const teil = TEILE.find((t) => t.nr === sel.value);
+  const b = bewerten(letzte, teil);
+  gesamt.className = 'gesamt ' + (b.ok ? 'ok' : 'nein');
+  gesamt.textContent = b.ok
+    ? '✓ Alles stimmt. Zeigt eure Datei jetzt der Partnergruppe.'
+    : '✗ Noch nicht. Lies die Hinweise und verbessere dein Modell.';
+  zeilenEl.innerHTML = '';
+  for (const z of b.zeilen) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="s ' + (z.ok ? 'gut">✓' : 'schlecht">✗') + '</td><td></td><td class="z"></td><td class="z"></td>';
+    tr.children[1].textContent = z.was; tr.children[2].textContent = z.soll; tr.children[3].textContent = z.ist;
+    zeilenEl.appendChild(tr);
+  }
+  tab.hidden = false;
+  tippsEl.innerHTML = '';
+  for (const t of b.tipps) { const p = document.createElement('p'); p.className = 'tipp'; p.textContent = '→ ' + t; tippsEl.appendChild(p); }
+}
+
+function zeichnen() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  if (!dreiecke) {
+    g.fillStyle = '#999'; g.font = '14px Segoe UI, Arial'; g.textAlign = 'center';
+    g.fillText('Hier erscheint dein Teil.', w / 2, h / 2); return;
+  }
+  const a = letzte, cx = (a.min[0] + a.max[0]) / 2, cy = (a.min[1] + a.max[1]) / 2, cz = (a.min[2] + a.max[2]) / 2;
+  const az = -Math.PI / 4, el = Math.atan(1 / Math.sqrt(2));
+  const ca = Math.cos(az), sa = Math.sin(az), ce = Math.cos(el), se = Math.sin(el);
+  const proj = (x, y, z) => {
+    x -= cx; y -= cy; z -= cz;
+    const x1 = x * ca - y * sa, y1 = x * sa + y * ca;
+    return [x1, -(z * ce - y1 * se), y1 * ce + z * se];
+  };
+  const n = dreiecke.length / 9, P = new Float64Array(n * 9), tiefe = [];
+  let mx = 0, my = 0;
+  for (let i = 0; i < n; i++) {
+    let d = 0;
+    for (let k = 0; k < 3; k++) {
+      const o = i * 9 + k * 3, q = proj(dreiecke[o], dreiecke[o + 1], dreiecke[o + 2]);
+      P[o] = q[0]; P[o + 1] = q[1]; P[o + 2] = q[2]; d += q[2];
+      mx = Math.max(mx, Math.abs(q[0])); my = Math.max(my, Math.abs(q[1]));
+    }
+    tiefe.push([d, i]);
+  }
+  tiefe.sort((x, y) => x[0] - y[0]);
+  const s = Math.min((w - 20) / (2 * mx), (h - 20) / (2 * my));
+  g.lineJoin = 'round';
+  for (const [, i] of tiefe) {
+    const o = i * 9;
+    const ux = P[o + 3] - P[o], uy = P[o + 4] - P[o + 1], uz = P[o + 5] - P[o + 2];
+    const vx = P[o + 6] - P[o], vy = P[o + 7] - P[o + 1], vz = P[o + 8] - P[o + 2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+    const licht = Math.abs(nx * -0.35 + ny * -0.55 + nz * -0.76);
+    const c = Math.round(110 + 120 * licht);
+    g.fillStyle = 'rgb(' + Math.round(c * 0.55) + ',' + Math.round(c * 0.72) + ',' + c + ')';
+    g.strokeStyle = g.fillStyle; g.lineWidth = 0.6;
+    g.beginPath();
+    g.moveTo(w / 2 + P[o] * s, h / 2 + P[o + 1] * s);
+    g.lineTo(w / 2 + P[o + 3] * s, h / 2 + P[o + 4] * s);
+    g.lineTo(w / 2 + P[o + 6] * s, h / 2 + P[o + 7] * s);
+    g.closePath(); g.fill(); g.stroke();
+  }
+}
+window.addEventListener('resize', zeichnen);
+zeichnen();
+</script>
+</body>
+</html>
