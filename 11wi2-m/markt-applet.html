@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bubble Tea auf dem Stadtfest – Angebot und Nachfrage</title>
+<!--
+  Applet "Bubble Tea auf dem Stadtfest", 11WI2 M, EVA 18.11.2026, Aufgabe 1 des
+  Arbeitsblatts. Ein Regler fuer den Preis; das Applet zeigt, wie viele Becher
+  bei diesem Preis nachgefragt und angeboten werden, und was uebrig bleibt oder
+  fehlt. Die Kennwerte (Hoechstpreis, Mindestangebotspreis, Gleichgewicht) zeigt
+  es bewusst nicht an: Die findet man mit dem Regler und rechnet sie in
+  Aufgabe 2 nach.
+    p_n(x) = -0,5x + 8   ->  x_n = 16 - 2p     (x in 100 Bechern)
+    p_a(x) = 0,25x + 2   ->  x_a = 4(p - 2)
+  Eine Datei, kein Internet noetig, keine Bibliothek, keine Web-Fonts.
+-->
+<style>
+  :root { --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A;
+          --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; --achse: #26261E; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.4; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 1060px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 14px; }
+  .m { font-family: "Cambria", "Georgia", "Times New Roman", serif; font-size: 1.05em; }
+  .m i { font-style: italic; }
+  .funk { display: flex; flex-wrap: wrap; gap: 4px 28px; margin: 0 0 10px; font-size: 15px; }
+  .funk .n { color: var(--rot); } .funk .a { color: var(--stahl); }
+  .zwei { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; align-items: start; }
+  .zwei > * { min-width: 0; }
+  canvas { display: block; width: 100%; height: 380px; border: 1px solid var(--grau); background: #fff; touch-action: none; }
+  .box { border: 1px solid var(--grau); background: var(--hell); padding: 10px 14px; }
+  .r { display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: "n z e" "s s s";
+       gap: 2px 8px; align-items: center; font-size: 15px; }
+  .r .n { grid-area: n; font-weight: 600; }
+  .r input[type=range] { grid-area: s; -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; margin: 0;
+                         height: 44px; background: transparent; cursor: pointer; accent-color: var(--corten); }
+  .r input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -11px;
+                         border-radius: 50%; background: var(--corten); border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--corten);
+                         border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=number] { grid-area: z; font: inherit; font-size: 16px; padding: 8px 6px; border: 1px solid var(--grau);
+                          width: 5.5em; min-width: 0; font-variant-numeric: tabular-nums; }
+  .r .e { grid-area: e; color: #666; }
+  .tasten { display: flex; gap: 8px; margin-top: 4px; }
+  button { font: inherit; font-size: 15px; padding: 8px 14px; border: 1px solid var(--corten); min-height: 44px;
+           background: #fff; color: var(--corten); cursor: pointer; border-radius: 0; flex: 1; }
+  button:hover { background: var(--corten); color: #fff; }
+  .werte { margin-top: 12px; font-size: 15px; }
+  .werte .z { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid #ddd; }
+  .werte .lbl { font-size: 11px; letter-spacing: .1em; color: #777; text-transform: uppercase; align-self: center; }
+  .werte .zahl { font-weight: 600; font-variant-numeric: tabular-nums; font-size: 17px; }
+  .werte .n .zahl { color: var(--rot); } .werte .a .zahl { color: var(--stahl); }
+  .lage { margin-top: 12px; padding: 10px 12px; font-size: 15px; border-left: 4px solid var(--grau); background: #fff; }
+  .lage.ueber { border-color: var(--corten); } .lage.fehlt { border-color: #7a4fa0; } .lage.gleich { border-color: var(--oliv); }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+  @media (max-width: 820px) { .zwei { grid-template-columns: 1fr; } canvas { height: 320px; } }
+  @media (max-width: 480px) { main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; } canvas { height: 270px; } }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Mathematik (Kaspschak)</div>
+  <div><span class="k">Kurs</span>11WI2 M</div>
+  <div><span class="k">Reihe</span>Von Daten zu Funktionen I · Markt und Preis</div>
+  <div><span class="k">Thema</span>Kennwerte von Angebot und Nachfrage</div>
+</header>
+<main>
+  <h1>Bubble Tea auf dem Stadtfest</h1>
+  <p class="lead">Stelle mit dem Regler einen Preis ein und lies ab, wie viele Becher nachgefragt und angeboten werden. Die Aufträge stehen in Aufgabe 1 auf dem Arbeitsblatt.</p>
+  <div class="funk m">
+    <span class="n"><i>p</i><sub>n</sub>(<i>x</i>) = −0,5<i>x</i> + 8</span>
+    <span class="a"><i>p</i><sub>a</sub>(<i>x</i>) = 0,25<i>x</i> + 2</span>
+    <span style="font-family:inherit;font-size:13px;color:#555"><span class="m"><i>x</i></span>: Menge in 100 Bechern · <span class="m"><i>p</i></span>: Preis in €</span>
+  </div>
+  <div class="zwei">
+    <canvas id="graf" aria-label="Graph von Nachfrage- und Angebotsfunktion mit Preislinie"></canvas>
+    <div>
+      <div class="box">
+        <div class="r">
+          <label class="n" for="regler">Preis pro Becher</label>
+          <input type="range" id="regler" min="0" max="10" step="0.1" value="6">
+          <input type="number" id="zahl" min="0" max="10" step="0.1" value="6" inputmode="decimal" aria-label="Preis in Euro">
+          <span class="e">€</span>
+        </div>
+        <div class="tasten">
+          <button id="minus" aria-label="Preis um 10 Cent senken">− 0,10 €</button>
+          <button id="plus" aria-label="Preis um 10 Cent erhöhen">+ 0,10 €</button>
+        </div>
+      </div>
+      <div class="werte">
+        <div class="z n"><span class="lbl">Nachgefragt</span><span class="zahl" id="wn"></span></div>
+        <div class="z a"><span class="lbl">Angeboten</span><span class="zahl" id="wa"></span></div>
+      </div>
+      <div class="lage" id="lage"></div>
+    </div>
+  </div>
+</main>
+<footer>Kaspschak · applets · 11wi2-m · markt-applet</footer>
+<script>
+"use strict";
+const XMAX = 18, PMAX = 10;
+const nachfrage = p => Math.max(0, 16 - 2 * p);   // in 100 Bechern
+const angebot   = p => Math.max(0, 4 * (p - 2));
+const runde = v => Math.round(v * 100) / 100;
+const de = (v, d) => v.toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+const tsd = n => de(n, 0).replace(/\./g, " ");
+const becher = x => tsd(Math.round(x * 100)) + " Becher";
+
+const regler = document.getElementById("regler"), zahl = document.getElementById("zahl");
+const cv = document.getElementById("graf"), ctx = cv.getContext("2d");
+let preis = 6;
+
+function setzen(p) {
+  if (!isFinite(p)) return;
+  preis = runde(Math.min(PMAX, Math.max(0, p)));
+  regler.value = preis; zahl.value = preis.toFixed(2);
+  zeichnen(); anzeigen();
+}
+regler.addEventListener("input", () => setzen(parseFloat(regler.value)));
+zahl.addEventListener("change", () => setzen(parseFloat(String(zahl.value).replace(",", "."))));
+document.getElementById("minus").addEventListener("click", () => setzen(preis - 0.1));
+document.getElementById("plus").addEventListener("click", () => setzen(preis + 0.1));
+
+function anzeigen() {
+  const xn = runde(nachfrage(preis)), xa = runde(angebot(preis));
+  document.getElementById("wn").textContent = becher(xn);
+  document.getElementById("wa").textContent = becher(xa);
+  const lage = document.getElementById("lage");
+  const diff = Math.round((xa - xn) * 100);
+  if (diff > 0) {
+    lage.className = "lage ueber";
+    lage.textContent = "Es werden mehr Becher angeboten als nachgefragt: " + tsd(diff) + " Becher bleiben übrig.";
+  } else if (diff < 0) {
+    lage.className = "lage fehlt";
+    lage.textContent = "Es werden mehr Becher nachgefragt als angeboten: " + tsd(-diff) + " Gäste gehen leer aus.";
+  } else {
+    lage.className = "lage gleich";
+    lage.textContent = xn === 0 ? "Niemand kauft und niemand bietet an."
+      : "Es werden genau so viele Becher angeboten, wie nachgefragt werden. Nichts bleibt übrig, niemand geht leer aus.";
+  }
+}
+
+function zeichnen() {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  const L = 46, R = 16, T = 14, B = 40;
+  const X = x => L + x / XMAX * (w - L - R), Y = p => h - B - p / PMAX * (h - B - T);
+  ctx.font = "12px Segoe UI, Roboto, Arial, sans-serif";
+  // Gitter und Achsen
+  for (let x = 0; x <= XMAX; x++) {
+    ctx.strokeStyle = x % 2 ? "#f0f0f0" : "#e0e0e0"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(X(x), Y(0)); ctx.lineTo(X(x), Y(PMAX)); ctx.stroke();
+    if (x % 2 === 0) { ctx.fillStyle = "#555"; ctx.textAlign = "center"; ctx.fillText(x, X(x), Y(0) + 16); }
+  }
+  for (let p = 0; p <= PMAX; p++) {
+    ctx.strokeStyle = "#e0e0e0"; ctx.beginPath(); ctx.moveTo(X(0), Y(p)); ctx.lineTo(X(XMAX), Y(p)); ctx.stroke();
+    ctx.fillStyle = "#555"; ctx.textAlign = "right"; ctx.fillText(p, X(0) - 6, Y(p) + 4);
+  }
+  ctx.strokeStyle = "#26261E"; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(X(0), Y(PMAX)); ctx.lineTo(X(0), Y(0)); ctx.lineTo(X(XMAX), Y(0)); ctx.stroke();
+  ctx.fillStyle = "#333"; ctx.textAlign = "right"; ctx.fillText("x in 100 Bechern", X(XMAX), Y(0) + 32);
+  ctx.save(); ctx.translate(12, Y(PMAX / 2)); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center";
+  ctx.fillText("p in €", 0, 0); ctx.restore();
+  // Geraden
+  const gerade = (farbe, x1, p1, x2, p2, name, nx, np) => {
+    ctx.strokeStyle = farbe; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(X(x1), Y(p1)); ctx.lineTo(X(x2), Y(p2)); ctx.stroke();
+    ctx.fillStyle = farbe; ctx.font = "italic 15px Cambria, Georgia, serif"; ctx.textAlign = "left";
+    ctx.fillText(name, X(nx), Y(np)); ctx.font = "12px Segoe UI, Roboto, Arial, sans-serif";
+  };
+  gerade("#B01A15", 0, 8, 16, 0, "pₙ", 2.4, 7.3);
+  gerade("#35638A", 0, 2, 18, 6.5, "pₐ", 15.6, 6.4);
+  // Preislinie
+  const xn = nachfrage(preis), xa = angebot(preis);
+  ctx.setLineDash([6, 5]); ctx.strokeStyle = "#C87A3A"; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(X(0), Y(preis)); ctx.lineTo(X(XMAX), Y(preis)); ctx.stroke();
+  ctx.setLineDash([]);
+  // Ueberhang als dicker Balken auf der Preislinie
+  if (Math.abs(xa - xn) > 1e-9) {
+    ctx.strokeStyle = xa > xn ? "rgba(200,122,58,.55)" : "rgba(122,79,160,.5)"; ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.moveTo(X(Math.min(xn, xa)), Y(preis)); ctx.lineTo(X(Math.min(XMAX, Math.max(xn, xa))), Y(preis)); ctx.stroke();
+  }
+  // Punkte und Lote
+  const punkt = (x, farbe) => {
+    ctx.setLineDash([3, 3]); ctx.strokeStyle = farbe; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(X(x), Y(preis)); ctx.lineTo(X(x), Y(0)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = farbe; ctx.beginPath(); ctx.arc(X(x), Y(preis), 5.5, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+  };
+  if (preis < 8) punkt(xn, "#B01A15");
+  if (preis > 2 && xa <= XMAX) punkt(xa, "#35638A");
+  ctx.fillStyle = "#C87A3A"; ctx.textAlign = "left"; ctx.font = "bold 13px Segoe UI, Roboto, Arial, sans-serif";
+  ctx.fillText(de(preis, 2) + " €", X(0) + 6, Y(preis) - 6);
+}
+
+// Ziehen im Graphen setzt den Preis (Finger oder Maus)
+function ziehen(e) {
+  const r = cv.getBoundingClientRect(), h = cv.clientHeight, T = 14, B = 40;
+  const p = (h - B - (e.clientY - r.top)) / (h - B - T) * PMAX;
+  setzen(Math.round(p * 10) / 10);
+}
+cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); ziehen(e); });
+cv.addEventListener("pointermove", e => { if (e.buttons) ziehen(e); });
+window.addEventListener("resize", zeichnen);
+setzen(6);
+</script>
+</body>
+</html>
