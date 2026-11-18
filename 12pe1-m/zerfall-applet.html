@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wachstum und Zerfall im Graphen</title>
+<!--
+  Applet "Wachstum und Zerfall im Graphen", 12PE1 M, EVA 18.11.2026 (Arbeitsblatt
+  "Wie lange wirkt der Energydrink?"). Graph von f(t) = a · b^t mit Reglern fuer
+  Startwert a, Faktor b und Zeit t. Beispiele: Koffein 160 · 0,87^t (Aufgabe 1),
+  Smartphone 900 · 0,7^t (Aufgabe 3), Keime 1 000 · 2^t (04.11.).
+  Schalter "Hälfte markieren" zeigt die Halbwertszeit (bei b < 1) bzw. die
+  Verdopplungszeit (bei b > 1) als Treppe im Graphen.
+  Eine Datei, kein Internet noetig, keine Bibliothek, keine Web-Fonts.
+-->
+<style>
+  :root { --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A;
+          --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.4; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 1100px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 12px; }
+  .m { font-family: "Cambria", "Georgia", "Times New Roman", serif; font-size: 1.05em; }
+  .m i { font-style: italic; }
+  .beispiele { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  button { font: inherit; font-size: 15px; padding: 8px 14px; border: 1px solid var(--stahl); min-height: 44px;
+           background: #fff; color: var(--stahl); cursor: pointer; border-radius: 0; }
+  button:hover, button.akt { background: var(--stahl); color: #fff; }
+  .zwei { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; align-items: start; }
+  .zwei > * { min-width: 0; }
+  canvas { display: block; width: 100%; height: 400px; border: 1px solid var(--grau); background: #fff; touch-action: none; }
+  .term { font-size: 22px; text-align: center; margin: 2px 0 8px; }
+  .term .a { color: var(--corten); } .term .b { color: var(--stahl); }
+  .box { border: 1px solid var(--grau); background: var(--hell); padding: 8px 14px; }
+  .r { display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: "n z e" "s s s";
+       gap: 0 8px; align-items: center; font-size: 15px; margin: 4px 0 6px; }
+  .r .n { grid-area: n; font-weight: 600; }
+  .r input[type=range] { grid-area: s; -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; margin: 0;
+                         height: 44px; background: transparent; cursor: pointer; }
+  .r input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -11px;
+                         border-radius: 50%; background: var(--farbe, var(--stahl)); border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--farbe, var(--stahl));
+                         border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=number] { grid-area: z; font: inherit; font-size: 16px; padding: 7px 6px; border: 1px solid var(--grau);
+                          width: 6em; min-width: 0; font-variant-numeric: tabular-nums; }
+  .r .e { grid-area: e; color: #666; font-size: 13px; white-space: nowrap; }
+  .lage { margin-top: 10px; padding: 8px 12px; font-size: 15px; border-left: 4px solid var(--grau); background: #fff; }
+  .lage.zerfall { border-color: var(--rot); } .lage.wachstum { border-color: var(--oliv); }
+  .ablesen { margin-top: 10px; font-size: 16px; padding: 8px 12px; border: 1px solid var(--grau); }
+  .ablesen b { color: var(--rot); font-variant-numeric: tabular-nums; }
+  .schalter { margin-top: 10px; font-size: 15px; }
+  .schalter input { width: 20px; height: 20px; vertical-align: -4px; margin-right: 6px; }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+  @media (max-width: 860px) { .zwei { grid-template-columns: 1fr; } canvas { height: 320px; } }
+  @media (max-width: 480px) { main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; } canvas { height: 270px; } .term { font-size: 19px; } }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Mathematik (Kaspschak)</div>
+  <div><span class="k">Kurs</span>12PE1 M</div>
+  <div><span class="k">Reihe</span>Exponentialfunktionen</div>
+  <div><span class="k">Thema</span>Exponentieller Zerfall</div>
+</header>
+<main>
+  <h1>Wachstum und Zerfall im Graphen</h1>
+  <p class="lead">Wähle ein Beispiel oder stelle Startwert <span class="m"><i>a</i></span> und Faktor <span class="m"><i>b</i></span> selbst ein. Mit dem Zeitregler liest du Werte ab. Prüfe so deine Ergebnisse aus Aufgabe 1 und 3, nachdem du gerechnet hast.</p>
+  <div class="beispiele" id="beispiele">
+    <button data-k="koffein">Koffein (Aufgabe 1)</button>
+    <button data-k="handy">Smartphone (Aufgabe 3)</button>
+    <button data-k="keime">Keime im Fläschchen (04.11.)</button>
+  </div>
+  <div class="zwei">
+    <div>
+      <div class="term m" id="term"></div>
+      <canvas id="graf" aria-label="Graph der Exponentialfunktion"></canvas>
+    </div>
+    <div>
+      <div class="box">
+        <div class="r" style="--farbe: var(--corten)">
+          <label class="n" for="ra">Startwert <span class="m"><i>a</i></span></label>
+          <input type="range" id="ra" min="10" max="1000" step="10">
+          <input type="number" id="za" min="1" max="100000" step="any" inputmode="decimal" aria-label="Startwert">
+          <span class="e" id="ea"></span>
+        </div>
+        <div class="r">
+          <label class="n" for="rb">Faktor <span class="m"><i>b</i></span></label>
+          <input type="range" id="rb" min="0.05" max="2" step="0.01">
+          <input type="number" id="zb" min="0.01" max="3" step="0.01" inputmode="decimal" aria-label="Faktor">
+          <span class="e"></span>
+        </div>
+        <div class="r" style="--farbe: var(--rot)">
+          <label class="n" for="rt">Zeit <span class="m"><i>t</i></span></label>
+          <input type="range" id="rt" min="0" max="12" step="0.01">
+          <input type="number" id="zt" min="0" max="12" step="0.01" inputmode="decimal" aria-label="Zeit">
+          <span class="e" id="et"></span>
+        </div>
+      </div>
+      <div class="lage" id="lage"></div>
+      <div class="ablesen" id="ablesen"></div>
+      <label class="schalter"><input type="checkbox" id="haelfte">Hälfte bzw. Verdopplung markieren</label>
+    </div>
+  </div>
+</main>
+<footer>Kaspschak · applets · 12pe1-m · zerfall-applet</footer>
+<script>
+"use strict";
+const BEISPIELE = {
+  koffein: { a: 160, b: 0.87, t: 3, ez: "Stunden", eg: "mg", name: "K" },
+  handy:   { a: 900, b: 0.7,  t: 3, ez: "Jahren",  eg: "€",  name: "W" },
+  keime:   { a: 1000, b: 2,   t: 3, ez: "Stunden", eg: "Keime", name: "N" },
+  frei:    { ez: "", eg: "", name: "f" }
+};
+const TMAX = 12;
+let st = { a: 160, b: 0.87, t: 3, k: "koffein" };
+const $ = id => document.getElementById(id);
+const de = (v, d) => v.toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+const zahl = v => { if (Number.isInteger(v)) return de(v, 0);
+  const d = Math.abs(v) >= 100 ? 1 : Math.abs(v) >= 1 ? 2 : 3; return de(v, d); };
+const pz = v => de(v, Number.isInteger(Math.round(v * 10) / 10) && Math.round(v * 10) % 10 === 0 ? 0 : 1);
+const f = t => st.a * Math.pow(st.b, t);
+const info = () => BEISPIELE[st.k];
+
+function setze(teil, vonBeispiel) {
+  Object.assign(st, teil);
+  if (!vonBeispiel) st.k = "frei";
+  st.a = Math.max(1, st.a); st.b = Math.min(3, Math.max(0.01, st.b)); st.t = Math.min(TMAX, Math.max(0, st.t));
+  $("ra").value = Math.min(1000, st.a); $("za").value = st.a;
+  $("rb").value = Math.min(2, st.b); $("zb").value = st.b;
+  $("rt").value = st.t; $("zt").value = Math.round(st.t * 100) / 100;
+  document.querySelectorAll("#beispiele button").forEach(b => b.classList.toggle("akt", b.dataset.k === st.k));
+  anzeigen(); zeichnen();
+}
+document.querySelectorAll("#beispiele button").forEach(btn => btn.addEventListener("click", () => {
+  const B = BEISPIELE[btn.dataset.k]; st.k = btn.dataset.k; setze({ a: B.a, b: B.b, t: B.t }, true);
+}));
+const zahlLesen = el => parseFloat(String(el.value).replace(",", "."));
+$("ra").addEventListener("input", () => setze({ a: zahlLesen($("ra")) }));
+$("rb").addEventListener("input", () => setze({ b: zahlLesen($("rb")) }));
+$("rt").addEventListener("input", () => setze({ t: zahlLesen($("rt")) }, true));
+$("za").addEventListener("change", () => { const v = zahlLesen($("za")); if (isFinite(v)) setze({ a: v }); });
+$("zb").addEventListener("change", () => { const v = zahlLesen($("zb")); if (isFinite(v)) setze({ b: v }); });
+$("zt").addEventListener("change", () => { const v = zahlLesen($("zt")); if (isFinite(v)) setze({ t: v }, true); });
+$("haelfte").addEventListener("change", zeichnen);
+
+function anzeigen() {
+  const I = info(), n = I.name;
+  $("term").innerHTML = `<i>${n}</i>(<i>t</i>) = <span class="a">${zahl(st.a)}</span> · <span class="b">${de(st.b, 2)}</span><sup><i>t</i></sup>`;
+  $("ea").textContent = I.eg; $("et").textContent = I.ez ? "in " + I.ez : "";
+  const p = Math.round(Math.abs(st.b - 1) * 1000) / 10, lage = $("lage");
+  if (st.b < 1) { lage.className = "lage zerfall";
+    lage.textContent = `b liegt zwischen 0 und 1: exponentieller Zerfall. In jedem Schritt bleiben ${pz(st.b * 100)} % übrig, ${pz(p)} % kommen weg.`; }
+  else if (st.b > 1) { lage.className = "lage wachstum";
+    lage.textContent = `b ist größer als 1: exponentielles Wachstum. In jedem Schritt kommen ${pz(p)} % dazu.`; }
+  else { lage.className = "lage"; lage.textContent = "b = 1: Der Wert bleibt immer gleich."; }
+  $("ablesen").innerHTML = `<i class="m">${n}</i>(${de(st.t, 2)}) = ${zahl(st.a)} · ${de(st.b, 2)}<sup>${de(st.t, 2)}</sup> ≈ <b>${zahl(f(st.t))}${I.eg ? " " + I.eg : ""}</b>`;
+}
+
+function hoehe() {
+  let m = Math.max(st.a, f(TMAX));
+  if (st.b > 1) m = Math.min(m, st.a * 64);   // Wachstum nicht ins Unendliche skalieren
+  const e = Math.pow(10, Math.floor(Math.log10(m)));
+  for (const s of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (s * e >= m * 1.05) return s * e;
+  return 10 * e;
+}
+
+function zeichnen() {
+  const cv = $("graf"), ctx = cv.getContext("2d");
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  const YM = hoehe(), L = 58, R = 14, T = 14, B = 40;
+  const X = t => L + t / TMAX * (w - L - R), Y = v => h - B - v / YM * (h - B - T);
+  ctx.font = "12px Segoe UI, Roboto, Arial, sans-serif";
+  const schritt = YM / (YM / Math.pow(10, Math.floor(Math.log10(YM))) <= 2.5 ? 10 : 5);
+  for (let t = 0; t <= TMAX; t++) {
+    ctx.strokeStyle = "#e6e6e6"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X(t), Y(0)); ctx.lineTo(X(t), Y(YM)); ctx.stroke();
+    ctx.fillStyle = "#555"; ctx.textAlign = "center"; ctx.fillText(t, X(t), Y(0) + 16);
+  }
+  for (let v = 0; v <= YM + 1e-9; v += schritt) {
+    ctx.strokeStyle = "#e6e6e6"; ctx.beginPath(); ctx.moveTo(X(0), Y(v)); ctx.lineTo(X(TMAX), Y(v)); ctx.stroke();
+    ctx.fillStyle = "#555"; ctx.textAlign = "right"; ctx.fillText(de(v, v % 1 ? 1 : 0), X(0) - 6, Y(v) + 4);
+  }
+  ctx.strokeStyle = "#26261E"; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(X(0), Y(YM)); ctx.lineTo(X(0), Y(0)); ctx.lineTo(X(TMAX), Y(0)); ctx.stroke();
+  const I = info();
+  ctx.fillStyle = "#333"; ctx.textAlign = "right"; ctx.fillText("t" + (I.ez ? " in " + I.ez : ""), X(TMAX), Y(0) + 32);
+  // Haelfte / Verdopplung als Treppe
+  if ($("haelfte").checked && st.b !== 1) {
+    const zerfall = st.b < 1, T2 = Math.log(zerfall ? 0.5 : 2) / Math.log(st.b);
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = "#C87A3A"; ctx.lineWidth = 1.4;
+    for (let k = 1; k * T2 <= TMAX + 1e-9 && k < 30; k++) {
+      const t0 = (k - 1) * T2, t1 = k * T2, v0 = f(t0), v1 = f(t1);
+      if (v1 > YM) break;
+      ctx.beginPath(); ctx.moveTo(X(t0), Y(v0)); ctx.lineTo(X(t1), Y(v0)); ctx.lineTo(X(t1), Y(v1)); ctx.stroke();
+    }
+    ctx.setLineDash([]); ctx.fillStyle = "#C87A3A"; ctx.textAlign = "left"; ctx.font = "bold 13px Segoe UI, Roboto, Arial, sans-serif";
+    ctx.fillText((zerfall ? "Halbwertszeit ≈ " : "Verdopplungszeit ≈ ") + de(T2, 2) + (I.ez ? " " + I.ez.replace("Stunden", "h") : ""), X(0) + 8, T + 14);
+    ctx.font = "12px Segoe UI, Roboto, Arial, sans-serif";
+  }
+  // Graph
+  ctx.strokeStyle = "#35638A"; ctx.lineWidth = 2.6; ctx.beginPath();
+  let an = false;
+  for (let i = 0; i <= 600; i++) {
+    const t = i / 600 * TMAX, v = f(t);
+    if (v > YM * 1.02) { an = false; continue; }
+    if (!an) { ctx.moveTo(X(t), Y(v)); an = true; } else ctx.lineTo(X(t), Y(v));
+  }
+  ctx.stroke();
+  // Ganze Schritte als Punkte (wie die Tabelle)
+  ctx.fillStyle = "#35638A";
+  for (let t = 0; t <= TMAX; t++) { const v = f(t); if (v <= YM) { ctx.beginPath(); ctx.arc(X(t), Y(v), 3, 0, 2 * Math.PI); ctx.fill(); } }
+  // Ablesepunkt
+  const vt = f(st.t);
+  if (vt <= YM) {
+    ctx.setLineDash([3, 3]); ctx.strokeStyle = "#B01A15"; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(X(st.t), Y(0)); ctx.lineTo(X(st.t), Y(vt)); ctx.lineTo(X(0), Y(vt)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = "#B01A15"; ctx.beginPath(); ctx.arc(X(st.t), Y(vt), 6, 0, 2 * Math.PI); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+}
+
+// Ziehen im Graphen setzt die Zeit
+const cvs = $("graf");
+function ziehen(e) {
+  const r = cvs.getBoundingClientRect(), L = 58, R = 14;
+  setze({ t: Math.round((e.clientX - r.left - L) / (r.width - L - R) * TMAX * 10) / 10 }, true);
+}
+cvs.addEventListener("pointerdown", e => { cvs.setPointerCapture(e.pointerId); ziehen(e); });
+cvs.addEventListener("pointermove", e => { if (e.buttons) ziehen(e); });
+window.addEventListener("resize", zeichnen);
+st.k = "koffein"; setze({ a: 160, b: 0.87, t: 3 }, true);
+</script>
+</body>
+</html>
