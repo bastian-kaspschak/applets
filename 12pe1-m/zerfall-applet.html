@@ -114,10 +114,10 @@
 <script>
 "use strict";
 const BEISPIELE = {
-  koffein: { a: 160, b: 0.87, t: 3, ez: "Stunden", eg: "mg", name: "K" },
-  handy:   { a: 900, b: 0.7,  t: 3, ez: "Jahren",  eg: "€",  name: "W" },
-  keime:   { a: 1000, b: 2,   t: 3, ez: "Stunden", eg: "Keime", name: "N" },
-  frei:    { ez: "", eg: "", name: "f" }
+  koffein: { a: 160, b: 0.87, t: 3, ez: "Stunden", eg: "mg", name: "K", yl: "K(t): Koffein in mg" },
+  handy:   { a: 900, b: 0.7,  t: 3, ez: "Jahren",  eg: "€",  name: "W", yl: "W(t): Wert in €" },
+  keime:   { a: 1000, b: 2,   t: 3, ez: "Stunden", eg: "Keime", name: "N", yl: "N(t): Anzahl der Keime" },
+  frei:    { ez: "", eg: "", name: "f", yl: "f(t)" }
 };
 const TMAX = 12;
 let st = { a: 160, b: 0.87, t: 3, k: "koffein" };
@@ -177,7 +177,7 @@ function zeichnen() {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
   cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
-  const YM = hoehe(), L = 58, R = 14, T = 14, B = 40;
+  const YM = hoehe(), L = 66, R = 14, T = 14, B = 40;
   const X = t => L + t / TMAX * (w - L - R), Y = v => h - B - v / YM * (h - B - T);
   ctx.font = "12px Segoe UI, Roboto, Arial, sans-serif";
   const schritt = YM / (YM / Math.pow(10, Math.floor(Math.log10(YM))) <= 2.5 ? 10 : 5);
@@ -193,6 +193,9 @@ function zeichnen() {
   ctx.beginPath(); ctx.moveTo(X(0), Y(YM)); ctx.lineTo(X(0), Y(0)); ctx.lineTo(X(TMAX), Y(0)); ctx.stroke();
   const I = info();
   ctx.fillStyle = "#333"; ctx.textAlign = "right"; ctx.fillText("t" + (I.ez ? " in " + I.ez : ""), X(TMAX), Y(0) + 32);
+  // y-Achsenbeschriftung, gedreht links neben den Zahlen
+  ctx.save(); ctx.translate(13, (Y(0) + Y(YM)) / 2); ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center"; ctx.fillText(I.yl, 0, 0); ctx.restore();
   // Haelfte / Verdopplung als Treppe
   if ($("haelfte").checked && st.b !== 1) {
     const zerfall = st.b < 1, T2 = Math.log(zerfall ? 0.5 : 2) / Math.log(st.b);
@@ -231,7 +234,7 @@ function zeichnen() {
 // Ziehen im Graphen setzt die Zeit
 const cvs = $("graf");
 function ziehen(e) {
-  const r = cvs.getBoundingClientRect(), L = 58, R = 14;
+  const r = cvs.getBoundingClientRect(), L = 66, R = 14;
   setze({ t: Math.round((e.clientX - r.left - L) / (r.width - L - R) * TMAX * 10) / 10 }, true);
 }
 cvs.addEventListener("pointerdown", e => { cvs.setPointerCapture(e.pointerId); ziehen(e); });
