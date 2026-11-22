@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unser Waffelstand</title>
+<!--
+  Applet "Unser Waffelstand", IFK1 M, Lernsituation "Waffeln fuer einen guten Zweck".
+  Drei Ansichten, je ein Regler und eine sichtbare Wirkung:
+    Backen      (26.11.)  Anzahl der Waffeln -> Zutaten, Kosten, Backzeit mit einem Waffeleisen
+    Verkaufen   (27.11.)  Waffeln am Stand   -> Pause mit 60 Kundinnen und Kunden in 20 Minuten
+    Waffeleisen (03.12.)  Anzahl der Waffeleisen -> Backzeit fuer 60 Waffeln
+  Die dritte Ansicht ist gesperrt, bis die Adresse den Zusatz #eisen traegt.
+  Zahlen wie auf den Arbeitsblaettern: Rezept fuer 15 Waffeln (500 g Mehl, 500 ml Milch,
+  250 g Butter, 200 g Zucker, 4 Eier, 1 Paeckchen Backpulver), Zutaten 6 EUR je 15 Waffeln,
+  Preis 1 EUR, 3 Minuten je Waffel.
+  Das Applet rechnet Erloes, Kosten und Gewinn nicht vor: Die Kontrolle erscheint erst
+  nach der Pause auf Knopfdruck. Es nennt auch keinen Faktor und keinen Merksatz.
+  Eine Datei, kein Internet noetig, keine Bibliothek, keine Web-Fonts.
+  Pruefen ohne Klicken: ?ansicht=backen|verkaufen|eisen&n=<Zahl>&merk=<Zahl>&ende=1
+-->
+<style>
+  :root { --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A;
+          --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; --teig: #E0A94A; --rand: #8a5a17; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.45; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 900px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: #555; margin: 16px 0 4px; font-weight: 600; }
+  h2 b { color: var(--text); font-size: 17px; letter-spacing: 0; margin-left: 6px; font-variant-numeric: tabular-nums; }
+  p { margin: 10px 0; }
+  nav { display: flex; gap: 8px; margin: 14px 0 6px; flex-wrap: wrap; }
+  button { font: inherit; font-size: 16px; padding: 8px 14px; border: 1px solid var(--corten); min-height: 44px;
+           background: #fff; color: var(--corten); cursor: pointer; border-radius: 0; }
+  button:hover:not(:disabled) { background: var(--corten); color: #fff; }
+  button:disabled { border-color: var(--grau); color: var(--grau); cursor: default; }
+  nav button { flex: 1 1 120px; font-weight: 600; }
+  nav button[aria-pressed=true] { background: var(--corten); color: #fff; }
+  .box { border: 1px solid var(--grau); background: var(--hell); padding: 10px 14px; margin: 10px 0; }
+  .r { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; font-size: 16px; }
+  .r label { font-weight: 600; }
+  .r output { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .r input[type=range] { grid-column: 1 / -1; -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; margin: 0;
+                         height: 44px; background: transparent; cursor: pointer; accent-color: var(--corten); }
+  .r input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 32px; height: 32px; margin-top: -12px;
+                         border-radius: 50%; background: var(--corten); border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: var(--corten);
+                         border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .tasten { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+  .tasten button { flex: 1 1 130px; }
+  svg { display: block; width: 100%; height: auto; }
+  svg.eisen { max-width: 620px; }
+  table { border-collapse: collapse; width: 100%; font-size: 16px; margin-top: 6px; }
+  th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid #ddd; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #555; border-bottom: 2px solid var(--text); }
+  td.jetzt, th.jetzt { font-weight: 700; }
+  td.alt { color: #555; }
+  .uhr { margin: 12px 0 4px; }
+  .uhr .balken { height: 12px; background: #e4e4e0; border: 1px solid var(--grau); }
+  .uhr .balken i { display: block; height: 100%; width: 0; background: var(--stahl); }
+  .uhr .zeit { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+  .lage { margin-top: 12px; padding: 10px 12px; font-size: 17px; border-left: 4px solid var(--oliv); background: var(--hell); min-height: 1em; }
+  .lage:empty { display: none; }
+  .mit { color: var(--stahl); } .ohne { color: var(--rot); }
+  .licht.an { animation: blink .5s steps(2) infinite; }
+  @keyframes blink { 50% { fill: #ffd27a; } }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+  [hidden] { display: none !important; }
+  @media (max-width: 480px) { main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
+                              table { font-size: 15px; } th, td { padding: 6px 4px; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="s-w" viewBox="0 0 20 20">
+    <circle cx="10" cy="10" r="8.6" fill="#E0A94A" stroke="#8a5a17" stroke-width="1.2"/>
+    <path d="M6 3v14M10 1.6v16.8M14 3v14M3 6h14M1.6 10h16.8M3 14h14" stroke="#8a5a17" stroke-width=".8" fill="none"/>
+  </symbol>
+  <symbol id="s-leer" viewBox="0 0 20 20">
+    <circle cx="10" cy="10" r="8" fill="none" stroke="#cfcfcf" stroke-width="1" stroke-dasharray="2 2.2"/>
+  </symbol>
+  <symbol id="s-k" viewBox="0 0 20 24">
+    <circle cx="10" cy="6" r="4.6" fill="currentColor"/>
+    <path d="M2.5 23.5q0-10.5 7.5-10.5t7.5 10.5z" fill="currentColor"/>
+  </symbol>
+  <symbol id="s-kleer" viewBox="0 0 20 24">
+    <circle cx="10" cy="6" r="4.2" fill="none" stroke="#cfcfcf" stroke-dasharray="2 2"/>
+    <path d="M3 23q0-9.5 7-9.5t7 9.5z" fill="none" stroke="#cfcfcf" stroke-dasharray="2 2"/>
+  </symbol>
+</svg>
+
+<header>
+  <div><span class="k">Fach</span>Mathematik (Kaspschak)</div>
+  <div><span class="k">Kurs</span>IFK1 M</div>
+  <div><span class="k">Reihe</span>Waffeln für einen guten Zweck</div>
+  <div><span class="k">Thema</span>Zuordnungen am Waffelstand</div>
+</header>
+<main>
+  <h1>Unser Waffelstand</h1>
+  <nav aria-label="Ansicht">
+    <button id="tab-backen" aria-pressed="true">Backen</button>
+    <button id="tab-verkaufen" aria-pressed="false">Verkaufen</button>
+    <button id="tab-eisen" aria-pressed="false" hidden>Waffeleisen</button>
+  </nav>
+
+  <!-- ===================== Backen ===================== -->
+  <section id="backen">
+    <p>Stelle die Anzahl der Waffeln ein. Lies ab, was wir brauchen. Die Aufgaben stehen auf dem Arbeitsblatt.</p>
+    <div class="box">
+      <div class="r">
+        <label for="b-regler">Anzahl der Waffeln</label>
+        <output id="b-zahl" for="b-regler">15</output>
+        <input type="range" id="b-regler" min="15" max="90" step="15" value="15">
+      </div>
+      <div class="tasten">
+        <button id="b-minus" aria-label="15 Waffeln weniger">− 15</button>
+        <button id="b-plus" aria-label="15 Waffeln mehr">+ 15</button>
+        <button id="b-merken">Werte merken</button>
+      </div>
+    </div>
+    <svg id="b-bild" role="img" aria-label="So viele Waffeln backen wir"></svg>
+    <table>
+      <thead><tr><th>Das brauchen wir</th><th id="b-kopf-alt">gemerkt</th><th class="jetzt" id="b-kopf-jetzt">jetzt</th></tr></thead>
+      <tbody id="b-tab"></tbody>
+    </table>
+  </section>
+
+  <!-- ===================== Verkaufen ===================== -->
+  <section id="verkaufen" hidden>
+    <p>Die Pause dauert 20 Minuten. Es kommen 60 Personen. Jede Person möchte eine Waffel kaufen.
+       Der Preis ist 1 € für eine Waffel. Die Zutaten für 15 Waffeln kosten 6 €.</p>
+    <p>Stelle ein, wie viele Waffeln am Stand liegen. Starte die Pause. Die Aufgaben stehen auf dem Arbeitsblatt.</p>
+    <div class="box">
+      <div class="r">
+        <label for="v-regler">Waffeln am Stand</label>
+        <output id="v-zahl" for="v-regler">15</output>
+        <input type="range" id="v-regler" min="15" max="90" step="15" value="15">
+      </div>
+      <div class="tasten">
+        <button id="v-start">Pause starten</button>
+        <button id="v-neu">Zurücksetzen</button>
+      </div>
+    </div>
+    <div class="uhr"><div class="zeit" id="v-zeit">Minute 0 von 20</div><div class="balken"><i id="v-balken"></i></div></div>
+    <h2>Waffeln am Stand <b id="v-rest">15</b></h2>
+    <svg id="v-bild-w" role="img" aria-label="Waffeln am Stand"></svg>
+    <h2 class="mit">Personen mit Waffel <b id="v-mit">0</b></h2>
+    <svg id="v-bild-mit" class="mit" role="img" aria-label="Personen mit Waffel"></svg>
+    <h2 class="ohne">Personen ohne Waffel <b id="v-ohne">0</b></h2>
+    <svg id="v-bild-ohne" class="ohne" role="img" aria-label="Personen ohne Waffel"></svg>
+    <div class="lage" id="v-lage"></div>
+    <div class="tasten"><button id="v-kontrolle" hidden>Kontrolle zeigen</button></div>
+    <table id="v-geld" hidden>
+      <tbody>
+        <tr><td>Erlös</td><td id="v-erloes"></td></tr>
+        <tr><td>Kosten</td><td id="v-kosten"></td></tr>
+        <tr><td>Gewinn</td><td class="jetzt" id="v-gewinn"></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ===================== Waffeleisen ===================== -->
+  <section id="eisen" hidden>
+    <p>Wir brauchen 60 Waffeln. Eine Waffel braucht 3 Minuten in einem Waffeleisen.</p>
+    <p>Stelle die Anzahl der Waffeleisen ein. Starte das Backen. Die Aufgaben stehen auf dem Arbeitsblatt.</p>
+    <div class="box">
+      <div class="r">
+        <label for="e-regler">Anzahl der Waffeleisen</label>
+        <output id="e-zahl" for="e-regler">1</output>
+        <input type="range" id="e-regler" min="1" max="6" step="1" value="1">
+      </div>
+      <div class="tasten">
+        <button id="e-minus" aria-label="ein Waffeleisen weniger">− 1</button>
+        <button id="e-plus" aria-label="ein Waffeleisen mehr">+ 1</button>
+        <button id="e-start">Backen starten</button>
+      </div>
+    </div>
+    <svg id="e-bild" class="eisen" role="img" aria-label="Waffeleisen"></svg>
+    <div class="uhr"><div class="zeit" id="e-zeit">Minute 0</div></div>
+    <h2>Fertige Waffeln <b id="e-fertig">0</b></h2>
+    <svg id="e-bild-w" role="img" aria-label="Fertige Waffeln"></svg>
+    <div class="lage" id="e-lage"></div>
+    <table id="e-tab-wrap" hidden>
+      <thead><tr><th>Anzahl der Waffeleisen</th><th class="jetzt">Backzeit für 60 Waffeln</th></tr></thead>
+      <tbody id="e-tab"></tbody>
+    </table>
+  </section>
+</main>
+<footer>Kaspschak · applets · ifk1-m · waffelstand-applet</footer>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const euro = v => v.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+const grenze = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+// Rezept fuer 15 Waffeln: Name, Menge, Einheit
+const REZEPT = [["Mehl", 500, "g"], ["Milch", 500, "ml"], ["Butter", 250, "g"],
+                ["Zucker", 200, "g"], ["Eier", 4, "Stück"], ["Backpulver", 1, "Päckchen"]];
+const KOSTEN_15 = 6, PREIS = 1, MIN_JE_WAFFEL = 3;
+
+// schmale Fenster: 15 statt 30 Bilder je Zeile
+const pz = () => (window.innerWidth < 560 ? 15 : 30);
+// Bildraster: gesamt Plaetze, davon voll, pz je Zeile, Zelle bw x bh
+function raster(svg, gesamt, voll, pz, bw, bh, symVoll, symLeer) {
+  const zeilen = Math.ceil(gesamt / pz);
+  svg.setAttribute("viewBox", "0 0 " + pz * bw + " " + zeilen * bh);
+  let s = "";
+  for (let i = 0; i < gesamt; i++) {
+    const sym = i < voll ? symVoll : symLeer;
+    if (!sym) continue;
+    s += '<use href="#' + sym + '" x="' + (i % pz) * bw + '" y="' + Math.floor(i / pz) * bh +
+         '" width="' + bw + '" height="' + bh + '"/>';
+  }
+  svg.innerHTML = s;
+}
+
+/* ---------------------------------------------------------------- Ansichten */
+const ANSICHTEN = ["backen", "verkaufen", "eisen"];
+const frei = /eisen/i.test(location.search + location.hash);
+$("tab-eisen").hidden = !frei;
+function ansicht(name) {
+  if (name === "eisen" && !frei) name = "backen";
+  ANSICHTEN.forEach(a => {
+    $(a).hidden = a !== name;
+    $("tab-" + a).setAttribute("aria-pressed", a === name ? "true" : "false");
+  });
+  vStopp(); eStopp();
+}
+ANSICHTEN.forEach(a => $("tab-" + a).addEventListener("click", () => ansicht(a)));
+
+/* ---------------------------------------------------------------- Backen */
+let bN = 15, bMerk = null;
+function mengen(n) {
+  const k = n / 15;
+  const z = REZEPT.map(([name, m, e]) => [name, m * k + " " + e]);
+  z.push(["Kosten für die Zutaten", euro(KOSTEN_15 * k)]);
+  z.push(["Backzeit mit einem Waffeleisen", n * MIN_JE_WAFFEL + " min"]);
+  return z;
+}
+function bZeigen() {
+  $("b-regler").value = bN; $("b-zahl").textContent = bN;
+  raster($("b-bild"), 90, bN, 15, 40, 40, "s-w", "s-leer");
+  const jetzt = mengen(bN), alt = bMerk ? mengen(bMerk) : null;
+  $("b-kopf-alt").textContent = bMerk ? "gemerkt: " + bMerk + " Waffeln" : "gemerkt";
+  $("b-kopf-jetzt").textContent = "jetzt: " + bN + " Waffeln";
+  $("b-tab").innerHTML = jetzt.map((z, i) =>
+    "<tr><td>" + z[0] + '</td><td class="alt">' + (alt ? alt[i][1] : "–") + '</td><td class="jetzt">' + z[1] + "</td></tr>").join("");
+}
+function bSetzen(n) { bN = grenze(Math.round(n / 15) * 15, 15, 90); bZeigen(); }
+$("b-regler").addEventListener("input", e => bSetzen(+e.target.value));
+$("b-minus").addEventListener("click", () => bSetzen(bN - 15));
+$("b-plus").addEventListener("click", () => bSetzen(bN + 15));
+$("b-merken").addEventListener("click", () => { bMerk = bN; bZeigen(); });
+
+/* ---------------------------------------------------------------- Verkaufen */
+const PAUSE = 20, KUNDEN = 60, JE_MIN = KUNDEN / PAUSE;   // 3 Personen je Minute
+let vN = 15, vT = 0, vRaf = 0, vStart = 0;
+function vStand(t) {
+  const da = Math.min(KUNDEN, Math.floor(t * JE_MIN + 1e-9));
+  const mit = Math.min(vN, da);
+  return { da, mit, ohne: da - mit, rest: vN - mit };
+}
+function vZeigen() {
+  const s = vStand(vT), ende = vT >= PAUSE;
+  $("v-regler").value = vN; $("v-zahl").textContent = vN;
+  $("v-zeit").textContent = "Minute " + Math.floor(vT) + " von " + PAUSE;
+  $("v-balken").style.width = (vT / PAUSE * 100) + "%";
+  $("v-rest").textContent = s.rest; $("v-mit").textContent = s.mit; $("v-ohne").textContent = s.ohne;
+  raster($("v-bild-w"), 90, s.rest, pz(), 20, 20, "s-w", "s-leer");
+  raster($("v-bild-mit"), KUNDEN, s.mit, pz(), 20, 24, "s-k", "s-kleer");
+  raster($("v-bild-ohne"), KUNDEN, s.ohne, pz(), 20, 24, "s-k", "s-kleer");
+  let text = "";
+  if (ende) {
+    if (vN < KUNDEN) text = "Nach " + vN / JE_MIN + " Minuten sind alle Waffeln verkauft. " + (KUNDEN - vN) + " Personen bekommen keine Waffel.";
+    else if (vN === KUNDEN) text = "Alle 60 Personen bekommen eine Waffel. Es bleibt keine Waffel übrig.";
+    else text = "Alle 60 Personen bekommen eine Waffel. Es bleiben " + (vN - KUNDEN) + " Waffeln übrig.";
+  }
+  $("v-lage").textContent = text;
+  $("v-kontrolle").hidden = !ende || !$("v-geld").hidden;
+  if (!ende) $("v-geld").hidden = true;
+  $("v-start").disabled = vRaf !== 0;
+}
+function vStopp() { if (vRaf) cancelAnimationFrame(vRaf); vRaf = 0; }
+function vNeu() { vStopp(); vT = 0; $("v-geld").hidden = true; vZeigen(); }
+function vSchritt(jetzt) {
+  vT = Math.min(PAUSE, (jetzt - vStart) / 1000);          // 1 Minute je Sekunde
+  if (vT >= PAUSE) vRaf = 0; else vRaf = requestAnimationFrame(vSchritt);
+  vZeigen();
+}
+function vLos() { vStopp(); vT = 0; $("v-geld").hidden = true; vStart = performance.now(); vRaf = requestAnimationFrame(vSchritt); vZeigen(); }
+function vKontrolle() {
+  const s = vStand(PAUSE), erloes = s.mit * PREIS, kosten = vN / 15 * KOSTEN_15;
+  $("v-erloes").textContent = euro(erloes); $("v-kosten").textContent = euro(kosten);
+  $("v-gewinn").textContent = euro(erloes - kosten);
+  $("v-geld").hidden = false; $("v-kontrolle").hidden = true;
+}
+$("v-regler").addEventListener("input", e => { vN = grenze(Math.round(+e.target.value / 15) * 15, 15, 90); vNeu(); });
+$("v-start").addEventListener("click", vLos);
+$("v-neu").addEventListener("click", vNeu);
+$("v-kontrolle").addEventListener("click", vKontrolle);
+
+/* ---------------------------------------------------------------- Waffeleisen */
+const BEDARF = 60, RAFFER = 20;                            // 20 Minuten je Sekunde
+let eN = 1, eT = 0, eRaf = 0, eStart = 0, eFertig = false;
+const versuche = new Map();
+const eDauer = () => BEDARF * MIN_JE_WAFFEL / eN;
+function eBild(an) {
+  const b = 100, breite = 6 * b;
+  $("e-bild").setAttribute("viewBox", "0 0 " + breite + " 84");
+  let s = "";
+  for (let i = 0; i < 6; i++) {
+    const x = i * b + 8, da = i < eN;
+    if (!da) { s += '<rect x="' + (x + 6) + '" y="14" width="68" height="56" rx="10" fill="none" stroke="#cfcfcf" stroke-dasharray="3 3"/>'; continue; }
+    s += '<g transform="translate(' + x + ',0)">' +
+         '<rect x="6" y="12" width="68" height="24" rx="9" fill="#3d3d3d"/>' +
+         '<rect x="74" y="19" width="14" height="8" rx="3" fill="#222"/>' +
+         '<rect x="9" y="35" width="62" height="7" fill="' + (an ? "#E0A94A" : "#777") + '"/>' +
+         '<rect x="6" y="41" width="68" height="24" rx="9" fill="#2b2b2b"/>' +
+         '<rect x="14" y="65" width="10" height="5" fill="#222"/><rect x="56" y="65" width="10" height="5" fill="#222"/>' +
+         '<circle class="licht' + (an ? " an" : "") + '" cx="20" cy="53" r="4.5" fill="' + (an ? "#ff8a00" : "#8c8c8c") + '"/></g>';
+  }
+  $("e-bild").innerHTML = s;
+}
+function eZeigen() {
+  const laeuft = eRaf !== 0;
+  $("e-regler").value = eN; $("e-zahl").textContent = eN;
+  const fertig = Math.min(BEDARF, eN * Math.floor(eT / MIN_JE_WAFFEL + 1e-9));
+  $("e-zeit").textContent = "Minute " + Math.floor(eT);
+  $("e-fertig").textContent = fertig;
+  eBild(laeuft);
+  raster($("e-bild-w"), BEDARF, fertig, pz(), 20, 20, "s-w", "s-leer");
+  $("e-lage").textContent = eFertig
+    ? "Mit " + eN + " Waffeleisen dauert das Backen " + eDauer() + " Minuten." : "";
+  $("e-start").disabled = laeuft;
+  const zeilen = [...versuche.entries()].sort((a, b) => a[0] - b[0]);
+  $("e-tab-wrap").hidden = zeilen.length === 0;
+  $("e-tab").innerHTML = zeilen.map(([n, t]) => "<tr><td>" + n + '</td><td class="jetzt">' + t + " min</td></tr>").join("");
+}
+function eStopp() { if (eRaf) cancelAnimationFrame(eRaf); eRaf = 0; }
+function eEnde() { eRaf = 0; eT = eDauer(); eFertig = true; versuche.set(eN, eDauer()); eZeigen(); }
+function eSchritt(jetzt) {
+  eT = (jetzt - eStart) / 1000 * RAFFER;
+  if (eT >= eDauer()) { eEnde(); return; }
+  eRaf = requestAnimationFrame(eSchritt); eZeigen();
+}
+function eLos() { eStopp(); eT = 0; eFertig = false; eStart = performance.now(); eRaf = requestAnimationFrame(eSchritt); eZeigen(); }
+function eSetzen(n) { eStopp(); eN = grenze(Math.round(n), 1, 6); eT = 0; eFertig = false; eZeigen(); }
+$("e-regler").addEventListener("input", e => eSetzen(+e.target.value));
+$("e-minus").addEventListener("click", () => eSetzen(eN - 1));
+$("e-plus").addEventListener("click", () => eSetzen(eN + 1));
+$("e-start").addEventListener("click", eLos);
+
+/* ---------------------------------------------------------------- Start */
+bZeigen(); vZeigen(); eZeigen();
+window.addEventListener("resize", () => { vZeigen(); eZeigen(); });
+(function ausAdresse() {
+  const q = new URLSearchParams(location.search), a = q.get("ansicht"), n = +q.get("n");
+  if (a) ansicht(a);
+  if (a === "backen" || !a) { if (+q.get("merk")) { bSetzen(+q.get("merk")); bMerk = bN; } if (n) bSetzen(n); }
+  if (a === "verkaufen") { if (n) { vN = grenze(n, 15, 90); } if (q.get("ende")) { vT = PAUSE; vZeigen(); vKontrolle(); } vZeigen(); }
+  if (a === "eisen" && frei) {
+    if (q.get("ende")) { for (let i = 1; i <= (n || 1); i++) { eN = i; versuche.set(i, eDauer()); } eEnde(); }
+    else if (n) eSetzen(n);
+  }
+})();
+</script>
+</body>
+</html>
