@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Montagestation: Der Greifarm fährt nach Zahlen</title>
+<!--
+  Applet zum Arbeitsblatt "Der Greifarm an der Montagestation", 11NF PHT.
+  Seitenansicht des Greifarms (Oberarm 70 mm, Unterarm 60 mm), Ursprung in der Schulter S.
+  Schritt 1: Ortsvektor der Hand aus Oberarm + Unterarm (Addition).
+  Schritt 2: Verschiebung von der Hand zum Teil (Ziel minus Start), die Hand fährt um
+  genau diesen Vektor. Das Applet nennt keine Lösung, es meldet nur Treffer oder Fehlgriff.
+
+  Eine Datei, offline: HTML, CSS und JavaScript zusammen, keine Bibliothek.
+  Stellungen wie auf dem Arbeitsblatt:
+    1: o = (42; 56), u = (60; 0),   T(90 | 16)  -> h = (102; 56), d = (-12; -40)
+    2: o = (42; 56), u = (36; -48), T(90 | 16)  -> h = (78; 8),   d = (12; 8)
+    3: o = (42; 56), u = (48; -36), T(110 | 10) -> h = (90; 20),  d = (20; -10)
+  URL-Parameter für Bildschirmfotos: ?s=<1-3>&hx=&hy=&dx=&dy=&go=1
+-->
+<style>
+  :root { --rot:#B01A15; --stahl:#35638A; --oliv:#71803C; --corten:#B0622B; --grau:#B5B5B5; --text:#222; --hell:#f5f5f2; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; color:var(--text); background:#fff; line-height:1.45; }
+  header { border-bottom:1px solid var(--grau); padding:10px 18px; display:flex; flex-wrap:wrap; gap:6px 24px; font-size:13px; }
+  header .k { color:#777; font-size:10px; letter-spacing:.12em; text-transform:uppercase; display:block; }
+  main { max-width:1180px; margin:0 auto; padding:14px 18px 30px; }
+  h1 { font-size:22px; margin:6px 0 10px; }
+  h1::after { content:""; display:block; width:44px; border-bottom:2px solid var(--text); margin-top:6px; }
+  .zeile { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+  .lbl { font-size:10px; letter-spacing:.12em; color:#777; text-transform:uppercase; margin-right:4px; }
+  button, input { font:inherit; font-size:16px; min-height:44px; }
+  button { padding:8px 14px; border:1px solid var(--stahl); background:#fff; color:var(--stahl); cursor:pointer; }
+  button:hover, button.akt { background:var(--stahl); color:#fff; }
+  button.haupt { border-color:var(--oliv); color:var(--oliv); font-weight:600; }
+  button.haupt:hover { background:var(--oliv); color:#fff; }
+  button:disabled { border-color:var(--grau); color:#999; background:#f3f3f0; cursor:default; }
+  .zwei { display:grid; grid-template-columns:3fr 2fr; gap:18px; align-items:start; margin-top:10px; }
+  .zwei > * { min-width:0; }
+  @media (max-width:820px) { .zwei { grid-template-columns:1fr; } }
+  canvas { display:block; width:100%; aspect-ratio:165/128; border:1px solid var(--grau); background:#fff; touch-action:manipulation; }
+  .box { border:1px solid var(--grau); background:var(--hell); padding:10px 14px; margin:0 0 10px; }
+  .box b.t { display:block; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:#666; margin-bottom:4px; }
+  .geg { display:flex; flex-wrap:wrap; gap:6px 22px; align-items:center; font-size:17px; }
+  math { font-size:19px; }
+  .vek { display:inline-flex; align-items:center; gap:8px; }
+  .kl { display:inline-flex; flex-direction:column; gap:6px; padding:6px 10px; border-left:2px solid var(--text); border-right:2px solid var(--text); border-radius:14px; }
+  .kl label { display:flex; align-items:center; gap:6px; font-size:15px; }
+  .kl input { width:5.2em; padding:4px 8px; border:1px solid var(--grau); text-align:right; }
+  .meldung { min-height:1.5em; font-weight:600; margin-top:6px; }
+  .ok { color:var(--oliv); } .nein { color:var(--rot); }
+  .hinweis { font-size:12px; color:#666; margin-top:6px; }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Kurs</span>11NF PHT · Physiktechnik</div>
+  <div><span class="k">Thema</span>Vektoren addieren und subtrahieren</div>
+</header>
+<main>
+  <h1>Montagestation: Der Greifarm fährt nach Zahlen</h1>
+  <p style="margin:6px 0">Der Arm sieht nichts. Gib ihm die Verschiebung als Vektor, dann fährt die Hand genau um diesen Vektor.</p>
+  <div class="zeile"><span class="lbl">Stellung</span>
+    <button data-s="1">Stellung 1</button><button data-s="2">Stellung 2</button><button data-s="3">Stellung 3</button><button data-s="0">Neue Stellung</button>
+  </div>
+
+  <div class="zwei">
+    <div>
+      <canvas id="c" aria-label="Seitenansicht des Greifarms mit Teil auf der Ablage"></canvas>
+      <div class="hinweis">Seitenansicht, Ursprung in der Schulter S, Angaben in mm. Ein Kästchen entspricht 10 mm. Modell: Oberarm 70 mm, Unterarm 60 mm.</div>
+    </div>
+    <div>
+      <div class="box">
+        <b class="t">Gegeben</b>
+        <div class="geg" id="gegeben"></div>
+      </div>
+      <div class="box">
+        <b class="t">Aufgabe 1: Ort der Hand</b>
+        Berechne den Ortsvektor der Hand.
+        <div class="zeile">
+          <span class="vek"><math><mover><mi>h</mi><mo>→</mo></mover><mo>=</mo></math>
+            <span class="kl">
+              <label><input id="hx" type="text" inputmode="text" aria-label="x-Komponente der Hand"> mm</label>
+              <label><input id="hy" type="text" inputmode="text" aria-label="y-Komponente der Hand"> mm</label>
+            </span></span>
+          <button id="pruefen">Prüfen</button>
+        </div>
+        <div class="meldung" id="m1"></div>
+      </div>
+      <div class="box">
+        <b class="t">Aufgabe 2: Verschiebung zum Teil</b>
+        Berechne die Verschiebung von der Hand zum Teil. Gib sie ein und drücke „Fahren“.
+        <div class="zeile">
+          <span class="vek"><math><mover><mi>d</mi><mo>→</mo></mover><mo>=</mo></math>
+            <span class="kl">
+              <label><input id="dx" type="text" inputmode="text" aria-label="x-Komponente der Verschiebung"> mm</label>
+              <label><input id="dy" type="text" inputmode="text" aria-label="y-Komponente der Verschiebung"> mm</label>
+            </span></span>
+          <button id="fahren" class="haupt">Fahren</button>
+          <button id="zurueck">Zurück zum Start</button>
+        </div>
+        <div class="meldung" id="m2"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var L1 = 70, L2 = 60;
+  var FEST = {
+    1: { o: [42, 56], u: [60, 0], t: [90, 16] },
+    2: { o: [42, 56], u: [36, -48], t: [90, 16] },
+    3: { o: [42, 56], u: [48, -36], t: [110, 10] }
+  };
+  var OS = [[42, 56], [56, 42], [0, 70]];
+  var US = [[60, 0], [36, -48], [48, -36], [48, 36], [0, -60]];
+  var F = { rot: "#B01A15", stahl: "#35638A", oliv: "#71803C", corten: "#B0622B", grau: "#B5B5B5", text: "#222" };
+
+  var z = { nr: 1, o: null, u: null, t: null, start: null, hand: null, wege: [], gegriffen: false, handBekannt: false, laeuft: false };
+
+  var cv = document.getElementById("c"), ctx = cv.getContext("2d");
+  var el = function (id) { return document.getElementById(id); };
+
+  // ---- Rechnen ------------------------------------------------------------
+  function ellbogen(h) {
+    var d2 = h[0] * h[0] + h[1] * h[1];
+    var c2 = (d2 - L1 * L1 - L2 * L2) / (2 * L1 * L2);
+    c2 = Math.max(-1, Math.min(1, c2));
+    var q2 = -Math.acos(c2);
+    var q1 = Math.atan2(h[1], h[0]) - Math.atan2(L2 * Math.sin(q2), L1 + L2 * Math.cos(q2));
+    return [L1 * Math.cos(q1), L1 * Math.sin(q1)];
+  }
+  function erreichbar(p) {
+    var d = Math.hypot(p[0], p[1]);
+    return d <= L1 + L2 + 1e-9 && d >= 14 && p[1] >= -36 && p[0] >= -20;
+  }
+  function zahl(text) {
+    var s = String(text).trim().replace(/−/g, "-").replace(",", ".").replace(/\s*mm$/, "");
+    if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+    return parseFloat(s);
+  }
+  function zufall(n) { return Math.floor(Math.random() * n); }
+  // Arm (S-E-H) darf in der Startstellung weder Teil noch Ablage schneiden.
+  function frei(e, h, t) {
+    var st = [[[0, 0], e], [e, h]];
+    for (var s = 0; s < 2; s++) for (var k = 0; k <= 40; k++) {
+      var x = st[s][0][0] + (st[s][1][0] - st[s][0][0]) * k / 40;
+      var y = st[s][0][1] + (st[s][1][1] - st[s][0][1]) * k / 40;
+      if (Math.abs(x - t[0]) < 14 && y > t[1] - 16 && y < t[1] + 12) return false;
+    }
+    return true;
+  }
+
+  function neueStellung(nr) {
+    var s;
+    if (nr >= 1 && nr <= 3) {
+      s = FEST[nr];
+    } else {
+      for (;;) {
+        var o = OS[zufall(OS.length)], u = US[zufall(US.length)];
+        var h = [o[0] + u[0], o[1] + u[1]];
+        if (o[0] * u[1] - o[1] * u[0] >= 0 || h[1] < 0 || h[0] < 40) continue;
+        var t = [40 + 2 * zufall(41), 2 * zufall(26)];
+        if (!erreichbar(t) || Math.hypot(t[0], t[1]) < 30) continue;
+        if (Math.hypot(t[0] - h[0], t[1] - h[1]) < 16) continue;
+        if (!frei(o, h, t)) continue;
+        s = { o: o, u: u, t: t };
+        break;
+      }
+    }
+    z.nr = nr; z.o = s.o; z.u = s.u; z.t = s.t;
+    z.start = [s.o[0] + s.u[0], s.o[1] + s.u[1]];
+    z.hand = z.start.slice(); z.wege = []; z.gegriffen = false; z.handBekannt = false; z.laeuft = false;
+    ["hx", "hy", "dx", "dy"].forEach(function (id) { el(id).value = ""; });
+    el("m1").textContent = ""; el("m2").textContent = "";
+    var bs = document.querySelectorAll("button[data-s]");
+    for (var i = 0; i < bs.length; i++) bs[i].classList.toggle("akt", +bs[i].dataset.s === nr && nr > 0);
+    gegeben(); zeichne();
+  }
+
+  function mvek(name, v) {
+    return '<math><mover><mi>' + name + '</mi><mo>→</mo></mover><mo>=</mo><mrow><mo>(</mo><mtable>' +
+      '<mtr><mtd><mn>' + fmt(v[0]) + '</mn><mtext>&nbsp;mm</mtext></mtd></mtr>' +
+      '<mtr><mtd><mn>' + fmt(v[1]) + '</mn><mtext>&nbsp;mm</mtext></mtd></mtr></mtable><mo>)</mo></mrow></math>';
+  }
+  function fmt(x) { return String(Math.round(x)).replace("-", "−"); }
+  function punkt(n, p) { return n + "(" + fmt(p[0]) + " mm | " + fmt(p[1]) + " mm)"; }
+  function gegeben() {
+    el("gegeben").innerHTML = '<span>Oberarm ' + mvek("o", z.o) + '</span><span>Unterarm ' + mvek("u", z.u) +
+      '</span><span>Teil ' + punkt("T", z.t) + '</span>';
+  }
+
+  function meldung(id, text, gut) {
+    var m = el(id); m.textContent = text; m.className = "meldung " + (gut ? "ok" : "nein");
+  }
+
+  // ---- Aufgabe 1 ----------------------------------------------------------
+  function pruefen() {
+    var x = zahl(el("hx").value), y = zahl(el("hy").value);
+    if (x === null || y === null) { meldung("m1", "Gib zwei Zahlen ein.", false); return; }
+    if (x === z.start[0] && y === z.start[1]) {
+      z.handBekannt = true; meldung("m1", "Richtig. Dort ist die Hand.", true);
+    } else if (x === z.start[1] && y === z.start[0]) {
+      meldung("m1", "Noch nicht. Oben steht die x-Komponente.", false);
+    } else {
+      meldung("m1", "Noch nicht. Hänge beide Pfeile aneinander.", false);
+    }
+    zeichne();
+  }
+
+  // ---- Aufgabe 2 ----------------------------------------------------------
+  function fahren() {
+    if (z.laeuft) return;
+    var dx = zahl(el("dx").value), dy = zahl(el("dy").value);
+    if (dx === null || dy === null) { meldung("m2", "Gib zwei Zahlen ein.", false); return; }
+    var von = z.hand.slice(), nach = [von[0] + dx, von[1] + dy];
+    if (!erreichbar(nach)) { meldung("m2", "So weit reicht der Arm nicht. Die Hand bleibt stehen.", false); return; }
+    z.laeuft = true; z.gegriffen = false; el("m2").textContent = "";
+    var t0 = null, dauer = 900;
+    function schritt(ts) {
+      if (t0 === null) t0 = ts;
+      var k = Math.min(1, (ts - t0) / dauer);
+      var e = k < 0.5 ? 2 * k * k : 1 - 2 * (1 - k) * (1 - k);
+      z.hand = [von[0] + e * dx, von[1] + e * dy];
+      zeichne([von, z.hand]);
+      if (k < 1) { requestAnimationFrame(schritt); return; }
+      fertig(von, nach);
+    }
+    requestAnimationFrame(schritt);
+  }
+  function fertig(von, nach) {
+    z.hand = nach; z.wege.push([von, nach]); z.laeuft = false;
+    if (nach[0] === z.t[0] && nach[1] === z.t[1]) {
+      z.gegriffen = true; meldung("m2", "Gegriffen.", true);
+    } else {
+      meldung("m2", "Verfehlt. Die Hand steht jetzt bei " + punkt("H", nach) + ".", false);
+    }
+    zeichne();
+  }
+  function zurueck() {
+    if (z.laeuft) return;
+    z.hand = z.start.slice(); z.wege = []; z.gegriffen = false; el("m2").textContent = ""; zeichne();
+  }
+
+  // ---- Zeichnen -----------------------------------------------------------
+  var X0 = -25, X1 = 140, Y0 = -43, Y1 = 85, B, H, m;
+  function px(p) { return [(p[0] - X0) * m, (Y1 - p[1]) * m]; }
+  function groesse() {
+    var r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    B = r.width; H = r.height; m = B / (X1 - X0);
+    cv.width = Math.round(B * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function linie(a, b, farbe, breite, strich) {
+    var p = px(a), q = px(b);
+    ctx.beginPath(); ctx.setLineDash(strich || []); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]);
+    ctx.strokeStyle = farbe; ctx.lineWidth = breite; ctx.stroke(); ctx.setLineDash([]);
+  }
+  function pfeil(a, b, farbe, breite) {
+    var p = px(a), q = px(b), w = Math.atan2(q[1] - p[1], q[0] - p[0]), l = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    if (l < 2) return;
+    var s = Math.min(12, l * 0.6);
+    ctx.strokeStyle = farbe; ctx.fillStyle = farbe; ctx.lineWidth = breite; ctx.lineCap = "butt";
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0] - 0.7 * s * Math.cos(w), q[1] - 0.7 * s * Math.sin(w)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(q[0], q[1]);
+    ctx.lineTo(q[0] - s * Math.cos(w - 0.38), q[1] - s * Math.sin(w - 0.38));
+    ctx.lineTo(q[0] - s * Math.cos(w + 0.38), q[1] - s * Math.sin(w + 0.38));
+    ctx.closePath(); ctx.fill();
+  }
+  function text(t, p, farbe, dx, dy, fett) {
+    var q = px(p);
+    ctx.font = (fett ? "600 " : "") + Math.max(12, Math.min(16, B / 46)) + "px 'Segoe UI',Arial,sans-serif";
+    ctx.fillStyle = farbe; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText(t, q[0] + (dx || 0), q[1] + (dy || 0));
+  }
+  function vekName(ch, p, farbe, dx, dy) {
+    var q = px(p), g = Math.max(14, Math.min(18, B / 40)), x = q[0] + dx, y = q[1] + dy;
+    ctx.font = "italic 600 " + g + "px 'Segoe UI',Arial,sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#fff"; ctx.fillRect(x - g * 0.55, y - g * 0.95, g * 1.1, g * 1.6);
+    ctx.fillStyle = farbe; ctx.fillText(ch, x, y);
+    ctx.strokeStyle = farbe; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(x - g * 0.34, y - g * 0.68); ctx.lineTo(x + g * 0.34, y - g * 0.68);
+    ctx.moveTo(x + g * 0.12, y - g * 0.86); ctx.lineTo(x + g * 0.34, y - g * 0.68); ctx.lineTo(x + g * 0.12, y - g * 0.5); ctx.stroke();
+  }
+  function rechteck(x, y, w, h, fuell, rand) {
+    var p = px([x, y + h]);
+    ctx.fillStyle = fuell; ctx.fillRect(p[0], p[1], w * m, h * m);
+    if (rand) { ctx.strokeStyle = rand; ctx.lineWidth = 1; ctx.strokeRect(p[0], p[1], w * m, h * m); }
+  }
+  function kreis(p, r, fuell, rand) {
+    var q = px(p); ctx.beginPath(); ctx.arc(q[0], q[1], r * m, 0, 2 * Math.PI);
+    ctx.fillStyle = fuell; ctx.fill(); if (rand) { ctx.strokeStyle = rand; ctx.lineWidth = 1.2; ctx.stroke(); }
+  }
+
+  function zeichne(laufend) {
+    groesse();
+    ctx.clearRect(0, 0, B, H);
+    var i, v;
+    // Gitter 10 mm
+    for (v = Math.ceil(X0 / 10) * 10; v <= X1; v += 10) linie([v, Y0], [v, Y1], "#e4e6ea", 1);
+    for (v = Math.ceil(Y0 / 10) * 10; v <= Y1; v += 10) linie([X0, v], [X1, v], "#e4e6ea", 1);
+    // Brett, Sockel
+    rechteck(X0, Y0, X1 - X0, 4, "#c9b48f", null);
+    rechteck(-13, -39, 26, 30, "#d9dbde", "#9a9da3");
+    rechteck(-9, -9, 18, 9, "#c4c7cc", "#9a9da3");
+    // Ablage unter dem Teil
+    var by = z.t[1] - 6 - 4, bx = z.t[0] - 7;
+    rechteck(z.t[0] - 1.5, -39, 3, by + 39, "#8d9096", null);
+    rechteck(bx, by, 14, 4, "#55585e", null);
+    // Achsen
+    pfeil([X0, 0], [X1 - 1, 0], F.stahl, 1.3); pfeil([0, Y0 + 4], [0, Y1 - 1], F.stahl, 1.3);
+    ctx.font = Math.max(10, Math.min(12, B / 60)) + "px 'Segoe UI',Arial,sans-serif"; ctx.fillStyle = F.stahl;
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (v = 20; v <= 120; v += 20) { var q = px([v, 0]); ctx.fillText(v, q[0], q[1] + 3); }
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (v = -20; v <= 80; v += 20) { if (v === 0) continue; var r = px([0, v]); ctx.fillText(String(v).replace("-", "−"), r[0] - 4, r[1]); }
+    text("x", [X1 - 6, 0], F.stahl, 0, -10); text("y", [0, Y1 - 5], F.stahl, 8, 0);
+    // Teil
+    rechteck(z.t[0] - 6, z.t[1] - 6, 12, 12, z.gegriffen ? "#b9c98a" : "#e3b48f", z.gegriffen ? F.oliv : F.corten);
+    kreis(z.t, 0.9, F.text, null);
+    text("T", z.t, F.text, 9 * m / 1.0 * 0 + 10, -12, true);
+    // Arm
+    var e = ellbogen(z.hand), amStart = !laufend && z.wege.length === 0;
+    ctx.lineCap = "round";
+    linie([0, 0], e, "#f0a23a", 9 * m / 3 + 4); linie(e, z.hand, "#f0a23a", 8 * m / 3 + 3);
+    ctx.lineCap = "butt";
+    // Greifer
+    linie([z.hand[0] - 5, z.hand[1] + 7], [z.hand[0] - 5, z.hand[1] - 3], "#666", 2.5);
+    linie([z.hand[0] + 5, z.hand[1] + 7], [z.hand[0] + 5, z.hand[1] - 3], "#666", 2.5);
+    linie([z.hand[0] - 5, z.hand[1] + 7], [z.hand[0] + 5, z.hand[1] + 7], "#666", 2.5);
+    // Pfeile des Arms nur in der Startstellung (dort stimmen die gegebenen Zahlen)
+    if (amStart) {
+      pfeil([0, 0], z.o, F.rot, 2.6); pfeil(z.o, z.start, F.stahl, 2.6);
+      vekName("o", [z.o[0] / 2, z.o[1] / 2], F.rot, -16, -6);
+      vekName("u", [z.o[0] + z.u[0] / 2, z.o[1] + z.u[1] / 2], F.stahl, 14, z.u[1] === 0 ? -16 : 6);
+    }
+    kreis([0, 0], 3.2, "#fff", F.text); kreis(e, 2.6, "#fff", F.text); kreis(z.hand, 2.2, F.text, null);
+    text("S", [0, 0], F.text, -18, 14, true); text("E", e, F.text, -6, -16, true);
+    text(z.handBekannt && amStart ? punkt("H", z.start) : "H", z.hand, F.text, 5 * m + 6, -9 * m, true);
+    // gefahrene Verschiebungen
+    for (i = 0; i < z.wege.length; i++) pfeil(z.wege[i][0], z.wege[i][1], F.oliv, 2.6);
+    if (laufend) pfeil(laufend[0], laufend[1], F.oliv, 2.6);
+    if (z.wege.length) {
+      var w = z.wege[z.wege.length - 1];
+      vekName("d", [(w[0][0] + w[1][0]) / 2, (w[0][1] + w[1][1]) / 2], F.oliv, 16, 0);
+    }
+  }
+
+  // ---- Ereignisse ---------------------------------------------------------
+  var bs = document.querySelectorAll("button[data-s]");
+  for (var i = 0; i < bs.length; i++) bs[i].addEventListener("click", function () { neueStellung(+this.dataset.s); });
+  el("pruefen").addEventListener("click", pruefen);
+  el("fahren").addEventListener("click", fahren);
+  el("zurueck").addEventListener("click", zurueck);
+  ["hx", "hy"].forEach(function (id) { el(id).addEventListener("keydown", function (ev) { if (ev.key === "Enter") pruefen(); }); });
+  ["dx", "dy"].forEach(function (id) { el(id).addEventListener("keydown", function (ev) { if (ev.key === "Enter") fahren(); }); });
+  window.addEventListener("resize", function () { zeichne(); });
+
+  var par = new URLSearchParams(location.search);
+  neueStellung(par.has("s") ? +par.get("s") : 1);
+  ["hx", "hy", "dx", "dy"].forEach(function (id) { if (par.has(id)) el(id).value = par.get(id); });
+  if (par.has("hx")) pruefen();
+  if (par.get("go") === "1") {
+    var dx = zahl(el("dx").value), dy = zahl(el("dy").value);
+    if (dx !== null && dy !== null && erreichbar([z.hand[0] + dx, z.hand[1] + dy])) fertig(z.hand.slice(), [z.hand[0] + dx, z.hand[1] + dy]);
+  }
+})();
+</script>
+</body>
+</html>
