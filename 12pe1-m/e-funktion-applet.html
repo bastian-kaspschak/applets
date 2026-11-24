@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wie schnell wächst die e-Funktion?</title>
+<!--
+  Applet "Wie schnell wächst die e-Funktion?", 12PE1 M, 25.11. (Arbeitsblatt
+  "Wie schnell wächst das Video?").
+  Ansicht 1 (Aufgabe 2 und 3): Graph von f(t) = e^t mit Tangente und Steigungsdreieck
+  der Breite 1. Abgelesen werden Bestand f(t) und Wachstumsgeschwindigkeit f'(t).
+  t = 4 ist gesperrt, bis "Vorhersage prüfen" angetippt wird (Aufgabe 3).
+  Ansicht 2 (Zusatz 5): f(x) = b^x mit Regler für die Basis; gesucht ist die Basis,
+  bei der Steigung und Wert gleich sind (b ≈ 2,72 = e).
+  Adresszusatz zum Prüfen: ?ansicht=b&b=2.72&t=3&frei=1
+  Eine Datei, kein Internet nötig, keine Bibliothek, keine Web-Fonts.
+-->
+<style>
+  :root { --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A;
+          --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.4; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 1100px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 12px; }
+  .m { font-family: "Cambria", "Georgia", "Times New Roman", serif; font-size: 1.05em; }
+  .m i { font-style: italic; }
+  .ansichten { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+  button { font: inherit; font-size: 15px; padding: 8px 14px; border: 1px solid var(--stahl); min-height: 44px;
+           background: #fff; color: var(--stahl); cursor: pointer; border-radius: 0; }
+  button:hover, button.akt { background: var(--stahl); color: #fff; }
+  button:disabled { border-color: var(--grau); color: #888; background: var(--hell); cursor: default; }
+  .zwei { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; align-items: start; }
+  .zwei > * { min-width: 0; }
+  canvas { display: block; width: 100%; height: 430px; border: 1px solid var(--grau); background: #fff; touch-action: none; }
+  .term { font-size: 22px; text-align: center; margin: 2px 0 8px; }
+  .term .b { color: var(--corten); }
+  .box { border: 1px solid var(--grau); background: var(--hell); padding: 8px 14px; }
+  .r { display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: "n z e" "s s s";
+       gap: 0 8px; align-items: center; font-size: 15px; margin: 4px 0 6px; }
+  .r .n { grid-area: n; font-weight: 600; }
+  .r input[type=range] { grid-area: s; -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; margin: 0;
+                         height: 44px; background: transparent; cursor: pointer; }
+  .r input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -11px;
+                         border-radius: 50%; background: var(--farbe, var(--stahl)); border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--farbe, var(--stahl));
+                         border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=number] { grid-area: z; font: inherit; font-size: 16px; padding: 7px 6px; border: 1px solid var(--grau);
+                          width: 5.5em; min-width: 0; font-variant-numeric: tabular-nums; }
+  .r .z { grid-area: z; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .r .e { grid-area: e; color: #666; font-size: 13px; white-space: nowrap; }
+  .ablesen { margin-top: 10px; border: 1px solid var(--grau); }
+  .ablesen div { padding: 8px 12px; font-size: 16px; border-left: 5px solid var(--stahl); }
+  .ablesen div + div { border-top: 1px solid var(--grau); }
+  .ablesen .st { border-left-color: var(--rot); }
+  .ablesen .vh { border-left-color: var(--corten); }
+  .ablesen .k { display: block; color: #666; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+  .ablesen b { font-variant-numeric: tabular-nums; font-size: 18px; }
+  .ablesen .w b { color: var(--stahl); } .ablesen .st b { color: var(--rot); } .ablesen .vh b { color: var(--corten); }
+  .sperre { margin-top: 10px; font-size: 14px; }
+  .sperre button { width: 100%; margin-bottom: 4px; }
+  [hidden] { display: none !important; }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+  @media (max-width: 860px) { .zwei { grid-template-columns: 1fr; } canvas { height: 340px; } }
+  @media (max-width: 480px) { main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; } canvas { height: 290px; } .term { font-size: 19px; } }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Mathematik (Kaspschak)</div>
+  <div><span class="k">Kurs</span>12PE1 M</div>
+  <div><span class="k">Reihe</span>Wachstumsprozesse</div>
+  <div><span class="k">Thema</span>Die Ableitung der e-Funktion</div>
+</header>
+<main>
+  <h1>Wie schnell wächst die e-Funktion?</h1>
+  <div class="ansichten" id="ansichten">
+    <button data-a="e">Video: <span class="m"><i>f</i>(<i>t</i>) = <i>e</i><sup><i>t</i></sup></span> (Aufgabe 2 und 3)</button>
+    <button data-a="b">Andere Basis: <span class="m"><i>f</i>(<i>x</i>) = <i>b</i><sup><i>x</i></sup></span> (Zusatz 5)</button>
+  </div>
+  <p class="lead" id="lead"></p>
+  <div class="zwei">
+    <div>
+      <div class="term m" id="term"></div>
+      <canvas id="graf" aria-label="Graph mit Tangente und Steigungsdreieck"></canvas>
+    </div>
+    <div>
+      <div class="box">
+        <div class="r" id="zeileB" style="--farbe: var(--corten)">
+          <label class="n" for="rb">Basis <span class="m"><i>b</i></span></label>
+          <input type="range" id="rb" min="1.5" max="4" step="0.01">
+          <input type="number" id="zb" min="1.5" max="4" step="0.01" inputmode="decimal" aria-label="Basis">
+          <span class="e"></span>
+        </div>
+        <div class="r" style="--farbe: var(--rot)">
+          <label class="n" for="rt" id="nt"></label>
+          <input type="range" id="rt" min="0" max="3" step="0.5">
+          <span class="z" id="zt"></span>
+          <span class="e" id="et"></span>
+        </div>
+      </div>
+      <div class="ablesen">
+        <div class="w"><span class="k" id="kw"></span><span id="aw"></span></div>
+        <div class="st"><span class="k" id="ks"></span><span id="as"></span></div>
+        <div class="vh" id="zeileV"><span class="k">Steigung geteilt durch Wert</span><span id="av"></span></div>
+      </div>
+      <div class="sperre" id="sperre">
+        <button id="frei">Vorhersage prüfen: <span class="m"><i>t</i></span> = 4 freigeben</button>
+        <span id="sperrtext">Schreibe zuerst deine Vorhersage aus Aufgabe 3 a) auf.</span>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>Kaspschak · applets · 12pe1-m · e-funktion-applet</footer>
+<script>
+"use strict";
+const XMAX = 5;
+const STUFEN = [3, 6, 12, 20, 30, 50, 80, 125, 200, 300, 500];
+const SCHRITT = { 3: 1, 6: 1, 12: 2, 20: 5, 30: 5, 50: 10, 80: 10, 125: 25, 200: 50, 300: 50, 500: 100 };
+let st = { a: "e", t: 0, b: 2, frei: false };
+const $ = id => document.getElementById(id);
+const de = (v, d) => v.toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+const basis = () => st.a === "e" ? Math.E : st.b;
+const f = x => Math.pow(basis(), x);
+const fs = x => Math.log(basis()) * f(x);          // Steigung der Tangente
+const tmax = () => st.a === "e" ? (st.frei ? 4 : 3) : 3;
+const stellen = () => st.a === "e" ? 1 : 2;
+
+function setze(teil) {
+  Object.assign(st, teil);
+  st.b = Math.min(4, Math.max(1.5, Math.round(st.b * 100) / 100));
+  st.t = Math.min(tmax(), Math.max(0, Math.round(st.t * 2) / 2));
+  $("rt").max = tmax(); $("rt").value = st.t;
+  $("rb").value = st.b; $("zb").value = st.b;
+  document.querySelectorAll("#ansichten button").forEach(k => k.classList.toggle("akt", k.dataset.a === st.a));
+  anzeigen(); zeichnen();
+}
+
+function anzeigen() {
+  const E = st.a === "e", d = stellen(), t = st.t, ts = de(t, t % 1 ? 1 : 0);
+  $("zeileB").hidden = E; $("zeileV").hidden = E; $("sperre").hidden = !E;
+  $("frei").disabled = st.frei;
+  $("sperrtext").textContent = st.frei ? "t = 4 ist freigegeben. Vergleiche mit deiner Vorhersage."
+                                       : "Schreibe zuerst deine Vorhersage aus Aufgabe 3 a) auf.";
+  $("lead").innerHTML = E
+    ? "Ein Video hat nach <span class=\"m\"><i>t</i></span> Tagen <span class=\"m\"><i>f</i>(<i>t</i>) = <i>e</i><sup><i>t</i></sup></span> Tausend Aufrufe. Stelle die Zeit <span class=\"m\"><i>t</i></span> ein. Lies den Bestand und die Wachstumsgeschwindigkeit ab und trage beide in die Tabelle von Aufgabe 2 ein."
+    : "Stelle die Basis <span class=\"m\"><i>b</i></span> so ein, dass Steigung und Wert gleich sind. Prüfe deine Basis an mehreren Stellen <span class=\"m\"><i>x</i></span>.";
+  $("term").innerHTML = E ? "<i>f</i>(<i>t</i>) = <i>e</i><sup><i>t</i></sup>"
+                          : "<i>f</i>(<i>x</i>) = <span class=\"b\">" + de(st.b, 2) + "</span><sup><i>x</i></sup>";
+  $("nt").innerHTML = E ? "Zeit <span class=\"m\"><i>t</i></span>" : "Stelle <span class=\"m\"><i>x</i></span>";
+  $("zt").textContent = ts; $("et").textContent = E ? "Tage" : "";
+  $("kw").textContent = E ? "Bestand" : "Wert";
+  $("ks").textContent = E ? "Wachstumsgeschwindigkeit (Steigung der Tangente)" : "Steigung der Tangente";
+  $("aw").innerHTML = "<span class=\"m\"><i>f</i>(" + ts + ")</span> ≈ <b>" + de(f(t), d) + "</b>" + (E ? " Tausend Aufrufe" : "");
+  $("as").innerHTML = "<span class=\"m\"><i>f</i>′(" + ts + ")</span> ≈ <b>" + de(fs(t), d) + "</b>" + (E ? " Tausend Aufrufe pro Tag" : "");
+  $("av").innerHTML = "<b>" + de(fs(t) / f(t), 2) + "</b>";
+}
+
+function hoehe() {
+  const m = 1.1 * (f(st.t) + fs(st.t));
+  for (const s of STUFEN) if (s >= m) return s;
+  return STUFEN[STUFEN.length - 1];
+}
+
+function schild(ctx, text, x, y, farbe, aus) {
+  ctx.font = "bold 14px Segoe UI, Roboto, Arial, sans-serif"; ctx.textAlign = aus;
+  ctx.lineWidth = 4; ctx.strokeStyle = "#fff"; ctx.strokeText(text, x, y);
+  ctx.fillStyle = farbe; ctx.fillText(text, x, y);
+}
+
+function zeichnen() {
+  const cv = $("graf"), ctx = cv.getContext("2d");
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  const E = st.a === "e", YM = hoehe(), L = 62, R = 16, T = 14, B = 40, d = stellen();
+  const X = x => L + x / XMAX * (w - L - R), Y = v => h - B - v / YM * (h - B - T);
+  const klein = "12px Segoe UI, Roboto, Arial, sans-serif";
+  ctx.font = klein;
+  for (let x = 0; x <= XMAX; x++) {
+    ctx.strokeStyle = "#e6e6e6"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X(x), Y(0)); ctx.lineTo(X(x), Y(YM)); ctx.stroke();
+    ctx.fillStyle = "#555"; ctx.textAlign = "center"; ctx.fillText(x, X(x), Y(0) + 16);
+  }
+  for (let v = 0; v <= YM + 1e-9; v += SCHRITT[YM]) {
+    ctx.strokeStyle = "#e6e6e6"; ctx.beginPath(); ctx.moveTo(X(0), Y(v)); ctx.lineTo(X(XMAX), Y(v)); ctx.stroke();
+    ctx.fillStyle = "#555"; ctx.textAlign = "right"; ctx.fillText(de(v, 0), X(0) - 6, Y(v) + 4);
+  }
+  ctx.strokeStyle = "#26261E"; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(X(0), Y(YM)); ctx.lineTo(X(0), Y(0)); ctx.lineTo(X(XMAX), Y(0)); ctx.stroke();
+  ctx.fillStyle = "#333"; ctx.textAlign = "right"; ctx.fillText(E ? "t in Tagen" : "x", X(XMAX), Y(0) + 32);
+  ctx.save(); ctx.translate(13, (Y(0) + Y(YM)) / 2); ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center"; ctx.fillText(E ? "f(t) in Tausend Aufrufen" : "f(x)", 0, 0); ctx.restore();
+
+  const t = st.t, v = f(t), m = fs(t);
+  ctx.save(); ctx.beginPath(); ctx.rect(X(0), Y(YM), X(XMAX) - X(0), Y(0) - Y(YM)); ctx.clip();
+  // Graph
+  ctx.strokeStyle = "#35638A"; ctx.lineWidth = 2.6; ctx.beginPath();
+  for (let i = 0; i <= 500; i++) { const x = i / 500 * XMAX, y = f(x); if (i === 0) ctx.moveTo(X(x), Y(y)); else ctx.lineTo(X(x), Y(y)); }
+  ctx.stroke();
+  // Tangente
+  ctx.strokeStyle = "#B01A15"; ctx.lineWidth = 1.6; ctx.beginPath();
+  ctx.moveTo(X(t - 1.5), Y(v - 1.5 * m)); ctx.lineTo(X(t + 1.8), Y(v + 1.8 * m)); ctx.stroke();
+  ctx.restore();
+  // Wert als Strecke vom Punkt zur Achse
+  ctx.strokeStyle = "#35638A"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(X(t), Y(0)); ctx.lineTo(X(t), Y(v)); ctx.stroke();
+  // Steigungsdreieck der Breite 1
+  ctx.strokeStyle = "#555"; ctx.lineWidth = 1.6; ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.moveTo(X(t), Y(v)); ctx.lineTo(X(t + 1), Y(v)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = "#B01A15"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(X(t + 1), Y(v)); ctx.lineTo(X(t + 1), Y(v + m)); ctx.stroke();
+  // Punkt
+  ctx.fillStyle = "#26261E"; ctx.beginPath(); ctx.arc(X(t), Y(v), 6, 0, 2 * Math.PI); ctx.fill();
+  ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+  // Beschriftungen
+  const links = X(t) - X(0) > 70;
+  schild(ctx, de(v, d), links ? X(t) - 8 : X(t) + 8, (Y(0) + Y(v)) / 2 + 5, "#35638A", links ? "right" : "left");
+  schild(ctx, de(m, d), X(t + 1) + 8, (Y(v) + Y(v + m)) / 2 + 5, "#B01A15", "left");
+  schild(ctx, E ? "1 Tag" : "1", (X(t) + X(t + 1)) / 2, Y(v) + 18, "#555", "center");
+}
+
+document.querySelectorAll("#ansichten button").forEach(k => k.addEventListener("click", () => setze({ a: k.dataset.a })));
+const lesen = el => parseFloat(String(el.value).replace(",", "."));
+$("rt").addEventListener("input", () => setze({ t: lesen($("rt")) }));
+$("rb").addEventListener("input", () => setze({ b: lesen($("rb")) }));
+$("zb").addEventListener("change", () => { const v = lesen($("zb")); if (isFinite(v)) setze({ b: v }); });
+$("frei").addEventListener("click", () => setze({ frei: true, t: 4 }));
+const cvs = $("graf");
+function ziehen(e) {
+  const r = cvs.getBoundingClientRect(), L = 62, R = 16;
+  setze({ t: (e.clientX - r.left - L) / (r.width - L - R) * XMAX });
+}
+cvs.addEventListener("pointerdown", e => { cvs.setPointerCapture(e.pointerId); ziehen(e); });
+cvs.addEventListener("pointermove", e => { if (e.buttons) ziehen(e); });
+window.addEventListener("resize", zeichnen);
+
+const q = new URLSearchParams(location.search), start = {};
+if (q.get("ansicht") === "b") start.a = "b";
+if (q.get("frei") === "1") start.frei = true;
+if (q.has("b")) start.b = parseFloat(q.get("b"));
+if (q.has("t")) start.t = parseFloat(q.get("t"));
+setze(start);
+</script>
+</body>
+</html>
