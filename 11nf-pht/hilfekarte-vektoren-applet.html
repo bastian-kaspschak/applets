@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hilfekarte: Vektoren addieren und subtrahieren</title>
+<!--
+  Digitale Hilfekarte zum Arbeitsblatt "Übung: Vektoren addieren und subtrahieren",
+  11NF PHT. Je Aufgabe drei Hilfen, die der Reihe nach geoeffnet werden; gezeichnet
+  und gerechnet wird auf dem Blatt. Das Gitter zeigt die Lage der Aufgabe und mit
+  den Hilfen einzelne Zeichenschritte, aber nie den Ergebnispfeil. Pruefung eigener
+  Werte nur mit richtig/falsch und Hinweis.
+  "Ausprobieren": zwei Pfeile mit ziehbaren Spitzen, Summe oder Differenz.
+
+  Eine Datei, kein Internet noetig: HTML, CSS und JavaScript zusammen, keine
+  Bibliothek, keine Web-Fonts.
+
+  Zahlen des Blatts: 1: a = (4; 2), b = (2; -3), a + b = (6; -1).
+  2: c = (5; 1), d = (2; 4), d - c = (-3; 3). 3: s1 = (40; 10) m, s2 = (-10; 30) m,
+  r = (30; 40) m, L(50 | 10), d = (20; -30) m. 4: vM = (1; 4), vS = (2; 0),
+  v = (3; 4) m/s. 5: v1 = (5; 1), v2 = (3; 4), Δv = (-2; 3) m/s, links und oben.
+  6: 5 m/s; 4,12 m/s; 2 m/s; Summe der Betraege groesser.
+
+  Der erste Skriptblock (id "kern") ist DOM-frei und wird von einem Node-Test
+  geladen. URL-Parameter fuer Screenshots: ?a=<aufgabe oder frei>&h=<hilfen>.
+-->
+<style>
+  :root {
+    --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A;
+    --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; --achse: #26261E;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.45; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 1120px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 14px; font-size: 16px; }
+
+  /* Vektorname mit Pfeil darueber */
+  .v { position: relative; display: inline-block; font-style: italic; line-height: 1;
+       font-family: "Cambria", "Georgia", "Times New Roman", serif; font-size: 1.08em; padding: 0 1px; }
+  .v::before { content: "\2192"; position: absolute; left: 0; right: 0; top: -0.62em; text-align: center;
+               font-size: 0.72em; font-style: normal; line-height: 1; }
+  sub { font-size: 0.72em; }
+
+  .aufgaben { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
+  .aufgaben .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; margin-right: 6px; }
+  .aufgaben button { min-width: 48px; min-height: 44px; font-size: 18px; font-weight: 600; }
+  .aufgaben button.frei { font-size: 15px; margin-left: 10px; }
+  button { font: inherit; font-size: 15px; padding: 8px 14px; border: 1px solid var(--stahl);
+           background: #fff; color: var(--stahl); cursor: pointer; border-radius: 0; min-height: 44px; }
+  button:hover { background: var(--stahl); color: #fff; }
+  button.akt { background: var(--stahl); color: #fff; }
+  button:disabled { border-color: var(--grau); color: #999; background: #f3f3f0; cursor: default; }
+
+  .zwei { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; align-items: start; }
+  .zwei > * { min-width: 0; }
+  canvas { display: block; width: 100%; height: 360px; border: 1px solid var(--grau); background: #fff; touch-action: none; }
+  .legende { font-size: 13px; color: #555; margin-top: 6px; }
+
+  .frei-leiste { display: none; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 10px 0 2px; font-size: 15px; }
+  .frei-leiste.an { display: flex; }
+  .frei-leiste label { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
+  .frei-leiste input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--stahl); }
+  .werte { display: none; flex-wrap: wrap; gap: 6px 26px; align-items: center; margin-top: 8px; font-size: 17px; }
+  .werte.an { display: flex; }
+  .werte .erg { color: var(--oliv); font-weight: 600; }
+
+  .box { border: 1px solid var(--grau); padding: 10px 14px; background: #fff; margin-bottom: 12px; }
+  .box .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; }
+  .box h2 { font-size: 17px; margin: 2px 0 8px; }
+  .hilfe { border-left: 4px solid var(--stahl); background: #f7f9fb; padding: 10px 12px 8px; margin: 8px 0; font-size: 16px; line-height: 1.6; }
+  .hilfe .t { display: block; font-size: 10px; letter-spacing: .12em; color: var(--stahl); text-transform: uppercase; margin-bottom: 3px; line-height: 1.3; }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .pruef .z { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 12px 0; font-size: 17px; }
+  .pruef input[type=text] { font: inherit; font-size: 16px; padding: 6px 6px; min-height: 40px; text-align: center;
+        border: 1px solid var(--grau); width: 4.6em; font-variant-numeric: tabular-nums; }
+  .pruef select { font: inherit; font-size: 16px; padding: 8px 6px; min-height: 44px; border: 1px solid var(--grau); background: #fff; }
+  .klammer { display: inline-flex; flex-direction: column; gap: 4px; padding: 3px 7px;
+             border-left: 2px solid var(--achse); border-right: 2px solid var(--achse); border-radius: 12px; }
+  .einheit { color: #555; font-size: 15px; }
+  .fb { margin-top: 8px; font-size: 16px; font-weight: 600; min-height: 1.4em; line-height: 1.6; }
+  .fb.ok { color: var(--oliv); }
+  .fb.nein { color: var(--rot); }
+  .fb .norm { font-weight: 400; color: #444; display: block; margin-top: 4px; }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+
+  @media (max-width: 820px) { .zwei { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) {
+    main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; }
+    .aufgaben button { min-width: 44px; padding: 8px 10px; }
+    .aufgaben button.frei { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Physiktechnik</div>
+  <div><span class="k">Kurs</span>11NF PHT</div>
+  <div><span class="k">Reihe</span>Vektoren</div>
+  <div><span class="k">Thema</span>Vektoren addieren und subtrahieren</div>
+</header>
+<main>
+  <h1>Hilfekarte zu den Vektoren</h1>
+  <p class="lead">Wähle die Aufgabe, bei der du Hilfe brauchst. Öffne die Hilfen der Reihe nach und nur so viele,
+    wie du brauchst. Zeichne und rechne auf dem Arbeitsblatt. Prüfe danach deine Werte.</p>
+
+  <div class="aufgaben" id="wahl">
+    <span class="lbl">Aufgabe</span>
+    <button data-nr="1">1</button><button data-nr="2">2</button><button data-nr="3">3</button>
+    <button data-nr="4">4</button><button data-nr="5">5</button><button data-nr="6">6</button>
+    <button data-nr="frei" class="frei">Ausprobieren</button>
+  </div>
+
+  <div class="zwei">
+    <div>
+      <canvas id="gitter" aria-label="Gitter mit Vektorpfeilen"></canvas>
+      <div class="legende" id="legende"></div>
+      <div class="frei-leiste" id="frei_leiste">
+        <button id="m_plus" class="akt">Summe</button>
+        <button id="m_minus">Differenz</button>
+        <label><input type="checkbox" id="zeige"> Ergebnis zeigen</label>
+      </div>
+      <div class="werte" id="werte"></div>
+    </div>
+
+    <div>
+      <div class="box">
+        <div class="lbl" id="kopf">Aufgabe 1</div>
+        <h2 id="titel"></h2>
+        <div id="hilfen"></div>
+        <div class="btns" id="hilfe_btns"><button id="mehr" class="akt">Hilfe 1 öffnen</button></div>
+      </div>
+      <div class="box pruef" id="pruef">
+        <div class="lbl">Prüfe deine Werte</div>
+        <div id="pruef_inhalt"></div>
+        <div class="btns"><button id="pruefen">Prüfen</button></div>
+        <div class="fb" id="fb"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>Physiktechnik 11NF PHT · hilfekarte-vektoren-applet.html</footer>
+
+<script id="kern">
+// ---------------------------------------------------------------------------
+//  Kern: Aufgaben, Szenen, Hilfetexte, Pruefung. Kein Zugriff auf das Dokument.
+// ---------------------------------------------------------------------------
+var Kern = (function () {
+  'use strict';
+
+  function V(n, sub) { return '<span class="v">' + n + '</span>' + (sub ? '<sub>' + sub + '</sub>' : ''); }
+
+  function zahl(txt) {
+    if (txt == null) return NaN;
+    var z = String(txt).trim().replace(/\s/g, '').replace(/[−–]/g, '-').replace(',', '.');
+    if (z === '' || !/^[-+]?\d*\.?\d+$/.test(z)) return NaN;
+    return parseFloat(z);
+  }
+  function nah(a, b, tol) { return Math.abs(a - b) <= tol; }
+
+  // Szene: Gitter w x h Kaestchen. pfeile: von, vek, farbe, name, sub, ab (ab wie vielen
+  // offenen Hilfen sichtbar), strich (gestrichelt), seite (+1/-1: Seite der Beschriftung).
+  var AUFGABEN = {
+    1: {
+      titel: 'Ablesen, addieren, anhängen',
+      szene: { w: 11, h: 6, kreuz: [0.4, 0.4], text: '1 Kästchen entspricht der Länge 1.',
+        pfeile: [
+          { von: [1, 3], vek: [4, 2], farbe: 'rot', name: 'a', ab: 0, seite: 1 },
+          { von: [8, 5], vek: [2, -3], farbe: 'stahl', name: 'b', ab: 0, seite: 1 },
+          { von: [5, 5], vek: [2, -3], farbe: 'stahl', name: 'b', ab: 3, strich: true, seite: 1 }
+        ], punkte: [] },
+      hilfen: [
+        'Starte am Anfang des Pfeils. Zähle erst die Kästchen nach rechts oder links (x), dann nach oben oder unten (y). Nach links und nach unten zählst du negativ.',
+        'Addiere die Komponenten einzeln: x zu x und y zu y. Achte auf das Vorzeichen der y-Komponente von ' + V('b') + '.',
+        'Im Gitter hängt ' + V('b') + ' jetzt gestrichelt an der Spitze von ' + V('a') + '. Die Summe reicht vom Anfang von ' + V('a') + ' bis zur Spitze des gestrichelten Pfeils. Zeichne sie auf dem Blatt und zähle ihre Kästchen.'
+      ],
+      pruef: [
+        { id: 'p1a', art: 'vek', vor: 'a) ' + V('a') + ' =', soll: [4, 2], tipp: 'Zähle vom Anfang des Pfeils: nach rechts, dann nach oben.' },
+        { id: 'p1b', art: 'vek', vor: V('b') + ' =', soll: [2, -3], tipp: 'Zähle vom Anfang des Pfeils: nach rechts, dann nach unten.',
+          fallen: [{ w: [2, 3], t: 'Der Pfeil zeigt nach unten. Dann ist die y-Komponente negativ.' },
+                   { w: [-3, 2], t: 'Oben steht die x-Komponente, unten die y-Komponente.' }] },
+        { id: 'p1s', art: 'vek', vor: 'b) ' + V('a') + ' + ' + V('b') + ' =', soll: [6, -1], tipp: 'Addiere x zu x und y zu y.',
+          fallen: [{ w: [6, 5], t: 'Bei y hast du mit +3 gerechnet. Die y-Komponente von b ist negativ.' }] }
+      ]
+    },
+    2: {
+      titel: 'Zeichnen und subtrahieren',
+      szene: { w: 8, h: 6, kreuz: [6.2, 4.4], text: '1 Kästchen entspricht der Länge 1.',
+        pfeile: [
+          { von: [1, 1], vek: [5, 1], farbe: 'rot', name: 'c', ab: 1, seite: -1 },
+          { von: [1, 1], vek: [2, 4], farbe: 'stahl', name: 'd', ab: 1, seite: 1 }
+        ],
+        punkte: [{ p: [1, 1], name: 'P', ab: 0 }, { p: [6, 2], name: 'Start', ab: 3, ring: true }, { p: [3, 5], name: 'Ziel', ab: 3, ring: true }] },
+      hilfen: [
+        'In der Klammer steht oben die x-Komponente und unten die y-Komponente. Für ' + V('c') + ' gehst du von P aus 5 Kästchen nach rechts und 1 nach oben. Im Gitter siehst du jetzt beide Pfeile.',
+        'Subtrahiere die Komponenten einzeln: oben minus oben, unten minus unten. Die Reihenfolge zählt: Schreibe erst ' + V('d') + ' hin und ziehe dann ' + V('c') + ' ab.',
+        'Der Pfeil ' + V('d') + ' − ' + V('c') + ' beginnt an der Spitze von ' + V('c') + ' und endet an der Spitze von ' + V('d') + '. Probe: Wer erst ' + V('c') + ' und dann ' + V('d') + ' − ' + V('c') + ' geht, kommt an der Spitze von ' + V('d') + ' an.'
+      ],
+      pruef: [
+        { id: 'p2', art: 'vek', vor: 'b) ' + V('d') + ' − ' + V('c') + ' =', soll: [-3, 3], tipp: 'Rechne oben 2 − 5 und unten 4 − 1.',
+          fallen: [{ w: [3, -3], t: 'Du hast c − d gerechnet. Gefragt ist d − c.' },
+                   { w: [7, 5], t: 'Du hast addiert. Gefragt ist die Differenz.' },
+                   { w: [3, 3], t: 'Prüfe das Vorzeichen bei 2 − 5.' }] }
+      ]
+    },
+    3: {
+      titel: 'Der Lieferroboter',
+      szene: { w: 7, h: 6, achsen: true, faktor: 10, einheit: 'm', rand: 1, text: '1 Kästchen entspricht 10 m. Der Eingang ist der Ursprung.',
+        pfeile: [
+          { von: [0, 0], vek: [4, 1], farbe: 'rot', name: 's', sub: '1', ab: 1, seite: -1 },
+          { von: [4, 1], vek: [-1, 3], farbe: 'stahl', name: 's', sub: '2', ab: 1, seite: -1 }
+        ],
+        punkte: [{ p: [5, 1], name: 'L', ab: 2 }] },
+      hilfen: [
+        'Der Roboter fährt erst ' + V('s', '1') + ', dann ' + V('s', '2') + '. Im Gitter hängen die Pfeile aneinander. Hintereinander fahren heißt: Vektoren addieren.',
+        'Zu b): Eine Verschiebung berechnest du mit „Ziel minus Start“. Das Ziel ist die Ladestation L. Der Start ist der Ort des Roboters aus a).',
+        'Beispiel mit anderen Zahlen: von A(20 m | 50 m) nach B(60 m | 10 m). Oben: 60 m − 20 m = 40 m. Unten: 10 m − 50 m = −40 m.'
+      ],
+      pruef: [
+        { id: 'p3a', art: 'vek', vor: 'a) ' + V('r') + ' =', nach: 'm', soll: [30, 40], tipp: 'Addiere x zu x und y zu y.',
+          fallen: [{ w: [50, 40], t: 'Die x-Komponente von s₂ ist negativ: 40 + (−10).' }] },
+        { id: 'p3b', art: 'vek', vor: 'b) ' + V('d') + ' =', nach: 'm', soll: [20, -30], tipp: 'Ziel minus Start: Ortsvektor von L minus Ortsvektor des Roboters.',
+          fallen: [{ w: [-20, 30], t: 'Du hast Start minus Ziel gerechnet. Die Verschiebung ist Ziel minus Start.' },
+                   { w: [50, 10], t: 'Das ist der Ortsvektor der Ladestation. Gesucht ist die Verschiebung vom Roboter dorthin.' },
+                   { w: [80, 50], t: 'Du hast addiert. Eine Verschiebung zwischen zwei Orten ist eine Differenz.' },
+                   { w: [20, 30], t: 'Prüfe das Vorzeichen bei 10 − 40.' }] }
+      ]
+    },
+    4: {
+      titel: 'Das Boot im Fluss',
+      szene: { w: 7, h: 5, kreuz: [5.4, 0.5], fluss: true, text: '1 Kästchen entspricht 1 m/s.',
+        pfeile: [
+          { von: [1, 0], vek: [1, 4], farbe: 'rot', name: 'v', sub: 'M', ab: 1, seite: 1 },
+          { von: [2, 4], vek: [2, 0], farbe: 'stahl', name: 'v', sub: 'S', ab: 2, seite: -1 }
+        ],
+        punkte: [{ p: [1, 0], name: 'B', ab: 0 }] },
+      hilfen: [
+        'Zeichne ' + V('v', 'M') + ' von B aus: 1 Kästchen nach rechts und 4 nach oben. Im Gitter siehst du den Pfeil.',
+        'Hänge ' + V('v', 'S') + ' an die Spitze von ' + V('v', 'M') + ': 2 Kästchen nach rechts, 0 nach oben. Die Gesamtgeschwindigkeit reicht von B bis zur Spitze von ' + V('v', 'S') + '.',
+        'Rechne wie in Aufgabe 1: x zu x und y zu y. Für den Satz in c): Die x-Komponente gibt an, wie viele Meter das Boot in jeder Sekunde flussabwärts kommt. Die y-Komponente gibt an, wie viele Meter es dem anderen Ufer näher kommt.'
+      ],
+      pruef: [
+        { id: 'p4', art: 'vek', vor: 'b) ' + V('v') + ' =', nach: 'm/s', soll: [3, 4], tipp: 'Addiere x zu x und y zu y.',
+          fallen: [{ w: [4, 3], t: 'Oben steht die x-Komponente, unten die y-Komponente.' }] }
+      ]
+    },
+    5: {
+      titel: 'Die Drohne ändert ihre Geschwindigkeit',
+      szene: { w: 7, h: 6, kreuz: [5.4, 4.3], text: '1 Kästchen entspricht 1 m/s.',
+        pfeile: [
+          { von: [1, 1], vek: [5, 1], farbe: 'rot', name: 'v', sub: '1', ab: 0, seite: -1 },
+          { von: [1, 1], vek: [3, 4], farbe: 'stahl', name: 'v', sub: '2', ab: 0, seite: 1 }
+        ],
+        punkte: [{ p: [6, 2], name: 'Start', ab: 3, ring: true }, { p: [4, 5], name: 'Ziel', ab: 3, ring: true }] },
+      hilfen: [
+        'Lies beide Pfeile vom gemeinsamen Anfangspunkt aus ab: erst nach rechts (x), dann nach oben (y).',
+        'Änderung heißt: nachher minus vorher. Rechne ' + V('v', '2') + ' − ' + V('v', '1') + ', Komponente für Komponente.',
+        'Der Pfeil Δ' + V('v') + ' beginnt an der Spitze von ' + V('v', '1') + ' und endet an der Spitze von ' + V('v', '2') + '. Die Beschleunigung zeigt in die Richtung von Δ' + V('v') + ', nicht in die Richtung des Flugs. Lies die Richtung an den Vorzeichen von Δ' + V('v') + ' ab.'
+      ],
+      pruef: [
+        { id: 'p5a', art: 'vek', vor: 'a) ' + V('v', '1') + ' =', nach: 'm/s', soll: [5, 1], tipp: 'Zähle vom Anfang des roten Pfeils.' },
+        { id: 'p5b', art: 'vek', vor: V('v', '2') + ' =', nach: 'm/s', soll: [3, 4], tipp: 'Zähle vom Anfang des blauen Pfeils.' },
+        { id: 'p5d', art: 'vek', vor: 'b) Δ' + V('v') + ' =', nach: 'm/s', soll: [-2, 3], tipp: 'Rechne oben 3 − 5 und unten 4 − 1.',
+          fallen: [{ w: [2, -3], t: 'Du hast vorher minus nachher gerechnet. Die Änderung ist nachher minus vorher.' },
+                   { w: [8, 5], t: 'Du hast addiert. Eine Änderung ist eine Differenz.' },
+                   { w: [2, 3], t: 'Prüfe das Vorzeichen bei 3 − 5.' }] },
+        { id: 'p5x', art: 'wahl', vor: 'd) Die Beschleunigung zeigt nach', optionen: ['links', 'rechts'], soll: 'links',
+          tipp: 'Die Beschleunigung zeigt wie Δv, nicht wie die Flugrichtung. Sieh dir die x-Komponente von Δv an.' },
+        { id: 'p5y', art: 'wahl', vor: 'und nach', optionen: ['oben', 'unten'], soll: 'oben',
+          tipp: 'Sieh dir die y-Komponente von Δv an.' }
+      ]
+    },
+    6: {
+      titel: 'Zusatz: Beträge',
+      szene: { w: 10, h: 8, kreuz: [0.4, 6.2], text: 'Beispiel mit anderen Zahlen. 1 Kästchen entspricht 1 m/s.',
+        pfeile: [{ von: [1, 1], vek: [8, 6], farbe: 'oliv', name: 'w', ab: 0, seite: 1 }],
+        punkte: [], dreieck: { von: [1, 1], vek: [8, 6], ab: 1 } },
+      hilfen: [
+        'Die beiden Komponenten und der Pfeil bilden ein rechtwinkliges Dreieck. Der Pfeil ist die längste Seite.',
+        'Mit dem Satz des Pythagoras gilt: Betrag = √(x² + y²).',
+        'Beispiel im Gitter: ' + V('w') + ' hat die Komponenten 8 m/s und 6 m/s. Betrag: √(8² + 6²) m/s = √100 m/s = 10 m/s.'
+      ],
+      pruef: [
+        { id: 'p6v', art: 'zahl', vor: 'Betrag von ' + V('v') + ':', nach: 'm/s', soll: 5, tol: 0.01, tipp: 'Rechne √(3² + 4²).',
+          fallen: [{ w: 7, t: 'Du hast 3 + 4 gerechnet. Quadriere erst, addiere dann und ziehe die Wurzel.' }] },
+        { id: 'p6m', art: 'zahl', vor: 'Betrag von ' + V('v', 'M') + ':', nach: 'm/s', soll: 4.12, tol: 0.03, tipp: 'Rechne √(1² + 4²) und runde auf eine Nachkommastelle.',
+          fallen: [{ w: 5, t: 'Du hast 1 + 4 gerechnet. Quadriere erst, addiere dann und ziehe die Wurzel.' }] },
+        { id: 'p6s', art: 'zahl', vor: 'Betrag von ' + V('v', 'S') + ':', nach: 'm/s', soll: 2, tol: 0.01, tipp: 'Der Pfeil liegt waagerecht. Seine Länge ist die x-Komponente.' },
+        { id: 'p6w', art: 'wahl', vor: 'Die Summe der beiden Beträge ist', optionen: ['kleiner als', 'gleich', 'größer als'], soll: 'größer als',
+          nach: 'der Betrag von v.', tipp: 'Addiere die Beträge von vM und vS und vergleiche mit dem Betrag von v.' }
+      ]
+    }
+  };
+
+  function gleich(e, w, tol) { return nah(e, w, tol == null ? 1e-9 : tol); }
+
+  // Pruefung: werte = { id: eingabe } (bei art 'vek' ein Feld [x, y]).
+  // Rueckgabe { alle, falsch: [{vor, tipp}], leer }
+  function pruefe(nr, werte) {
+    var liste = AUFGABEN[nr].pruef, falsch = [], leer = 0;
+    liste.forEach(function (p) {
+      var w = werte[p.id], ok, tipp = p.tipp;
+      if (p.art === 'vek') {
+        if (!w || String(w[0]).trim() === '' || String(w[1]).trim() === '') { leer++; return; }
+        var x = zahl(w[0]), y = zahl(w[1]);
+        ok = gleich(x, p.soll[0]) && gleich(y, p.soll[1]);
+        if (!ok) (p.fallen || []).forEach(function (f) { if (gleich(x, f.w[0]) && gleich(y, f.w[1])) tipp = f.t; });
+      } else if (p.art === 'wahl') {
+        if (w == null || w === '') { leer++; return; }
+        ok = w === p.soll;
+      } else {
+        if (w == null || String(w).trim() === '') { leer++; return; }
+        var z = zahl(w);
+        ok = nah(z, p.soll, p.tol);
+        if (!ok) (p.fallen || []).forEach(function (f) { if (gleich(z, f.w, 0.01)) tipp = f.t; });
+      }
+      if (!ok) falsch.push({ vor: p.vor.replace(/^[a-d]\) /, '').replace(/\s*[:=]$/, ''), tipp: tipp });
+    });
+    return { alle: falsch.length === 0 && leer === 0, falsch: falsch, leer: leer };
+  }
+
+  // Ausprobieren: Ergebnisvektor
+  function ergebnis(a, b, modus) {
+    return modus === 'minus' ? [b[0] - a[0], b[1] - a[1]] : [a[0] + b[0], a[1] + b[1]];
+  }
+
+  return { AUFGABEN: AUFGABEN, zahl: zahl, pruefe: pruefe, ergebnis: ergebnis, V: V };
+})();
+if (typeof module !== 'undefined') module.exports = Kern;
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var K = Kern;
+  var $ = function (id) { return document.getElementById(id); };
+  var FARBE = { rot: '#B01A15', stahl: '#35638A', oliv: '#71803C', corten: '#C87A3A', achse: '#26261E' };
+  var zustand = { nr: 1, offen: 0 };
+  // Ausprobieren: Anfangspunkt P, Vektoren a und b, Modus, Ergebnis sichtbar
+  var FREI = { w: 14, h: 10, p: [5, 4], a: [4, 2], b: [2, -3], modus: 'plus', zeige: false };
+  var geo = null;     // Abbildung Gitter -> Pixel der letzten Zeichnung
+  var zieh = null;
+
+  function fmt(x) { return String(x).replace('-', '−').replace('.', ','); }
+
+  function vorbereiten(c, gw, gh, rand) {
+    var dpr = window.devicePixelRatio || 1, w = c.clientWidth;
+    var pad = 26, l = pad + (rand ? 22 : 0), u = pad + (rand ? 16 : 0);
+    var zelle = Math.min((w - l - pad) / gw, 54);
+    var h = Math.round(zelle * gh + pad + u);
+    c.style.height = h + 'px';
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    var g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var x0 = l + (w - l - pad - zelle * gw) / 2, y0 = h - u;
+    return { g: g, w: w, h: h, zelle: zelle,
+             X: function (x) { return x0 + x * zelle; }, Y: function (y) { return y0 - y * zelle; },
+             inv: function (px, py) { return [(px - x0) / zelle, (y0 - py) / zelle]; } };
+  }
+
+  function raster(G, gw, gh) {
+    var g = G.g; g.strokeStyle = '#d5d5d0'; g.lineWidth = 1;
+    for (var x = 0; x <= gw; x++) { g.beginPath(); g.moveTo(G.X(x), G.Y(0)); g.lineTo(G.X(x), G.Y(gh)); g.stroke(); }
+    for (var y = 0; y <= gh; y++) { g.beginPath(); g.moveTo(G.X(0), G.Y(y)); g.lineTo(G.X(gw), G.Y(y)); g.stroke(); }
+  }
+
+  function linienpfeil(g, x1, y1, x2, y2, farbe, breite, strich) {
+    var w = Math.atan2(y2 - y1, x2 - x1), k = Math.max(9, breite * 4.2);
+    g.strokeStyle = farbe; g.fillStyle = farbe; g.lineWidth = breite; g.lineCap = 'butt';
+    if (strich) g.setLineDash([7, 5]);
+    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2 - Math.cos(w) * k * 0.8, y2 - Math.sin(w) * k * 0.8); g.stroke();
+    g.setLineDash([]);
+    g.beginPath(); g.moveTo(x2, y2);
+    g.lineTo(x2 - k * Math.cos(w - 0.36), y2 - k * Math.sin(w - 0.36));
+    g.lineTo(x2 - k * Math.cos(w + 0.36), y2 - k * Math.sin(w + 0.36));
+    g.closePath(); g.fill();
+  }
+
+  // Vektorname mit Pfeilchen darueber und optionalem Index
+  function name(g, txt, sub, x, y, farbe, vor) {
+    g.fillStyle = farbe; g.textAlign = 'left'; g.textBaseline = 'middle';
+    var bw = 0;
+    if (vor) { g.font = 'bold 16px Cambria, Georgia, serif'; bw = g.measureText(vor).width; }
+    g.font = 'italic bold 17px Cambria, Georgia, serif';
+    var tw = g.measureText(txt).width;
+    g.font = 'bold 12px Cambria, Georgia, serif';
+    var sw = sub ? g.measureText(sub).width : 0;
+    var ges = bw + tw + sw, lx = x - ges / 2;
+    g.fillStyle = 'rgba(255,255,255,0.85)'; g.fillRect(lx - 3, y - 17, ges + 6, 29);
+    g.fillStyle = farbe;
+    if (vor) { g.font = 'bold 16px Cambria, Georgia, serif'; g.fillText(vor, lx, y); }
+    g.font = 'italic bold 17px Cambria, Georgia, serif'; g.fillText(txt, lx + bw, y);
+    if (sub) { g.font = 'bold 12px Cambria, Georgia, serif'; g.fillText(sub, lx + bw + tw, y + 5); }
+    linienpfeil(g, lx + bw - 1, y - 12, lx + bw + tw + 2, y - 12, farbe, 1.2, false);
+  }
+
+  function pfeil(G, p, schmal) {
+    var x1 = G.X(p.von[0]), y1 = G.Y(p.von[1]), x2 = G.X(p.von[0] + p.vek[0]), y2 = G.Y(p.von[1] + p.vek[1]);
+    var farbe = FARBE[p.farbe];
+    linienpfeil(G.g, x1, y1, x2, y2, farbe, 3, p.strich);
+    var len = Math.hypot(x2 - x1, y2 - y1); if (len < 1) return;
+    var nx = -(y2 - y1) / len, ny = (x2 - x1) / len, s = (p.seite || 1) * 17;
+    name(G.g, p.name, p.sub, (x1 + x2) / 2 + nx * s, (y1 + y2) / 2 + ny * s, farbe, p.vor);
+  }
+
+  function punkt(G, q) {
+    var g = G.g, x = G.X(q.p[0]), y = G.Y(q.p[1]);
+    if (q.ring) {
+      g.strokeStyle = FARBE.corten; g.lineWidth = 2.5; g.beginPath(); g.arc(x, y, 9, 0, 2 * Math.PI); g.stroke();
+      g.fillStyle = FARBE.corten; g.font = 'bold 13px Segoe UI, Arial, sans-serif';
+      g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(q.name, x + 13, y - 2);
+    } else {
+      g.fillStyle = FARBE.achse; g.beginPath(); g.arc(x, y, 4.5, 0, 2 * Math.PI); g.fill();
+      g.font = 'italic 16px Cambria, Georgia, serif'; g.textAlign = 'right'; g.textBaseline = 'top';
+      g.fillText(q.name, x - 6, y + 4);
+    }
+  }
+
+  function kreuz(G, k) {
+    var g = G.g, x = G.X(k[0]), y = G.Y(k[1]), l = Math.min(G.zelle * 1.3, 52);
+    linienpfeil(g, x, y, x + l, y, FARBE.stahl, 1.4, false);
+    linienpfeil(g, x, y, x, y - l, FARBE.stahl, 1.4, false);
+    g.fillStyle = FARBE.stahl; g.font = 'italic 14px Cambria, Georgia, serif';
+    g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText('x', x + l + 4, y);
+    g.textAlign = 'center'; g.textBaseline = 'bottom'; g.fillText('y', x, y - l - 3);
+  }
+
+  function zeichneAufgabe() {
+    var S = K.AUFGABEN[zustand.nr].szene, c = $('gitter');
+    var G = vorbereiten(c, S.w, S.h, S.rand), g = G.g, n = zustand.offen;
+    g.clearRect(0, 0, G.w, G.h);
+    if (S.fluss) { g.fillStyle = 'rgba(53,99,138,0.10)'; g.fillRect(G.X(0), G.Y(S.h), G.zelle * S.w, G.zelle * S.h); }
+    raster(G, S.w, S.h);
+    if (S.fluss) {
+      g.strokeStyle = FARBE.achse; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(G.X(0), G.Y(0)); g.lineTo(G.X(S.w), G.Y(0)); g.moveTo(G.X(0), G.Y(S.h)); g.lineTo(G.X(S.w), G.Y(S.h)); g.stroke();
+      g.fillStyle = '#555'; g.font = '12px Segoe UI, Arial, sans-serif'; g.textAlign = 'center';
+      g.textBaseline = 'top'; g.fillText('Ufer', G.X(4.6), G.Y(0) + 5);
+      g.textBaseline = 'bottom'; g.fillText('Ufer', G.X(1), G.Y(S.h) - 5);
+      linienpfeil(g, G.X(4.3), G.Y(S.h) - 9, G.X(6.6), G.Y(S.h) - 9, FARBE.stahl, 1.4, false);
+      g.fillStyle = FARBE.stahl; g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText('Strömung', G.X(4.3) - 6, G.Y(S.h) - 9);
+    }
+    if (S.achsen) {
+      linienpfeil(g, G.X(0), G.Y(0), G.X(S.w) + 14, G.Y(0), FARBE.achse, 1.6, false);
+      linienpfeil(g, G.X(0), G.Y(0), G.X(0), G.Y(S.h) - 14, FARBE.achse, 1.6, false);
+      g.fillStyle = '#444'; g.font = '12px Segoe UI, Arial, sans-serif';
+      g.textAlign = 'center'; g.textBaseline = 'top';
+      for (var x = 0; x <= S.w; x++) g.fillText(String(x * S.faktor), G.X(x), G.Y(0) + 5);
+      g.textAlign = 'right'; g.textBaseline = 'middle';
+      for (var y = 1; y <= S.h; y++) g.fillText(String(y * S.faktor), G.X(0) - 6, G.Y(y));
+      g.textAlign = 'right'; g.textBaseline = 'top'; g.fillText('x in ' + S.einheit, G.X(S.w) + 14, G.Y(0) + 20);
+      g.textAlign = 'left'; g.textBaseline = 'bottom'; g.fillText('y in ' + S.einheit, G.X(0) + 6, G.Y(S.h) - 6);
+    }
+    if (S.kreuz) kreuz(G, S.kreuz);
+    if (S.dreieck && n >= S.dreieck.ab) {
+      var d = S.dreieck, ax = G.X(d.von[0]), ay = G.Y(d.von[1]), bx = G.X(d.von[0] + d.vek[0]), by = G.Y(d.von[1] + d.vek[1]);
+      g.strokeStyle = FARBE.stahl; g.lineWidth = 2; g.setLineDash([6, 5]);
+      g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, ay); g.lineTo(bx, by); g.stroke(); g.setLineDash([]);
+      g.fillStyle = FARBE.stahl; g.font = 'bold 13px Segoe UI, Arial, sans-serif';
+      g.textAlign = 'center'; g.textBaseline = 'top'; g.fillText('x: ' + d.vek[0] + ' m/s', (ax + bx) / 2, ay + 5);
+      g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText('y: ' + d.vek[1] + ' m/s', bx + 6, (ay + by) / 2);
+    }
+    S.pfeile.forEach(function (p) { if (n >= p.ab) pfeil(G, p); });
+    S.punkte.forEach(function (q) { if (n >= q.ab) punkt(G, q); });
+    $('legende').textContent = S.text;
+    geo = null;
+  }
+
+  function zeichneFrei() {
+    var F = FREI, c = $('gitter'), G = vorbereiten(c, F.w, F.h), g = G.g;
+    g.clearRect(0, 0, G.w, G.h);
+    raster(G, F.w, F.h);
+    kreuz(G, [0.4, 0.4]);
+    var p = F.p, sa = [p[0] + F.a[0], p[1] + F.a[1]];
+    var vb = F.modus === 'plus' ? sa : p, sb = [vb[0] + F.b[0], vb[1] + F.b[1]];
+    pfeil(G, { von: p, vek: F.a, farbe: 'rot', name: 'a', seite: 1 });
+    pfeil(G, { von: vb, vek: F.b, farbe: 'stahl', name: 'b', seite: 1 });
+    // Griffe an den Spitzen
+    [[sa, FARBE.rot], [sb, FARBE.stahl]].forEach(function (s) {
+      g.fillStyle = 'rgba(255,255,255,0.9)'; g.strokeStyle = s[1]; g.lineWidth = 2.5;
+      g.beginPath(); g.arc(G.X(s[0][0]), G.Y(s[0][1]), 11, 0, 2 * Math.PI); g.fill(); g.stroke();
+    });
+    // Ergebnispfeil zuletzt, damit seine Spitze über dem Griff liegt
+    if (F.zeige) {
+      var e = K.ergebnis(F.a, F.b, F.modus);
+      if (e[0] !== 0 || e[1] !== 0) {
+        var ev = F.modus === 'plus' ? p : sa;
+        linienpfeil(g, G.X(ev[0]), G.Y(ev[1]), G.X(ev[0] + e[0]), G.Y(ev[1] + e[1]), FARBE.oliv, 3, false);
+      }
+    }
+    punkt(G, { p: p, name: 'P' });
+    geo = { G: G, sa: sa, sb: sb, vb: vb };
+    $('legende').textContent = 'Ziehe an den Kreisen. 1 Kästchen entspricht der Länge 1.';
+    var op = F.modus === 'plus' ? ' + ' : ' − ', links = F.modus === 'plus' ? K.V('a') + op + K.V('b') : K.V('b') + op + K.V('a');
+    var e2 = K.ergebnis(F.a, F.b, F.modus);
+    $('werte').innerHTML = '<span>' + K.V('a') + ' = (' + fmt(F.a[0]) + ' ; ' + fmt(F.a[1]) + ')</span>' +
+      '<span>' + K.V('b') + ' = (' + fmt(F.b[0]) + ' ; ' + fmt(F.b[1]) + ')</span>' +
+      '<span class="erg">' + links + ' = ' + (F.zeige ? '(' + fmt(e2[0]) + ' ; ' + fmt(e2[1]) + ')' : '?') + '</span>';
+  }
+
+  function zeichne() { if (zustand.nr === 'frei') zeichneFrei(); else zeichneAufgabe(); }
+
+  // ---- Ziehen im Ausprobieren ----
+  function ort(ev) { var r = $('gitter').getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; }
+  $('gitter').addEventListener('pointerdown', function (ev) {
+    if (zustand.nr !== 'frei' || !geo) return;
+    var m = ort(ev), G = geo.G;
+    var da = Math.hypot(G.X(geo.sa[0]) - m[0], G.Y(geo.sa[1]) - m[1]);
+    var db = Math.hypot(G.X(geo.sb[0]) - m[0], G.Y(geo.sb[1]) - m[1]);
+    if (Math.min(da, db) > 34) return;
+    zieh = db <= da ? 'b' : 'a';
+    this.setPointerCapture(ev.pointerId); ev.preventDefault();
+  });
+  $('gitter').addEventListener('pointermove', function (ev) {
+    if (!zieh || !geo) return;
+    var m = ort(ev), q = geo.G.inv(m[0], m[1]), F = FREI;
+    var x = Math.max(0, Math.min(F.w, Math.round(q[0]))), y = Math.max(0, Math.min(F.h, Math.round(q[1])));
+    if (zieh === 'a') setFrei([x - F.p[0], y - F.p[1]], F.b);
+    else setFrei(F.a, [x - geo.vb[0], y - geo.vb[1]]);
+  });
+  ['pointerup', 'pointercancel'].forEach(function (t) { $('gitter').addEventListener(t, function () { zieh = null; }); });
+
+  function setFrei(a, b) {
+    var F = FREI, sa = [F.p[0] + a[0], F.p[1] + a[1]];
+    if (sa[0] < 0 || sa[0] > F.w || sa[1] < 0 || sa[1] > F.h) return;
+    var vb = F.modus === 'plus' ? sa : F.p, sb = [vb[0] + b[0], vb[1] + b[1]];
+    if (sb[0] < 0 || sb[0] > F.w || sb[1] < 0 || sb[1] > F.h) return;
+    F.a = a; F.b = b; zeichneFrei();
+  }
+  function setModus(m) {
+    FREI.modus = m; FREI.a = [4, 2]; FREI.b = m === 'plus' ? [2, -3] : [1, 4];
+    $('m_plus').classList.toggle('akt', m === 'plus'); $('m_minus').classList.toggle('akt', m === 'minus');
+    zeichneFrei();
+  }
+  $('m_plus').addEventListener('click', function () { setModus('plus'); });
+  $('m_minus').addEventListener('click', function () { setModus('minus'); });
+  $('zeige').addEventListener('change', function () { FREI.zeige = this.checked; zeichneFrei(); });
+
+  // ---- Hilfen ----
+  function hilfenZeigen() {
+    var box = $('hilfen'); box.innerHTML = '';
+    if (zustand.nr === 'frei') {
+      box.innerHTML = '<div class="hilfe"><span class="t">So geht es</span>Wähle Summe oder Differenz. Ziehe an den Kreisen an den Pfeilspitzen. ' +
+        'Berechne das Ergebnis im Kopf. Setze dann den Haken bei „Ergebnis zeigen“ und vergleiche.</div>' +
+        '<div class="hilfe"><span class="t">Achte darauf</span>Bei der Summe hängt ' + K.V('b') + ' an der Spitze von ' + K.V('a') +
+        '. Bei der Differenz beginnen beide Pfeile in P. Der grüne Pfeil reicht dann von der Spitze von ' + K.V('a') + ' zur Spitze von ' + K.V('b') + '.</div>';
+      return;
+    }
+    var A = K.AUFGABEN[zustand.nr];
+    for (var i = 0; i < zustand.offen; i++) {
+      var d = document.createElement('div'); d.className = 'hilfe';
+      d.innerHTML = '<span class="t">Hilfe ' + (i + 1) + '</span>' + A.hilfen[i]; box.appendChild(d);
+    }
+    var b = $('mehr');
+    if (zustand.offen < 3) { b.disabled = false; b.textContent = 'Hilfe ' + (zustand.offen + 1) + ' öffnen'; }
+    else { b.disabled = true; b.textContent = 'Alle Hilfen offen'; }
+  }
+
+  function feld(id) {
+    var el = document.createElement('input'); el.type = 'text'; el.inputMode = 'text'; el.autocomplete = 'off'; el.id = id; return el;
+  }
+  function pruefBauen() {
+    var A = K.AUFGABEN[zustand.nr], box = $('pruef_inhalt');
+    box.innerHTML = ''; $('fb').textContent = ''; $('fb').className = 'fb';
+    A.pruef.forEach(function (p) {
+      var z = document.createElement('div'); z.className = 'z';
+      var lab = document.createElement('span'); lab.innerHTML = p.vor; z.appendChild(lab);
+      if (p.art === 'vek') {
+        var k = document.createElement('span'); k.className = 'klammer';
+        var fx = feld(p.id + '_x'), fy = feld(p.id + '_y');
+        fx.setAttribute('aria-label', 'x-Komponente'); fy.setAttribute('aria-label', 'y-Komponente');
+        k.appendChild(fx); k.appendChild(fy); z.appendChild(k);
+      } else if (p.art === 'wahl') {
+        var s = document.createElement('select'); s.id = p.id;
+        s.innerHTML = '<option value="">wählen …</option>' + p.optionen.map(function (o) { return '<option>' + o + '</option>'; }).join('');
+        z.appendChild(s);
+      } else { z.appendChild(feld(p.id)); }
+      if (p.nach) { var e = document.createElement('span'); e.className = 'einheit'; e.textContent = p.nach; z.appendChild(e); }
+      box.appendChild(z);
+    });
+  }
+
+  $('pruefen').addEventListener('click', function () {
+    var A = K.AUFGABEN[zustand.nr], werte = {};
+    A.pruef.forEach(function (p) {
+      werte[p.id] = p.art === 'vek' ? [$(p.id + '_x').value, $(p.id + '_y').value] : $(p.id).value;
+    });
+    var r = K.pruefe(zustand.nr, werte), fb = $('fb');
+    if (r.alle) { fb.className = 'fb ok'; fb.textContent = 'Alles richtig.'; return; }
+    fb.className = 'fb nein';
+    var html = r.falsch.length ? 'Noch nicht ganz.' : '';
+    r.falsch.forEach(function (f) { html += '<span class="norm">' + f.vor + ': ' + f.tipp + '</span>'; });
+    if (r.leer) html += '<span class="norm">' + (r.falsch.length ? '' : 'Bisher richtig. ') + 'Fülle noch ' +
+      (r.leer === 1 ? 'eine Zeile' : r.leer + ' Zeilen') + ' aus.</span>';
+    fb.innerHTML = html;
+  });
+
+  $('mehr').addEventListener('click', function () {
+    if (zustand.nr === 'frei' || zustand.offen >= 3) return;
+    zustand.offen++; hilfenZeigen(); zeichne();
+  });
+
+  function setAufgabe(nr) {
+    zustand.nr = nr; zustand.offen = 0;
+    Array.prototype.forEach.call(document.querySelectorAll('#wahl button'), function (b) {
+      b.classList.toggle('akt', b.dataset.nr === String(nr));
+    });
+    var frei = nr === 'frei';
+    $('kopf').textContent = frei ? 'Zum Üben' : 'Aufgabe ' + nr;
+    $('titel').textContent = frei ? 'Ausprobieren' : K.AUFGABEN[nr].titel;
+    $('frei_leiste').classList.toggle('an', frei); $('werte').classList.toggle('an', frei);
+    $('pruef').style.display = frei ? 'none' : ''; $('hilfe_btns').style.display = frei ? 'none' : '';
+    hilfenZeigen(); if (!frei) pruefBauen(); zeichne();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#wahl button'), function (b) {
+    b.addEventListener('click', function () { setAufgabe(b.dataset.nr === 'frei' ? 'frei' : parseInt(b.dataset.nr, 10)); });
+  });
+
+  var timer;
+  window.addEventListener('resize', function () { clearTimeout(timer); timer = setTimeout(zeichne, 80); });
+
+  // Start, optional ueber URL-Parameter ?a=&h=&m=&z=
+  var q = {};
+  location.search.replace(/^\?/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) q[p[0]] = decodeURIComponent(p[1] || ''); });
+  setAufgabe(q.a === 'frei' ? 'frei' : (q.a && K.AUFGABEN[q.a] ? parseInt(q.a, 10) : 1));
+  var nh = Math.min(3, parseInt(q.h || '0', 10) || 0);
+  for (var i = 0; i < nh; i++) $('mehr').click();
+  if (q.m === 'minus') setModus('minus');
+  if (q.z) { FREI.zeige = true; $('zeige').checked = true; zeichne(); }
+  window.__hk = { setAufgabe: setAufgabe, setModus: setModus, setFrei: setFrei };
+})();
+</script>
+</body>
+</html>
