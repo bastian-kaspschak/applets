@@ -51,16 +51,24 @@
   nav button { flex: 1; }
   nav button[aria-pressed=true], button.haupt { background: var(--corten); color: #fff; }
   button.haupt:disabled { background: var(--grau); }
+  .frage[hidden] + .regler { margin-top: 8px; }
+  .knoepfe { display: flex; gap: 8px; } .knoepfe button { flex: 1; } .knoepfe button:disabled { opacity: .45; }
   .bild { position: relative; }
   canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges;
            border: 1px solid var(--grau); background: #c9c0a8; }
-  /* Uhr oben rechts: "Die Pause endet in", darunter die Ziffern wie bei einer digitalen Stoppuhr, darunter "Minuten" */
-  .uhr { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,.92); border: 1px solid var(--grau);
+  /* Uhr oben links: "Die Pause endet in", darunter die Ziffern wie bei einer digitalen Stoppuhr, darunter "Minuten";
+     darunter drei knappe Zeilen: Waffeln verkauft, Waffeln zu spät fertig (Personen ohne Waffel), Waffeln übrig */
+  .uhr { position: absolute; top: 8px; left: 8px; background: rgba(255,255,255,.92); border: 1px solid var(--grau);
          padding: 3px 7px 2px; text-align: center; font-size: 12px; line-height: 1.25; }
   .uhr b { display: block; margin: 2px 0; background: #1d2226; color: #d8f5c8; border-radius: 3px; padding: 0 8px;
            font-family: Consolas, "Courier New", monospace; font-size: 22px; letter-spacing: .06em; line-height: 1.25;
            font-variant-numeric: tabular-nums; }
-  @media (max-width: 480px) { .uhr { font-size: 10px; padding: 2px 5px 1px; top: 5px; right: 5px; } .uhr b { font-size: 17px; padding: 0 6px; } }
+  .uhr dl { display: grid; grid-template-columns: auto 1fr; gap: 0 5px; margin: 3px 0 1px; padding-top: 2px;
+            border-top: 1px solid var(--grau); text-align: left; font-size: 11px; line-height: 1.3; }
+  .uhr dt { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .uhr dd { margin: 0; }
+  .uhr .gut { color: #2e6b2e; } .uhr .schlecht { color: #b01a15; }
+  @media (max-width: 480px) { .uhr dl { font-size: 9px; } .uhr { font-size: 10px; padding: 2px 5px 1px; top: 5px; left: 5px; } .uhr b { font-size: 17px; padding: 0 6px; } }
   .frage { font-size: 17px; margin: 10px 0 8px; }
   .regler { display: grid; grid-template-columns: 64px 1fr 64px; gap: 8px; align-items: stretch; }
   .regler button { font-size: 26px; padding: 0; }
@@ -99,7 +107,7 @@
 
   <div class="bild">
     <canvas id="szene" width="320" height="180" role="img" aria-label="Der Waffelstand"></canvas>
-    <div class="uhr" id="uhr" hidden>Die Pause endet in<b id="uhr-zahl">20:00</b>Minuten</div>
+    <div class="uhr" id="uhr" hidden>Die Pause endet in<b id="uhr-zahl">20:00</b>Minuten<dl><dt class="gut" id="uhr-mit">0</dt><dd>Waffeln verkauft</dd><dt class="schlecht" id="uhr-ohne">0</dt><dd>Waffeln zu spät fertig</dd><dt id="uhr-rest">0</dt><dd>Waffeln übrig</dd></dl></div>
   </div>
 
   <p class="frage" id="frage"></p>
@@ -108,7 +116,10 @@
     <div class="wert"><b id="wert">15</b><span id="wert-name">Waffeln</span></div>
     <button id="plus" aria-label="mehr">+</button>
   </div>
-  <button class="start haupt" id="start" hidden>Start</button>
+  <div class="knoepfe">
+    <button class="start haupt" id="start" hidden>Start</button>
+    <button class="start" id="ende" hidden>Pause beenden</button>
+  </div>
 
   <div class="zahlen" id="zahlen"></div>
   <div class="satz" id="satz"></div>
@@ -269,10 +280,16 @@ const SEK_JE_MIN = 1;                    // eine Minute der Pause dauert eine Se
 // Sekunde je Minute noch sieht, wie jemand stehen bleibt und bezahlt (0,3 s) und wie die
 // Figuren gehen (2,5 m in der Sekunde). Bezahlen und Aufrücken zusammen müssen kürzer sein
 // als der Abstand zwischen zwei Personen (20 / 24 Minuten), sonst staut es sich ohne Grund.
-const ZAHLEN = 0.3, ABWEG = 1.4;
+const ZAHLEN = 0.3;
+// So lange vor Beginn der Pause läuft das Bild schon: Die ersten Personen kommen von außerhalb
+// des Bildes und brauchen diese Zeit bis zur Kasse.
+const VORLAUF = 3.4;
 const TEMPO = 2.5, LUECKE = 0.55, SCHRITT = 0.4;   // Gehen in Metern je Minute, Abstand in der Schlange
-const KASSE = [1.65, 1.15], WEG = [6.2, 1.7], LANG_AN = 4.2;
-const LANG_AB = Math.hypot(WEG[0] - KASSE[0], WEG[1] - KASSE[1]);
+// Die Schlange kommt von unten links: LANG_AN Meter vor der Kasse liegt der Fußpunkt außerhalb
+// des Bildes. Wer geht, läuft nach unten rechts, bis die Figur ganz aus dem Bild ist.
+const KASSE = [1.65, 1.15], LANG_AN = 8.0, AB = [0.995, 0.1];
+// Ist eine Figur mit diesem Fußpunkt noch (teilweise) im Bild?
+function imBild(x, z) { const p = raum(x, 0, z); return p[0] > -14 && p[0] < 352 && p[1] < 232; }
 const bein = weg => 1 + Math.floor(Math.max(0, weg) / SCHRITT) % 2;       // Beinstellung 1 oder 2
 let leute = [], vt = 0;                  // Personen der laufenden Pause und ihre Uhr
 
@@ -281,7 +298,7 @@ let leute = [], vt = 0;                  // Personen der laufenden Pause und ihr
 function planen() {
   const gebacken = BACKZEITEN.length * standEisen;
   const fertigAb = j => BACKZEITEN[Math.floor(j / standEisen)];   // ab wann Waffel j auf dem Tisch liegt
-  leute = []; vt = 0;
+  leute = []; vt = -VORLAUF;
   let platz = 0, kasseFrei = -9, letzte = null;
   for (let i = 0; i < KUNDEN; i++) {
     const an = (i + 1) / JE_MIN - ZAHLEN;                        // so käme sie ohne Schlange an die Kasse
@@ -314,10 +331,6 @@ function ruecken(dt) {
   }
 }
 function spulen(bis) { planen(); while (vt < bis - 1e-9) ruecken(Math.min(0.02, bis - vt)); }
-// Einblenden auf den ersten 80 cm des Wegs (und in der ersten Viertelminute der Pause),
-// Ausblenden auf dem letzten Stück des Abgangs
-const BLENDE = 0.8;
-const herein = d => grenze((LANG_AN - d) / BLENDE, 0, 1) * grenze(vt / 0.25, 0, 1);
 // Was gerade zu sehen ist: Liste der Figuren, von hinten nach vorn sortiert
 function figuren() {
   const liste = [];
@@ -325,20 +338,20 @@ function figuren() {
     const vorn = "kunde" + p.farbe;
     if (p.mit) {
       if (vt >= p.ende) {
-        const g = (vt - p.ende) / ABWEG; if (g >= 1) continue;
-        liste.push({ name: vorn + "_froh_" + bein(g * LANG_AB), x: KASSE[0] + (WEG[0] - KASSE[0]) * g, z: KASSE[1] + (WEG[1] - KASSE[1]) * g,
-                     zahlt: g < 0.1 ? 1.2 : null, alpha: grenze((1 - g) / 0.25, 0, 1) });
+        const weit = (vt - p.ende) * TEMPO, x = KASSE[0] + weit * AB[0], z = KASSE[1] + weit * AB[1];
+        if (!imBild(x, z)) continue;
+        liste.push({ name: vorn + "_froh_" + bein(weit), x, z, zahlt: vt - p.ende < 0.1 ? 1.2 : null });
       } else if (p.d <= LANG_AN) {
         liste.push({ name: vorn + "_kommt_" + (p.geht ? bein(LANG_AN - p.d) : 0), x: KASSE[0], z: KASSE[1] + p.d,
-                     zahlt: vt >= p.beginn ? (vt - p.beginn) / ZAHLEN : null, alpha: herein(p.d) });
+                     zahlt: vt >= p.beginn ? (vt - p.beginn) / ZAHLEN : null });
       }
     } else if (vt < p.um) {
       const d = (p.an - vt) * TEMPO; if (d > LANG_AN) continue;
-      liste.push({ name: vorn + "_kommt_" + bein(LANG_AN - d), x: KASSE[0], z: KASSE[1] + d, alpha: herein(d) });
+      liste.push({ name: vorn + "_kommt_" + bein(LANG_AN - d), x: KASSE[0], z: KASSE[1] + d });
     } else {
-      const weit = (vt - p.um) * TEMPO; if (weit > 4.6) continue;
-      liste.push({ name: vorn + "_leer_" + bein(weit), x: KASSE[0] + weit, z: KASSE[1] + p.halt + weit * 0.12, leer: true,
-                   alpha: grenze((4.6 - weit) / 1.0, 0, 1) });
+      const weit = (vt - p.um) * TEMPO, x = KASSE[0] + weit, z = KASSE[1] + p.halt + weit * 0.12;
+      if (!imBild(x, z)) continue;
+      liste.push({ name: vorn + "_leer_" + bein(weit), x, z, leer: true });
     }
   }
   return liste.sort((a, b) => (a.x + a.z) - (b.x + b.z));
@@ -369,8 +382,8 @@ function zeichnen(jetzt) {
     if (backt && ph >= 0.78) wurf(0, da, (ph - 0.78) / 0.22);
   } else if (ansicht === "verkaufen") {
     // Jedes Waffeleisen bäckt Runde um Runde: einfüllen, 3 Minuten warten, herausnehmen.
-    const n = standEisen, backt = laeuft && t < BACKZEITEN[BACKZEITEN.length - 1];
-    const ph = (t % MIN_JE_WAFFEL) / MIN_JE_WAFFEL, v = verkauf(t);
+    const n = standEisen, backt = laeuft && t >= 0 && t < BACKZEITEN[BACKZEITEN.length - 1];
+    const ph = backt ? (t % MIN_JE_WAFFEL) / MIN_JE_WAFFEL : 0, v = verkauf(t);
     const runden = t <= 0 ? 0 : Math.min(BACKZEITEN.length, Math.floor(t / MIN_JE_WAFFEL + 1e-9) + 1);
     schuesseln(Math.ceil(BACKZEITEN.length * n / JE_SCHUESSEL) * JE_SCHUESSEL, n * runden);
     for (let i = 0; i < n; i++) { fest("iron" + i); if (backt) dampf(i, zeit); }
@@ -383,8 +396,7 @@ function zeichnen(jetzt) {
       if (teil - platz > 0.45) wurf(platz, v.rest + platz, (teil - platz - 0.45) / 0.55);
     } else baecker("ruhe", backt ? n - 1 : 0, n);
     const liste = figuren();
-    for (const k of liste) { ctx.globalAlpha = k.alpha == null ? 1 : k.alpha; setzen(k.name, k.x, 0, k.z); if (k.leer) kreuz(k.x, k.z); }
-    ctx.globalAlpha = 1;
+    for (const k of liste) { setzen(k.name, k.x, 0, k.z); if (k.leer) kreuz(k.x, k.z); }
     for (const k of liste) if (k.zahlt != null) muenze(k.zahlt);
   } else {
     const da = Math.min(BEDARF, eisen * Math.floor(t / MIN_JE_WAFFEL + 1e-9));
@@ -407,6 +419,9 @@ function anzeigen() {
   ANSICHTEN.forEach(a => $("tab-" + a).setAttribute("aria-pressed", a === ansicht ? "true" : "false"));
   $("start").hidden = ansicht === "backen";
   $("start").disabled = laeuft;
+  // Pause beenden: bricht die laufende Pause ab und stellt den Stand auf den Anfang zurück
+  $("ende").hidden = ansicht !== "verkaufen"; $("ende").disabled = !laeuft;
+  $("frage").hidden = ansicht === "verkaufen";
   $("minus").disabled = $("plus").disabled = laeuft;
   $("regler").hidden = ansicht === "verkaufen" && !frei;
   $("versuche").hidden = ansicht !== "eisen" || versuche.size === 0;
@@ -418,16 +433,16 @@ function anzeigen() {
     $("wert").textContent = waffeln; $("wert-name").textContent = "Waffeln";
     $("zahlen").innerHTML = kachel(MEHL_15 * k + " g", "Mehl") + kachel(MILCH_15 * k + " ml", "Milch") + kachel(euro(KOSTEN_15 * k), "Kosten");
   } else if (ansicht === "verkaufen") {
-    const v = verkauf(t), noch = Math.max(0, Math.ceil(PAUSE - t - 1e-9));
-    $("frage").textContent = "Die Pause dauert 20 Minuten. 24 Personen möchten eine Waffel. " +
-      (frei ? "Wie viele Waffeleisen nehmen wir?" : "Wir haben ein Waffeleisen.");
+    const v = verkauf(t), noch = grenze(Math.ceil(PAUSE - t - 1e-9), 0, PAUSE);
+    $("frage").textContent = "";
     $("wert").textContent = standEisen; $("wert-name").textContent = "Waffeleisen";
     $("start").textContent = "Pause starten";
     // Restzeit der Pause als mm:ss; die Sekunden springen in Viertelminuten, sonst flimmern sie
-    const rest = Math.max(0, PAUSE - t), ganz = Math.floor(rest + 1e-9), viertel = Math.floor((rest - ganz) * 4 + 1e-9) * 15;
+    const rest = grenze(PAUSE - t, 0, PAUSE), ganz = Math.floor(rest + 1e-9), viertel = Math.floor((rest - ganz) * 4 + 1e-9) * 15;
     $("uhr-zahl").textContent = String(ganz).padStart(2, "0") + ":" + String(viertel).padStart(2, "0");
     $("uhr").setAttribute("aria-label", "Noch " + noch + " Minuten bis zum Ende der Pause");
-    $("zahlen").innerHTML = kachel(v.mit, "mit Waffel", "gut") + kachel(v.ohne, "ohne Waffel", "schlecht");
+    $("uhr-mit").textContent = v.mit; $("uhr-ohne").textContent = v.ohne; $("uhr-rest").textContent = v.rest;
+    $("zahlen").innerHTML = "";
     if (fertig) {
       if (v.mit < KUNDEN) satz = v.mit + " Personen bekommen eine Waffel. " + v.ohne + " Personen gehen ohne Waffel.";
       else if (v.rest === 0) satz = "Alle 24 Personen bekommen eine Waffel.";
@@ -466,9 +481,12 @@ function schritt(jetzt) {
   if (laeuft) {
     const sek = (jetzt - startzeit) / 1000;
     if (ansicht === "verkaufen") {
-      t = Math.min(sek / SEK_JE_MIN, PAUSE + ABWEG);
+      // Das Bild läuft schon kurz vor der Pause (die ersten kommen herein) und danach weiter, bis
+      // die letzten aus dem Bild gegangen sind. Das Ergebnis steht fest, sobald die Pause um ist.
+      t = sek / SEK_JE_MIN - VORLAUF;
       while (vt < t - 1e-9) ruecken(Math.min(0.02, t - vt));
-      if (t >= PAUSE + ABWEG) { laeuft = false; fertig = true; }
+      fertig = t >= PAUSE;
+      if (t > PAUSE && figuren().length === 0) laeuft = false;
     } else if (ansicht === "eisen") {
       t = sek * 12;                                              // 12 Minuten je Sekunde
       if (t >= eisenDauer()) { t = eisenDauer(); laeuft = false; fertig = true; versuche.set(eisen, eisenDauer()); }
@@ -491,6 +509,7 @@ ANSICHTEN.forEach(a => $("tab-" + a).addEventListener("click", () => waehlen(a))
 $("minus").addEventListener("click", () => stellen(-1));
 $("plus").addEventListener("click", () => stellen(1));
 $("start").addEventListener("click", starten);
+$("ende").addEventListener("click", () => { zurueck(); anzeigen(); });
 $("kontrolle").addEventListener("click", kontrolle);
 
 laden().then(() => {
@@ -507,10 +526,10 @@ laden().then(() => {
   if (q.get("ende")) {
     fertig = true;
     if (ansicht === "backen") backFest = 1000;
-    if (ansicht === "verkaufen") t = PAUSE + ABWEG;
+    if (ansicht === "verkaufen") t = PAUSE + 8;
     if (ansicht === "eisen") { for (const s of STUFEN) if (s <= eisen) versuche.set(s, BEDARF * MIN_JE_WAFFEL / s); t = eisenDauer(); }
   }
-  if (ansicht === "verkaufen" && t > 0) { spulen(t); if (!q.get("ende")) laeuft = false; }
+  if (ansicht === "verkaufen" && q.get("t") || (ansicht === "verkaufen" && q.get("ende"))) { spulen(t); laeuft = false; }
   anzeigen();
   if (q.get("ende") && ansicht === "verkaufen") kontrolle();
   requestAnimationFrame(schritt);
