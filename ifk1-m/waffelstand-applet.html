@@ -8,7 +8,7 @@
   Applet "Unser Waffelstand", IFK1 M, Lernsituation "Waffeln fuer einen guten Zweck".
   Eine Szene (drei Schultische mit Teig, Waffeleisen, Waffelstapeln und Kasse; dahinter eine Person,
   die backt, und eine, die kassiert; davor die Kundschaft), drei Ansichten:
-    Backen      (26.11.)  Anzahl der Waffeln -> Mehl, Milch, Kosten
+    Backen      (26.11.)  Anzahl der Waffeln (15 bis 60) -> Teig in Gramm
     Verkaufen   (27.11.)  eine Pause von 20 Minuten, 24 Personen, ein Waffeleisen
     Waffeleisen (03.12.)  Anzahl der Waffeleisen -> Backzeit fuer 24 Waffeln
   Links auf dem Tisch stehen die Teigschuesseln: eine je Rezept (15 Waffeln). Sie werden der
@@ -16,7 +16,7 @@
   Mit dem Zusatz #eisen in der Adresse erscheint die dritte Ansicht, und im Verkauf laesst
   sich die Anzahl der Waffeleisen einstellen (Kontrolle am 03.12.). Ohne den Zusatz hat der
   Verkauf ein Waffeleisen und keinen Steller.
-  Zahlen wie auf den Arbeitsblaettern: 15 Waffeln = 500 g Mehl, 500 ml Milch, 6 EUR Zutaten;
+  Zahlen wie auf den Arbeitsblaettern: 15 Waffeln = 900 g Teig, 6 EUR Zutaten;
   Preis 1 EUR; 3 Minuten je Waffel.
   Verkauf: Waffeln gibt es nur frisch. Zu Beginn der Pause liegt keine Waffel auf dem Tisch;
   jedes Waffeleisen liefert alle 3 Minuten eine (Minute 3 bis 18, also 6 je Pause).
@@ -142,7 +142,8 @@ const grenze = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const weich = f => f * f * (3 - 2 * f);
 
 /* ---------------------------------------------------------------- Zahlen der Lernsituation */
-const MEHL_15 = 500, MILCH_15 = 500, KOSTEN_15 = 6, PREIS = 1, MIN_JE_WAFFEL = 3;
+// Ein Rezept: 15 Waffeln aus 900 g Teig. Die Zutaten zeigt das Applet nicht: Sie werden gerechnet.
+const TEIG_15 = 900, KOSTEN_15 = 6, PREIS = 1, MIN_JE_WAFFEL = 3;
 const PAUSE = 20, KUNDEN = 24, JE_MIN = KUNDEN / PAUSE;      // 24 Personen in 20 Minuten
 const BEDARF = 24;                                           // so viele Waffeln brauchen wir je Pause
 const BACKZEITEN = [3, 6, 9, 12, 15, 18];                    // dann ist in der Pause eine Runde fertig
@@ -367,6 +368,11 @@ function verkauf(zeit) {
 /* ---------------------------------------------------------------- Zeichnen */
 function zeichnen(jetzt) {
   const zeit = (jetzt || 0) / 1000;
+  // Backen und Waffeleisen: näher heran. Die Zeichenfläche zeigt dann nur den Ausschnitt mit Tischen und Personen
+  // (208 x 117 Bildpunkte ab x = 73), die Seite vergrößert ihn auf die volle Breite.
+  const nah = ansicht === "backen" || ansicht === "eisen", breite = nah ? 208 : 320, hoehe = nah ? 117 : 180;
+  if (cv.width !== breite || cv.height !== hoehe) { cv.width = breite; cv.height = hoehe; }
+  ctx.setTransform(1, 0, 0, 1, nah ? -73 : 0, 0);
   ctx.imageSmoothingEnabled = false;
   bild("plate", 0, 0);
   if (ansicht === "backen") {
@@ -431,7 +437,7 @@ function anzeigen() {
     const k = waffeln / 15;
     $("frage").textContent = "Wie viele Waffeln backen wir?";
     $("wert").textContent = waffeln; $("wert-name").textContent = "Waffeln";
-    $("zahlen").innerHTML = kachel(MEHL_15 * k + " g", "Mehl") + kachel(MILCH_15 * k + " ml", "Milch") + kachel(euro(KOSTEN_15 * k), "Kosten");
+    $("zahlen").innerHTML = kachel(TEIG_15 * k + " g", "Teig");
   } else if (ansicht === "verkaufen") {
     const v = verkauf(t), noch = grenze(Math.ceil(PAUSE - t - 1e-9), 0, PAUSE);
     $("frage").textContent = "";
@@ -471,7 +477,7 @@ function waehlen(name) {
 }
 function stellen(d) {
   if (laeuft) return;
-  if (ansicht === "backen") waffeln = grenze(waffeln + 15 * d, 15, 75);
+  if (ansicht === "backen") waffeln = grenze(waffeln + 15 * d, 15, 60);
   else if (ansicht === "verkaufen") { if (frei) standEisen = naechste(standEisen, d); }
   else eisen = naechste(eisen, d);
   zurueck(); anzeigen();
@@ -517,7 +523,7 @@ laden().then(() => {
   if (a) waehlen(a); else zurueck();
   const stufe = STUFEN.includes(n) ? n : 1;
   if (n) {
-    if (ansicht === "backen") waffeln = grenze(n, 15, 75);
+    if (ansicht === "backen") waffeln = grenze(n, 15, 60);
     else if (ansicht === "verkaufen") standEisen = frei ? stufe : 1;
     else eisen = stufe;
   }
