@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Die Drohne im Sturm: Kräfte als Vektoren</title>
+<!--
+  Applet zum Arbeitsblatt "Die Drohne im Sturm" (Kraft als Vektor), 11NF PHT.
+  Eine Drohne (2 kg) in einer drehbaren 3D-Ansicht. Vier Kraftpfeile: Gewichtskraft,
+  Windkraft, Kraft der Motoren (einstellbar, drei Komponenten) und die resultierende
+  Kraft. "Flug starten" zeigt, was die resultierende Kraft bewirkt: Die Drohne hält
+  Kurs und Tempo oder wird beschleunigt.
+
+  Das Applet nennt keine Lösung: Die Komponenten der Gewichtskraft und der
+  Resultierenden sowie Beträge werden nicht als Zahlen angezeigt.
+
+  Zahlen: m = 2 kg, g = 10 m/s² (gerundet), F_G = (0; 0; -20) N.
+  Wind (4; 5; 0) N, Sturm (12; 9; 0) N. Motoren höchstens 24 N; verlangt man mehr,
+  liefern sie 24 N in der verlangten Richtung.
+  Achsen: x Osten, y Norden, z oben.
+
+  Eine Datei, kein Internet nötig. Der erste Skriptblock (id "kern") ist DOM-frei
+  und wird von einem Node-Test geladen.
+  URL-Parameter für Screenshots: ?w=sturm|wind|kein&m=x,y,z&t=<s>&phi=<grad>
+-->
+<style>
+  :root {
+    --rot: #B01A15; --stahl: #35638A; --oliv: #71803C; --corten: #C87A3A;
+    --grau: #B5B5B5; --text: #222; --hell: #f5f5f2; --achse: #26261E;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+         color: var(--text); background: #fff; line-height: 1.45; }
+  header { border-bottom: 1px solid var(--grau); padding: 10px 18px; display: flex;
+           flex-wrap: wrap; gap: 6px 24px; font-size: 13px; }
+  header .k { color: #777; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; display: block; }
+  main { max-width: 1160px; margin: 0 auto; padding: 14px 18px 30px; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h1::after { content: ""; display: block; width: 44px; border-bottom: 2px solid var(--text); margin-top: 6px; }
+  p.lead { margin: 12px 0 14px; font-size: 16px; }
+  .f { font-family: "Cambria", "Georgia", "Times New Roman", serif; font-style: italic; font-size: 1.08em; white-space: nowrap; }
+  .f sub { font-style: normal; font-size: 0.7em; }
+
+  .zwei { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; align-items: start; }
+  .zwei > * { min-width: 0; }
+  canvas { display: block; width: 100%; height: 480px; border: 1px solid var(--grau); background: #fbfcfd; touch-action: none; cursor: grab; }
+  .legende { font-size: 13px; color: #555; margin-top: 6px; }
+  .status { margin-top: 8px; font-size: 16px; font-weight: 600; min-height: 3em; }
+  .status.ok { color: var(--oliv); } .status.nein { color: var(--rot); }
+
+  button { font: inherit; font-size: 15px; padding: 8px 14px; border: 1px solid var(--stahl);
+           background: #fff; color: var(--stahl); cursor: pointer; border-radius: 0; min-height: 44px; }
+  button:hover { background: var(--stahl); color: #fff; }
+  button.akt { background: var(--stahl); color: #fff; }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+  .box { border: 1px solid var(--grau); padding: 10px 14px; background: #fff; margin-bottom: 12px; }
+  .box .lbl { font-size: 10px; letter-spacing: .12em; color: #777; text-transform: uppercase; }
+  .kraft { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 16px; flex-wrap: wrap; }
+  .kraft .farbe { width: 26px; height: 6px; flex: none; }
+  .kraft .wert { font-variant-numeric: tabular-nums; }
+  .komp { display: grid; grid-template-columns: auto 44px minmax(0, 5.5em) 44px auto; gap: 6px; align-items: center; margin: 6px 0; font-size: 16px; }
+  .komp input { font: inherit; font-size: 17px; padding: 6px; min-height: 44px; text-align: center; border: 1px solid var(--grau);
+                width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
+  .komp button { padding: 0; font-size: 22px; line-height: 1; }
+  .balken { height: 14px; border: 1px solid var(--grau); background: #f3f3f0; position: relative; margin-top: 6px; }
+  .balken i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--rot); width: 0; }
+  .balken b { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--achse); left: 80%; }
+  .klein { font-size: 13px; color: #555; }
+  ol.auf { margin: 6px 0 0; padding-left: 0; list-style: none; font-size: 15px; }
+  ol.auf li { margin: 6px 0; }
+  ol.auf b { color: var(--stahl); }
+  .r { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; margin-top: 8px; font-size: 14px; }
+  .r input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; margin: 0; height: 44px; background: transparent; cursor: pointer; }
+  .r input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 30px; margin-top: -11px;
+        border-radius: 50%; background: var(--stahl); border: 3px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.35); }
+  .r input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: #d3d8df; }
+  .r input[type=range]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: var(--stahl); border: 3px solid #fff; }
+  footer { font-size: 11px; color: #777; padding: 0 18px 12px; }
+
+  @media (max-width: 860px) { .zwei { grid-template-columns: 1fr; } canvas { height: 400px; } }
+  @media (max-width: 480px) { main { padding: 10px 10px 24px; } header { padding: 8px 10px; gap: 4px 16px; } canvas { height: 330px; } }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="k">Fach</span>Physiktechnik</div>
+  <div><span class="k">Kurs</span>11NF PHT</div>
+  <div><span class="k">Reihe</span>Kräfte</div>
+  <div><span class="k">Thema</span>Kraft als Vektor</div>
+</header>
+<main>
+  <h1>Die Drohne im Sturm</h1>
+  <p class="lead">Die Drohne (2 kg) soll geradeaus nach Norden fliegen, mit gleichem Tempo. Stelle die Kraft der Motoren ein
+    und starte den Flug. Ziehe im Bild, um die Ansicht zu drehen.</p>
+
+  <div class="zwei">
+    <div>
+      <canvas id="szene" aria-label="Drohne mit Kraftpfeilen in einer drehbaren 3D-Ansicht"></canvas>
+      <div class="r"><span>Ansicht drehen</span><input type="range" id="phi" min="-180" max="180" step="1" value="-28" aria-label="Ansicht drehen"></div>
+      <div class="legende">Die x-Achse zeigt nach Osten, die y-Achse nach Norden, die z-Achse nach oben.
+        Die gestrichelte Linie am Boden ist der Kurs. 1 Kästchen am Boden ist 10 m breit.</div>
+      <div class="btns">
+        <button id="start" class="akt">Flug starten</button>
+        <button id="zurueck">Zurück zum Start</button>
+      </div>
+      <div class="status" id="status" aria-live="polite"></div>
+    </div>
+
+    <div>
+      <div class="box">
+        <div class="lbl">Wetter</div>
+        <div class="btns" id="wetter">
+          <button data-w="kein">kein Wind</button>
+          <button data-w="wind">Wind</button>
+          <button data-w="sturm">Sturm</button>
+        </div>
+      </div>
+
+      <div class="box">
+        <div class="lbl">Kräfte auf die Drohne</div>
+        <div class="kraft"><span class="farbe" style="background:var(--corten)"></span>
+          <span>Gewichtskraft <span class="f">F<sub>G</sub></span></span></div>
+        <div class="kraft"><span class="farbe" style="background:var(--stahl)"></span>
+          <span>Windkraft <span class="f">F<sub>W</sub></span> = <span class="wert" id="wind_wert"></span></span></div>
+        <div class="kraft"><span class="farbe" style="background:var(--rot)"></span>
+          <span>Kraft der Motoren <span class="f">F<sub>M</sub></span> (einstellen)</span></div>
+        <div class="komp"><span class="f">F<sub>M,x</sub></span><button data-k="0" data-d="-1" aria-label="x kleiner">−</button>
+          <input type="text" inputmode="text" id="m0" autocomplete="off" aria-label="Motorkraft x"><button data-k="0" data-d="1" aria-label="x größer">+</button><span>N</span></div>
+        <div class="komp"><span class="f">F<sub>M,y</sub></span><button data-k="1" data-d="-1" aria-label="y kleiner">−</button>
+          <input type="text" inputmode="text" id="m1" autocomplete="off" aria-label="Motorkraft y"><button data-k="1" data-d="1" aria-label="y größer">+</button><span>N</span></div>
+        <div class="komp"><span class="f">F<sub>M,z</sub></span><button data-k="2" data-d="-1" aria-label="z kleiner">−</button>
+          <input type="text" inputmode="text" id="m2" autocomplete="off" aria-label="Motorkraft z"><button data-k="2" data-d="1" aria-label="z größer">+</button><span>N</span></div>
+        <div class="klein">Auslastung der Motoren (der Strich ist die Grenze: 24 N)</div>
+        <div class="balken"><i id="last"></i><b></b></div>
+        <div class="kraft" style="margin-top:12px"><span class="farbe" style="background:var(--oliv); height:8px"></span>
+          <span>resultierende Kraft <span class="f">F<sub>res</sub></span> (Summe aller Kräfte)</span></div>
+      </div>
+
+      <div class="box">
+        <div class="lbl">Aufgaben vom Arbeitsblatt</div>
+        <ol class="auf">
+          <li><b>Zu 2 c)</b> Wähle „Sturm“. Lass die Motoren bei (0 ; 0 ; 20) N. Starte den Flug und beschreibe, was geschieht.</li>
+          <li><b>Zu 3 a)</b> Gib deine berechnete Kraft der Motoren ein. Prüfe, ob der grüne Pfeil verschwindet. Starte den Flug.</li>
+          <li><b>Zu 4)</b> Wähle „Wind“. Gib deine berechnete Kraft ein und starte den Flug.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>Physiktechnik 11NF PHT · drohne-applet.html</footer>
+
+<script id="kern">
+// ---------------------------------------------------------------------------
+//  Kern: Kräfte und Flugbahn. Kein Zugriff auf das Dokument.
+// ---------------------------------------------------------------------------
+var Kern = (function () {
+  'use strict';
+  var M = 2, G = 10, F_MAX = 24;
+  var FG = [0, 0, -M * G];
+  var WETTER = { kein: [0, 0, 0], wind: [4, 5, 0], sturm: [12, 9, 0] };
+  var START = [0, -30, 20], V0 = [0, 6, 0], T_END = 10, RAND = 42, HOCH = 48;
+
+  function betrag(v) { return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]); }
+  function plus(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+  function mal(v, k) { return [v[0] * k, v[1] * k, v[2] * k]; }
+
+  function zahl(txt) {
+    var z = String(txt == null ? '' : txt).trim().replace(/\s/g, '').replace(/[−–]/g, '-').replace(',', '.');
+    if (z === '' || !/^[-+]?\d*\.?\d+$/.test(z)) return NaN;
+    return parseFloat(z);
+  }
+
+  // Kräfte für ein Wetter und eine verlangte Motorkraft
+  function kraefte(wetter, soll) {
+    var b = betrag(soll), ueber = b > F_MAX + 1e-9;
+    var ist = ueber ? mal(soll, F_MAX / b) : soll.slice();
+    var res = plus(plus(FG, WETTER[wetter]), ist);
+    res = res.map(function (x) { return Math.abs(x) < 1e-9 ? 0 : x; });
+    return { fg: FG, fw: WETTER[wetter], soll: soll, ist: ist, ueberlastet: ueber, last: b / F_MAX,
+             res: res, null: betrag(res) < 1e-6, a: mal(res, 1 / M) };
+  }
+  // Ort zur Zeit t bei konstanter Beschleunigung a
+  function ort(a, t) {
+    return [START[0] + V0[0] * t + 0.5 * a[0] * t * t,
+            START[1] + V0[1] * t + 0.5 * a[1] * t * t,
+            START[2] + V0[2] * t + 0.5 * a[2] * t * t];
+  }
+  // Ende des Flugs: 'ziel', 'boden', 'weg' oder null (fliegt noch)
+  function ende(a, t) {
+    var p = ort(a, t);
+    if (p[2] <= 0) return 'boden';
+    if (Math.abs(p[0]) > RAND || Math.abs(p[1]) > RAND || p[2] > HOCH) return 'weg';
+    if (t >= T_END) return 'ziel';
+    return null;
+  }
+  return { M: M, G: G, F_MAX: F_MAX, FG: FG, WETTER: WETTER, START: START, V0: V0, T_END: T_END, RAND: RAND,
+           betrag: betrag, zahl: zahl, kraefte: kraefte, ort: ort, ende: ende };
+})();
+if (typeof module !== 'undefined') module.exports = Kern;
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var K = Kern;
+  var $ = function (id) { return document.getElementById(id); };
+  var FARBE = { rot: '#B01A15', stahl: '#35638A', oliv: '#71803C', corten: '#C87A3A', achse: '#26261E' };
+  var Z = { wetter: 'sturm', motor: [0, 0, 20], phi: -28, t: 0, laeuft: false, spur: [], schluss: null };
+  var THETA = 27 * Math.PI / 180, N_M = 0.85;  // 1 N wird als 0,85 m gezeichnet
+  var P = null;                                 // Projektion der letzten Zeichnung
+
+  function fmt(x) { return String(Math.round(x * 100) / 100).replace('-', '−').replace('.', ','); }
+
+  function projektion(c) {
+    var dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    var g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var ph = Z.phi * Math.PI / 180, cs = Math.cos(ph), sn = Math.sin(ph);
+    var s = Math.min(w / 92, h / 62), cx = w / 2, cy = h * 0.7;
+    return { g: g, w: w, h: h, s: s,
+      xy: function (p) {
+        var x = p[0] * cs - p[1] * sn, y = p[0] * sn + p[1] * cs;
+        return [cx + s * x, cy - s * (p[2] * Math.cos(THETA) + y * Math.sin(THETA))];
+      } };
+  }
+
+  function linie(g, a, b) { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+
+  function pfeil2d(g, a, b, farbe, breite, strich) {
+    var len = Math.hypot(b[0] - a[0], b[1] - a[1]); if (len < 2) return;
+    var w = Math.atan2(b[1] - a[1], b[0] - a[0]), k = Math.min(Math.max(9, breite * 3.6), len);
+    g.strokeStyle = farbe; g.fillStyle = farbe; g.lineWidth = breite; g.lineCap = 'butt';
+    if (strich) g.setLineDash([6, 5]);
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0] - Math.cos(w) * k * 0.8, b[1] - Math.sin(w) * k * 0.8); g.stroke();
+    g.setLineDash([]);
+    g.beginPath(); g.moveTo(b[0], b[1]);
+    g.lineTo(b[0] - k * Math.cos(w - 0.36), b[1] - k * Math.sin(w - 0.36));
+    g.lineTo(b[0] - k * Math.cos(w + 0.36), b[1] - k * Math.sin(w + 0.36));
+    g.closePath(); g.fill();
+  }
+
+  function name(g, x, y, sub, farbe) {
+    g.font = 'italic bold 17px Cambria, Georgia, serif';
+    var tw = g.measureText('F').width;
+    g.font = 'bold 12px Cambria, Georgia, serif';
+    var sw = g.measureText(sub).width;
+    g.fillStyle = 'rgba(251,252,253,0.85)'; g.fillRect(x - 3, y - 18, tw + sw + 7, 30);
+    g.fillStyle = farbe; g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.font = 'italic bold 17px Cambria, Georgia, serif'; g.fillText('F', x, y);
+    g.font = 'bold 12px Cambria, Georgia, serif'; g.fillText(sub, x + tw, y + 5);
+    pfeil2d(g, [x - 1, y - 12], [x + tw + 3, y - 12], farbe, 1.2, false);
+  }
+
+  // Kraftpfeil an der Drohne; mit "kasten" zusätzlich die Zerlegung waagerecht/senkrecht
+  function kraft(P, p0, F, farbe, sub, breite, kasten, strich) {
+    var b = K.betrag(F); if (b < 0.05) return;
+    var p1 = [p0[0] + F[0] * N_M, p0[1] + F[1] * N_M, p0[2] + F[2] * N_M];
+    var A = P.xy(p0), B = P.xy(p1), g = P.g;
+    if (kasten && Math.abs(F[2]) > 0.05 && Math.hypot(F[0], F[1]) > 0.05) {
+      var q = P.xy([p1[0], p1[1], p0[2]]);
+      g.strokeStyle = farbe; g.globalAlpha = 0.55; g.lineWidth = 1; g.setLineDash([4, 4]);
+      linie(g, A, q); linie(g, q, B); g.setLineDash([]); g.globalAlpha = 1;
+    }
+    pfeil2d(g, A, B, farbe, breite, strich);
+    if (sub) {
+      var len = Math.hypot(B[0] - A[0], B[1] - A[1]) || 1;
+      name(g, B[0] + (B[0] - A[0]) / len * 10 - 6, B[1] + (B[1] - A[1]) / len * 14, sub, farbe);
+    }
+  }
+
+  function zeichne() {
+    P = projektion($('szene'));
+    var g = P.g, R = K.RAND - 2, i;
+    g.clearRect(0, 0, P.w, P.h);
+    // Boden
+    g.fillStyle = '#eef1ea'; g.beginPath();
+    [[-R, -R, 0], [R, -R, 0], [R, R, 0], [-R, R, 0]].forEach(function (p, n) { var q = P.xy(p); if (n) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); });
+    g.closePath(); g.fill();
+    g.strokeStyle = '#cfd4c8'; g.lineWidth = 1;
+    for (i = -R; i <= R; i += 10) { linie(g, P.xy([i, -R, 0]), P.xy([i, R, 0])); linie(g, P.xy([-R, i, 0]), P.xy([R, i, 0])); }
+    // Kurs
+    g.strokeStyle = FARBE.achse; g.lineWidth = 1.6; g.setLineDash([8, 6]);
+    linie(g, P.xy([0, -R, 0]), P.xy([0, R, 0])); g.setLineDash([]);
+    var kz = P.xy([0, R, 0]);
+    g.fillStyle = FARBE.achse; g.font = '13px Segoe UI, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
+    g.fillText('Kurs', kz[0], kz[1] - 4);
+    // Achsen in der Ecke
+    var e = [-R, -R, 0];
+    [[[14, 0, 0], 'x (Osten)'], [[0, 14, 0], 'y (Norden)'], [[0, 0, 12], 'z (oben)']].forEach(function (a) {
+      var b = P.xy([e[0] + a[0][0], e[1] + a[0][1], e[2] + a[0][2]]);
+      pfeil2d(g, P.xy(e), b, FARBE.stahl, 1.8, false);
+      g.fillStyle = FARBE.stahl; g.font = '13px Segoe UI, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
+      var hw = g.measureText(a[1]).width / 2 + 4;
+      g.fillText(a[1], Math.max(hw, Math.min(P.w - hw, b[0])), b[1] - 5);
+    });
+
+    var kr = K.kraefte(Z.wetter, Z.motor), pos = K.ort(kr.a, Z.t);
+    if (Z.schluss === 'boden') pos[2] = 0;
+    // Spur am Boden und in der Luft
+    if (Z.spur.length > 1) {
+      g.strokeStyle = 'rgba(176,26,21,0.35)'; g.lineWidth = 2; g.beginPath();
+      Z.spur.forEach(function (p, n) { var q = P.xy([p[0], p[1], 0]); if (n) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); });
+      g.stroke();
+    }
+    // Schatten und Lot
+    var sch = P.xy([pos[0], pos[1], 0]), D = P.xy(pos);
+    g.fillStyle = 'rgba(0,0,0,0.18)'; g.beginPath(); g.ellipse(sch[0], sch[1], P.s * 2.6, P.s * 2.6 * Math.sin(THETA), 0, 0, 2 * Math.PI); g.fill();
+    g.strokeStyle = '#999'; g.lineWidth = 1; g.setLineDash([3, 4]); linie(g, sch, D); g.setLineDash([]);
+
+    // Kräfte
+    kraft(P, pos, kr.fg, FARBE.corten, 'G', 3.2, false);
+    kraft(P, pos, kr.fw, FARBE.stahl, 'W', 3.2, false);
+    if (kr.ueberlastet) kraft(P, pos, kr.soll, FARBE.rot, '', 1.6, false, true);
+    kraft(P, pos, kr.ist, FARBE.rot, 'M', 3.2, true);
+    kraft(P, pos, kr.res, FARBE.oliv, 'res', 5, true);
+
+    // Drohne
+    var ph = Z.phi * Math.PI / 180, rr = P.s * 1.5;
+    [[2.4, 2.4], [-2.4, 2.4], [2.4, -2.4], [-2.4, -2.4]].forEach(function (a) {
+      var q = P.xy([pos[0] + a[0], pos[1] + a[1], pos[2]]);
+      g.strokeStyle = FARBE.achse; g.lineWidth = 2.5; linie(g, D, q);
+      g.fillStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = 1.4;
+      g.beginPath(); g.ellipse(q[0], q[1] - 2, rr, rr * Math.sin(THETA), 0, 0, 2 * Math.PI); g.fill(); g.stroke();
+    });
+    g.fillStyle = FARBE.achse; g.beginPath(); g.arc(D[0], D[1], 5.5, 0, 2 * Math.PI); g.fill();
+
+    // Anzeigen
+    $('last').style.width = Math.min(100, kr.last * 80) + '%';
+    $('last').style.background = kr.ueberlastet ? FARBE.rot : FARBE.stahl;
+    status(kr);
+  }
+
+  function status(kr) {
+    var s = $('status'), t;
+    if (Z.schluss === 'ziel' && kr.null) { s.className = 'status ok'; t = 'Die Drohne hat Kurs und Tempo gehalten.'; }
+    else if (Z.schluss === 'ziel') { s.className = 'status nein'; t = 'Die Drohne ist vom Kurs abgekommen.'; }
+    else if (Z.schluss === 'boden') { s.className = 'status nein'; t = 'Die Drohne ist auf dem Boden aufgeschlagen.'; }
+    else if (Z.schluss === 'weg') { s.className = 'status nein'; t = 'Die Drohne wurde abgetrieben.'; }
+    else if (kr.null) { s.className = 'status ok'; t = 'Die resultierende Kraft ist null.'; }
+    else { s.className = 'status nein'; t = 'Die resultierende Kraft ist nicht null.'; }
+    if (kr.ueberlastet) t += ' Die Motoren sind überlastet: Sie liefern nur 24 N (durchgezogener roter Pfeil).';
+    s.textContent = t;
+  }
+
+  // ---- Flug ----
+  var letzte = 0;
+  function schritt(jetzt) {
+    if (!Z.laeuft) return;
+    var dt = Math.min(0.05, (jetzt - letzte) / 1000); letzte = jetzt;
+    var kr = K.kraefte(Z.wetter, Z.motor);
+    Z.t += dt * 1.4;
+    Z.spur.push(K.ort(kr.a, Z.t));
+    var e = K.ende(kr.a, Z.t);
+    if (e) { Z.laeuft = false; Z.schluss = e; }
+    zeichne();
+    if (Z.laeuft) requestAnimationFrame(schritt);
+  }
+  function zurueck() { Z.laeuft = false; Z.t = 0; Z.spur = []; Z.schluss = null; zeichne(); }
+  $('start').addEventListener('click', function () {
+    zurueck(); Z.laeuft = true; letzte = performance.now(); requestAnimationFrame(schritt);
+  });
+  $('zurueck').addEventListener('click', zurueck);
+
+  // ---- Eingaben ----
+  function setWetter(w) {
+    Z.wetter = w;
+    Array.prototype.forEach.call(document.querySelectorAll('#wetter button'), function (b) { b.classList.toggle('akt', b.dataset.w === w); });
+    var f = K.WETTER[w];
+    $('wind_wert').textContent = '(' + fmt(f[0]) + ' ; ' + fmt(f[1]) + ' ; ' + fmt(f[2]) + ') N';
+    zurueck();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#wetter button'), function (b) {
+    b.addEventListener('click', function () { setWetter(b.dataset.w); });
+  });
+  function setMotor(m) {
+    Z.motor = m.map(function (x) { return Math.max(-40, Math.min(40, x)); });
+    for (var i = 0; i < 3; i++) $('m' + i).value = fmt(Z.motor[i]);
+    zurueck();
+  }
+  [0, 1, 2].forEach(function (i) {
+    $('m' + i).addEventListener('change', function () {
+      var v = K.zahl(this.value), m = Z.motor.slice();
+      if (!isNaN(v)) m[i] = v;
+      setMotor(m);
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.komp button'), function (b) {
+    b.addEventListener('click', function () {
+      var m = Z.motor.slice(); m[+b.dataset.k] += +b.dataset.d; setMotor(m);
+    });
+  });
+  $('phi').addEventListener('input', function () { Z.phi = parseFloat(this.value); zeichne(); });
+
+  // Ansicht durch Ziehen drehen
+  var zieh = null;
+  $('szene').addEventListener('pointerdown', function (ev) { zieh = { x: ev.clientX, phi: Z.phi }; this.setPointerCapture(ev.pointerId); });
+  $('szene').addEventListener('pointermove', function (ev) {
+    if (!zieh) return;
+    var p = zieh.phi + (ev.clientX - zieh.x) * 0.5;
+    while (p > 180) p -= 360; while (p < -180) p += 360;
+    Z.phi = p; $('phi').value = Math.round(p); if (!Z.laeuft) zeichne();
+  });
+  ['pointerup', 'pointercancel'].forEach(function (t) { $('szene').addEventListener(t, function () { zieh = null; }); });
+
+  var timer;
+  window.addEventListener('resize', function () { clearTimeout(timer); timer = setTimeout(zeichne, 80); });
+
+  // Start, optional über URL-Parameter
+  var q = {};
+  location.search.replace(/^\?/, '').split('&').forEach(function (kv) { var p = kv.split('='); if (p[0]) q[p[0]] = decodeURIComponent(p[1] || ''); });
+  if (q.phi) { Z.phi = parseFloat(q.phi); $('phi').value = Z.phi; }
+  setWetter(K.WETTER[q.w] ? q.w : 'sturm');
+  setMotor(q.m ? q.m.split(',').map(parseFloat) : [0, 0, 20]);
+  if (q.t) {
+    var kr0 = K.kraefte(Z.wetter, Z.motor), tt = parseFloat(q.t);
+    for (var s = 0; s <= tt; s += 0.1) { Z.spur.push(K.ort(kr0.a, s)); if (K.ende(kr0.a, s)) { Z.schluss = K.ende(kr0.a, s); tt = s; break; } }
+    Z.t = tt; zeichne();
+  }
+  window.__drohne = { setWetter: setWetter, setMotor: setMotor };
+})();
+</script>
+</body>
+</html>
