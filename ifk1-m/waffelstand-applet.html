@@ -49,6 +49,7 @@
            background: #fff; color: var(--corten); cursor: pointer; border-radius: 0; font-weight: 600; }
   button:disabled { border-color: var(--grau); color: var(--grau); cursor: default; }
   nav button { flex: 1; }
+  nav button:disabled { border-color: var(--grau); color: #9a9a9a; background: #eee; cursor: default; }
   nav button[aria-pressed=true], button.haupt { background: var(--corten); color: #fff; }
   button.haupt:disabled { background: var(--grau); }
   .frage[hidden] + .regler { margin-top: 8px; }
@@ -265,6 +266,8 @@ function kreuz(x, z) {
 /* ---------------------------------------------------------------- Zustand */
 const ANSICHTEN = ["backen", "verkaufen", "eisen"];
 const frei = /eisen/i.test(location.search + location.hash);
+// Verkaufen ist für die Klasse vorerst gesperrt (Knopf grau). Offen mit #verkaufen oder #eisen am Ende der Adresse.
+const verkaufFrei = frei || /verkaufen/i.test(location.hash);
 let ansicht = "backen";
 let waffeln = 15;          // Backen
 let standEisen = 1;        // Verkaufen: Waffeleisen am Stand (einstellbar nur mit #eisen)
@@ -473,6 +476,7 @@ function anzeigen() {
 function zurueck() { planen(); laeuft = false; t = 0; fertig = false; $("geld").hidden = true; backBeginn = performance.now(); backFest = null; }
 function waehlen(name) {
   if (name === "eisen" && !frei) name = "backen";
+  if (name === "verkaufen" && !verkaufFrei) name = "backen";
   ansicht = name; zurueck(); anzeigen();
 }
 function stellen(d) {
@@ -511,6 +515,7 @@ function kontrolle() {
 }
 
 $("tab-eisen").hidden = !frei;
+$("tab-verkaufen").disabled = !verkaufFrei;
 ANSICHTEN.forEach(a => $("tab-" + a).addEventListener("click", () => waehlen(a)));
 $("minus").addEventListener("click", () => stellen(-1));
 $("plus").addEventListener("click", () => stellen(1));
