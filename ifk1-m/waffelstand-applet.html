@@ -273,7 +273,7 @@ function kreuz(x, z) {
 const ANSICHTEN = ["backen", "verkaufen", "eisen"];
 const frei = /eisen/i.test(location.search + location.hash);
 // Verkaufen ist für die Klasse vorerst gesperrt (Knopf grau). Offen mit #verkaufen oder #eisen am Ende der Adresse.
-const verkaufFrei = frei || /verkaufen/i.test(location.hash);
+const verkaufFrei = true;   // Verkaufen ist seit dem 27.11. wieder für alle offen (sperren: frei || /verkaufen/i.test(location.hash))
 let ansicht = "backen";
 let waffeln = 15;          // Backen
 let standEisen = 1;        // Verkaufen: Waffeleisen am Stand (einstellbar nur mit #eisen)
